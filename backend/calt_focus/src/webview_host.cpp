@@ -7,6 +7,7 @@
 #include <shlwapi.h>
 
 #include <atomic>
+#include <cstdio>
 #include <functional>
 #include <string>
 

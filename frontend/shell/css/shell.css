@@ -117,3 +117,146 @@ body {
   color: #fca5a5;
   font-size: 0.85rem;
 }
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.block-list {
+  list-style: disc;
+}
+.block-list li {
+  margin: 0.35rem 0;
+  font-size: 0.9rem;
+}
+a.btn {
+  display: inline-block;
+  text-decoration: none;
+}
+code {
+  font-size: 0.8em;
+  color: var(--emerald);
+}
+
+/* Single-tab Settings — continuous rows */
+.settings-sheet {
+  max-width: 52rem;
+  padding-bottom: 4rem;
+}
+.settings-head h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+}
+.settings-head {
+  margin-bottom: 0.75rem;
+}
+.set-ok {
+  color: var(--emerald);
+  font-size: 0.85rem;
+}
+.set-group {
+  margin: 1.25rem 0 0.35rem;
+  padding: 0.35rem 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.set-row {
+  display: grid;
+  grid-template-columns: minmax(10rem, 14rem) 1fr;
+  gap: 0.75rem 1rem;
+  align-items: start;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.set-title {
+  font-size: 0.9rem;
+}
+.set-hint {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+.set-control {
+  min-width: 0;
+}
+.set-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.set-control input[type="text"],
+.set-control input[type="number"],
+.set-control input[type="password"],
+.set-control select,
+.set-control textarea {
+  width: 100%;
+  max-width: 28rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--fg);
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.set-control textarea {
+  resize: vertical;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.78rem;
+}
+.set-inline input[type="text"],
+.set-inline input[type="number"],
+.set-inline input[type="password"] {
+  width: auto;
+  max-width: 8rem;
+}
+.set-toggle {
+  position: relative;
+  display: inline-block;
+  width: 2.6rem;
+  height: 1.4rem;
+  cursor: pointer;
+}
+.set-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.set-toggle span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--border);
+  transition: 0.15s;
+}
+.set-toggle span::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--muted);
+  transition: 0.15s;
+}
+.set-toggle input:checked + span {
+  background: rgba(16, 185, 129, 0.35);
+  border-color: rgba(52, 211, 153, 0.45);
+}
+.set-toggle input:checked + span::after {
+  left: calc(100% - 1.1rem);
+  background: var(--emerald);
+}
+@media (max-width: 640px) {
+  .set-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,4 +1,5 @@
-﻿**/build/
+﻿# C++ / cmake outs (keep scripts/build/)
+backend/**/build/
 **/CMakeFiles/
 **/node_modules/
 dist-focus/
@@ -24,6 +25,14 @@ installer_payload/
 # Runtime / WebView profile (not source)
 data/productivity/behavior/calt_focus_webview/
 data/productivity/behavior/*.lock
+data/productivity/behavior/*.log
+data/productivity/behavior/day_rollup.json
+data/productivity/behavior/enforcer_status.json
+data/productivity/behavior/enforcer_policy.json
+data/productivity/behavior/softland_policy.json
+.cursor/
+debug-*.log
+**/debug-*.log
 
 # Build leftovers / locks
 **/build_quitout/

@@ -1,5 +1,6 @@
 #include "plan_gate.h"
 
+#include "day_loop.h"
 #include "productivity_store.h"
 #include "softland_publish.h"
 
@@ -293,6 +294,10 @@ bool ApplyActivePlanToSoftland(const std::wstring& behaviorDir, int userId) {
 
   ProductivitySoftland s;
   if (!ProductivityLoadSoftland(s)) return false;
+
+  // Follow phase only after bible → confirm plan. Unconfirmed blocks must not
+  // mutate SoftLand free windows.
+  if (!DayLoopPlanConfirmedToday(s.document_json)) return false;
 
   const std::string now = IsoLocalNow();
   ActiveBlock block;

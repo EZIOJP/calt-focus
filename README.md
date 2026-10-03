@@ -24,7 +24,12 @@ powershell -File scripts\install\install_native_enforcer.ps1
 :: Admin once
 ```
 
-Open `calt_focus.exe` (build under `backend\calt_focus\build\`). UI: ship `frontend\shell` → `dist-focus\` (see hybrid design).
+```bat
+npm run build:focus
+scripts\run\run_calt_desktop.bat
+```
+
+Edit UI under `frontend\shell\` → `npm run build:focus` → tray **Reload UI**.
 
 ## Naming
 

@@ -1,0 +1,7 @@
+{
+  "name": "calt-focus",
+  "private": true,
+  "scripts": {
+    "build:focus": "scripts\\build\\build_focus_shell.bat"
+  }
+}

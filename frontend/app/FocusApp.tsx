@@ -7,6 +7,8 @@ import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
 import { DashboardChromeProvider } from "@/context/DashboardChromeContext";
 import { AppSidebar, SIDEBAR_RAIL_PX } from "@/layout/AppSidebar";
 import { MorningGateRedirect } from "@/components/MorningGateRedirect";
+import MorningBibleOverlay from "@/components/productivity/MorningBibleOverlay";
+import MorningPlanOverlay from "@/components/productivity/MorningPlanOverlay";
 import { installFocusStatusPushListener } from "@/lib/focusStatusBus";
 import { isFocusDesktopShell } from "@/utils/focusDesktopShell";
 import { ProductivityPage } from "@/pages/ProductivityPage";
@@ -20,6 +22,8 @@ function FocusShell() {
     <DashboardChromeProvider>
       <div className="relative flex h-screen w-screen overflow-hidden bg-background">
         <MorningGateRedirect />
+        <MorningBibleOverlay />
+        <MorningPlanOverlay />
         <AppSidebar />
         <div
           className="flex min-w-0 flex-1 flex-col"

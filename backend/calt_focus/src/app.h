@@ -43,6 +43,8 @@ class FocusApp {
   bool RunUpdateStackScript();
   bool PendingUpdateNeedsRestart() const;
   std::wstring SettingsUrlBusted() const;
+  /** Full document URL with ?_ui= bust before # (forces module reload). */
+  std::wstring DocumentUrlBusted(const std::wstring& urlWithHash) const;
   void Quit();
   void RefreshTrayTip();
   /** Phase C: push mirror snapshot into WebView (no pipe). */
@@ -57,6 +59,8 @@ class FocusApp {
   std::wstring pending_url_;
   bool webview_failed_ = false;
   UINT_PTR tip_timer_ = 0;
+  UINT_PTR push_timer_ = 0;
+  std::string last_status_push_fp_;
   std::wstring last_kill_toast_;
   bool kill_toast_primed_ = false;
 };

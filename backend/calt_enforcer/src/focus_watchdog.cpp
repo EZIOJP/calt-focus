@@ -114,10 +114,11 @@ std::wstring ResolveFocusExePath() {
   wchar_t* repo = _wgetenv(L"CALT_REPO");
   if (repo && *repo) {
     const std::wstring cands[] = {
+        Join(repo, L"backend\\calt_focus\\build\\Release\\calt_focus.exe"),
+        Join(repo, L"backend\\calt_focus\\build\\calt_focus.exe"),
+        // Legacy Study-nested layout
         Join(repo, L"calt-focus\\backend\\calt_focus\\build\\Release\\calt_focus.exe"),
         Join(repo, L"calt-focus\\backend\\calt_focus\\build\\calt_focus.exe"),
-        Join(repo, L"native\\calt_focus\\build\\Release\\calt_focus.exe"),
-        Join(repo, L"native\\calt_focus\\build\\calt_focus.exe"),
     };
     for (const auto& c : cands) {
       if (GetFileAttributesW(c.c_str()) != INVALID_FILE_ATTRIBUTES) return c;
@@ -127,10 +128,15 @@ std::wstring ResolveFocusExePath() {
   std::wstring dir = ExeDir();
   for (int i = 0; i < 8; ++i) {
     const std::wstring c1 =
+        Join(dir, L"backend\\calt_focus\\build\\Release\\calt_focus.exe");
+    const std::wstring c2 = Join(dir, L"backend\\calt_focus\\build\\calt_focus.exe");
+    const std::wstring c3 =
         Join(dir, L"calt-focus\\backend\\calt_focus\\build\\Release\\calt_focus.exe");
-    const std::wstring c2 = Join(dir, L"calt-focus\\backend\\calt_focus\\build\\calt_focus.exe");
+    const std::wstring c4 = Join(dir, L"calt-focus\\backend\\calt_focus\\build\\calt_focus.exe");
     if (GetFileAttributesW(c1.c_str()) != INVALID_FILE_ATTRIBUTES) return c1;
     if (GetFileAttributesW(c2.c_str()) != INVALID_FILE_ATTRIBUTES) return c2;
+    if (GetFileAttributesW(c3.c_str()) != INVALID_FILE_ATTRIBUTES) return c3;
+    if (GetFileAttributesW(c4.c_str()) != INVALID_FILE_ATTRIBUTES) return c4;
     dir = DirOf(dir);
   }
   return L"";

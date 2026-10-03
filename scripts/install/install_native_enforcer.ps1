@@ -1,4 +1,4 @@
-﻿# Install CALT native C++ enforcer as Windows Service (Admin).
+# Install CALT native C++ enforcer as Windows Service (Admin).
 # Build first: scripts\desktop_tracker\build\build_native_enforcer.bat
 #
 # Copies the exe (+ MinGW runtime DLLs if needed) to C:\ProgramData\CALT\enforcer\
@@ -11,12 +11,37 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$svc = "CALTEnforcer"
+$lockPath = Join-Path $Repo "data\productivity\behavior\enforcer_owner.lock"
+$installDir = Join-Path $env:ProgramData "CALT\enforcer"
+$Exe = Join-Path $installDir "calt_enforcer.exe"
+
+if ($Uninstall) {
+  $oldDb = [Environment]::GetEnvironmentVariable("CALT_DB", "Machine")
+  Stop-Service $svc -Force -ErrorAction SilentlyContinue
+  sc.exe delete $svc | Out-Null
+  if ($oldDb) {
+    $oldLock = Join-Path (Split-Path $oldDb -Parent) "behavior\enforcer_owner.lock"
+    if (Test-Path $oldLock) { Remove-Item -Force $oldLock -ErrorAction SilentlyContinue }
+  }
+  [Environment]::SetEnvironmentVariable("CALT_DB", $null, "Machine")
+  [Environment]::SetEnvironmentVariable("CALT_ENFORCER_LOCK", $null, "Machine")
+  if (Test-Path $lockPath) { Remove-Item -Force $lockPath -ErrorAction SilentlyContinue }
+  $legacyLock = Join-Path $Repo "data\behavior\enforcer_owner.lock"
+  if (Test-Path $legacyLock) { Remove-Item -Force $legacyLock -ErrorAction SilentlyContinue }
+  if (Test-Path $installDir) {
+    Remove-Item -Recurse -Force $installDir -ErrorAction SilentlyContinue
+  }
+  Write-Host "Removed service $svc, ProgramData enforcer dir, and cleared CALT_DB / lock env"
+  exit 0
+}
+
 $ExeCandidates = @(
   (Join-Path $Repo "backend\calt_enforcer\build\Release\calt_enforcer.exe"),
   (Join-Path $Repo "backend\calt_enforcer\build\calt_enforcer.exe")
 )
 $ExeSrc = $ExeCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $ExeSrc) { throw "Missing calt_enforcer.exe - run build\build_native_enforcer.bat first" }
+if (-not $ExeSrc) { throw "Missing calt_enforcer.exe - run scripts\build\build_native_enforcer.bat first" }
 
 if (-not $DbPath) {
   $DbPath = Join-Path $Repo "data\productivity\productivity.db"
@@ -24,11 +49,6 @@ if (-not $DbPath) {
 if (-not (Test-Path $DbPath)) {
   throw "Missing DB: $DbPath"
 }
-
-$svc = "CALTEnforcer"
-$lockPath = Join-Path $Repo "data\productivity\behavior\enforcer_owner.lock"
-$installDir = Join-Path $env:ProgramData "CALT\enforcer"
-$Exe = Join-Path $installDir "calt_enforcer.exe"
 
 function Find-MingwRuntimeDir {
   $gpp = Get-Command g++ -ErrorAction SilentlyContinue
@@ -60,18 +80,6 @@ function Copy-EnforcerRuntime([string]$DestDir, [string]$SrcExe) {
       }
     }
   }
-}
-
-if ($Uninstall) {
-  Stop-Service $svc -Force -ErrorAction SilentlyContinue
-  sc.exe delete $svc | Out-Null
-  [Environment]::SetEnvironmentVariable("CALT_DB", $null, "Machine")
-  [Environment]::SetEnvironmentVariable("CALT_ENFORCER_LOCK", $null, "Machine")
-  if (Test-Path $lockPath) { Remove-Item -Force $lockPath -ErrorAction SilentlyContinue }
-  $legacyLock = Join-Path $Repo "data\behavior\enforcer_owner.lock"
-  if (Test-Path $legacyLock) { Remove-Item -Force $legacyLock -ErrorAction SilentlyContinue }
-  Write-Host "Removed service $svc and cleared CALT_DB / lock env"
-  exit 0
 }
 
 Copy-EnforcerRuntime $installDir $ExeSrc

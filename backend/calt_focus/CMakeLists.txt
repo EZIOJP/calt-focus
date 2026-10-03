@@ -11,12 +11,12 @@ set(WEBVIEW2_DLL "${WEBVIEW2_DIR}/x64/WebView2Loader.dll")
 if(NOT EXISTS "${WEBVIEW2_INCLUDE}/WebView2.h")
   message(FATAL_ERROR
     "Missing WebView2.h — run:\\n"
-    "  powershell -File scripts/desktop_tracker/fetch_webview2.ps1")
+    "  powershell -File scripts/build/fetch_webview2.ps1")
 endif()
 if(NOT EXISTS "${WEBVIEW2_DLL}")
   message(FATAL_ERROR
     "Missing WebView2Loader.dll — run:\\n"
-    "  powershell -File scripts/desktop_tracker/fetch_webview2.ps1")
+    "  powershell -File scripts/build/fetch_webview2.ps1")
 endif()
 
 add_executable(calt_focus WIN32

@@ -346,7 +346,9 @@ today (`bible_required`); both clear study-temp kills (cursor) when granting fre
 
 Landing: `DayLoopLanding` — tasks, SoftLand/Site-block mode, planned vs tracked.
 
-**Dual-gate 1h free** (`day.evaluate_close`): checkboxes done (or zero tasks) **and** tracked ≥ 50% of today’s planned non-free block minutes → `free_until = now+60m` once per day. No SoftLand time-extend on incomplete tasks; carry/import are user prompts only.
+**Dual-gate 1h free** (`day.evaluate_close`): checkboxes done (or zero tasks) **and** tracked ≥ 50% of today’s planned non-free block minutes → `free_until = now+60m` once per day. No SoftLand time-extend on incomplete tasks. **No plan carry-forward** — `plan.import_from_date` / `plan.roll_forward` return `carry_disabled`; shutdown may drop or leave-on-today only.
+
+**Confirm plan** requires bible done today **and** ≥1 non-free planned minute today (`plan_required`). SoftLand stays **on** for the morning host gate; **Arm stays off** until Confirm (DayLoopTick disarms when `plan_confirmed_for_date ≠ today`). **Follow** (`ApplyActivePlanToSoftland`) runs only when `plan_confirmed_for_date == today`.
 
 **Bedtime:** `softland.set_bedtime` → tick sets `bedtime_active` → Focus `BedtimeOverlay`. **Emergency:** `softland.emergency_winddown` (confirm `EMERGENCY`) opens web minus distraction lists; Arm keeps game kills.
 

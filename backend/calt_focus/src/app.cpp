@@ -21,6 +21,7 @@ namespace {
 constexpr wchar_t kMainClass[] = L"CALTFocusMain";
 constexpr wchar_t kMsgClass[] = L"CALTFocusMsg";
 constexpr UINT kTipTimerId = 77;
+constexpr UINT kPushTimerId = 78;
 constexpr UINT WM_FOCUS_SHELL = WM_APP + 55;
 constexpr WPARAM SHELL_RELOAD_UI = 1;
 constexpr WPARAM SHELL_ENSURE_TRAY = 2;
@@ -156,7 +157,11 @@ int FocusApp::Run(HINSTANCE instance) {
   });
 
   tip_timer_ = SetTimer(msg_hwnd_, kTipTimerId, 2500, nullptr);
+  // Status push was on the tip timer (2.5s) and flooded the WebView — keep tray
+  // snappy, push mirrors much less often (content-hash skip inside PushStatusTick).
+  push_timer_ = SetTimer(msg_hwnd_, kPushTimerId, 15000, nullptr);
   RefreshTrayTip();
+  PushStatusTick();
 
   MSG msg{};
   while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
@@ -166,6 +171,9 @@ int FocusApp::Run(HINSTANCE instance) {
 
   if (tip_timer_) {
     KillTimer(msg_hwnd_, tip_timer_);
+  }
+  if (push_timer_) {
+    KillTimer(msg_hwnd_, push_timer_);
   }
   tray_.reset();
   webview_.reset();
@@ -252,6 +260,9 @@ LRESULT FocusApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
   }
   if (hwnd == msg_hwnd_ && msg == WM_TIMER && wParam == kTipTimerId) {
     RefreshTrayTip();
+    return 0;
+  }
+  if (hwnd == msg_hwnd_ && msg == WM_TIMER && wParam == kPushTimerId) {
     PushStatusTick();
     return 0;
   }
@@ -526,7 +537,7 @@ void FocusApp::EnsureEnforcer() {
   }
 
   const std::wstring root = RepoRoot();
-  const std::wstring ps1 = root + L"\\scripts\\desktop_tracker\\install_enforcer_service.ps1";
+  const std::wstring ps1 = root + L"\\scripts\\install\\install_enforcer_service.ps1";
   const std::wstring args = L"-NoProfile -ExecutionPolicy Bypass -File \"" + ps1 + L"\" -Start";
   SHELLEXECUTEINFOW sei{};
   sei.cbSize = sizeof(sei);
@@ -543,7 +554,7 @@ void FocusApp::EnsureEnforcer() {
     return;
   }
 
-  const std::wstring console = root + L"\\scripts\\desktop_tracker\\run_native_enforcer_console.bat";
+  const std::wstring console = root + L"\\scripts\\run\\run_native_enforcer_console.bat";
   ShellExecuteW(nullptr, L"open", console.c_str(), nullptr, root.c_str(), SW_SHOWMINNOACTIVE);
 }
 
@@ -771,12 +782,32 @@ std::wstring FocusApp::SettingsUrlBusted() const {
   return base + L"&_ui=" + buf;
 }
 
+std::wstring FocusApp::DocumentUrlBusted(const std::wstring& urlWithHash) const {
+  // Put ?_ui= on the document URL (before #). Hash-only changes do not reload modules.
+  const DWORD t = GetTickCount();
+  wchar_t bust[48]{};
+  swprintf(bust, 48, L"_ui=%lu", static_cast<unsigned long>(t));
+  const size_t hashPos = urlWithHash.find(L'#');
+  const std::wstring base =
+      hashPos == std::wstring::npos ? urlWithHash : urlWithHash.substr(0, hashPos);
+  const std::wstring hash = hashPos == std::wstring::npos ? L"" : urlWithHash.substr(hashPos);
+  if (base.find(L'?') != std::wstring::npos) {
+    return base + L"&" + bust + hash;
+  }
+  return base + L"?" + bust + hash;
+}
+
 void FocusApp::ReloadUi() {
   if (tray_) {
-    tray_->ShowBalloon(L"CALT Focus", L"Reloading Settings UI…");
+    tray_->ShowBalloon(L"CALT Focus", L"Reloading Focus UI…");
   }
   if (webview_ && webview_->Ready()) {
     EnsurePrebuiltUiReady();
+    // Full Navigate — NavigateHash leaves stale dist-focus JS in memory after rebuilds.
+    webview_->Navigate(DocumentUrlBusted(ProductivityUrl()));
+    ShowWindow(main_hwnd_, SW_SHOW);
+    SetForegroundWindow(main_hwnd_);
+    return;
   }
   NavigateShell(SettingsUrlBusted());
 }
@@ -845,18 +876,15 @@ void FocusApp::UpdateUi() {
     return;
   }
   if (tray_) {
-    tray_->ShowBalloon(L"CALT Focus", L"UI rebuilt — reloading Settings…");
+    tray_->ShowBalloon(L"CALT Focus", L"UI rebuilt — reloading…");
   }
-  if (webview_ && webview_->Ready()) {
-    EnsurePrebuiltUiReady();
-  }
-  NavigateShell(SettingsUrlBusted());
+  ReloadUi();
 }
 
 bool FocusApp::RunUpdateStackScript() {
   const std::wstring root = RepoRoot();
   const std::wstring script =
-      root + L"\\scripts\\desktop_tracker\\build\\update_calt_productivity.ps1";
+      root + L"\\scripts\\build\\update_calt_productivity.ps1";
   if (GetFileAttributesW(script.c_str()) == INVALID_FILE_ATTRIBUTES) {
     return false;
   }
@@ -902,9 +930,9 @@ bool FocusApp::RunUpdateStackScript() {
 
 bool FocusApp::PendingUpdateNeedsRestart() const {
   const std::wstring focusNew =
-      RepoRoot() + L"\\calt-focus\\backend\\calt_focus\\build\\calt_focus.exe.new";
+      RepoRoot() + L"\\backend\\calt_focus\\build\\calt_focus.exe.new";
   const std::wstring enfNew =
-      RepoRoot() + L"\\calt-focus\\backend\\calt_enforcer\\build\\calt_enforcer.exe.new";
+      RepoRoot() + L"\\backend\\calt_enforcer\\build\\calt_enforcer.exe.new";
   if (GetFileAttributesW(focusNew.c_str()) != INVALID_FILE_ATTRIBUTES) {
     return true;
   }
@@ -946,8 +974,7 @@ void FocusApp::UpdateStack() {
     return;
   }
   if (HasPrebuiltWebUi() && webview_ && webview_->Ready()) {
-    EnsurePrebuiltUiReady();
-    NavigateShell(SettingsUrlBusted());
+    ReloadUi();
   }
   if (PendingUpdateNeedsRestart()) {
     if (tray_) {
@@ -978,7 +1005,7 @@ void FocusApp::ApplyPendingUpdate() {
     return;
   }
   const std::wstring bat =
-      RepoRoot() + L"\\scripts\\desktop_tracker\\build\\apply_pending_update.bat";
+      RepoRoot() + L"\\scripts\\build\\apply_pending_update.bat";
   if (GetFileAttributesW(bat.c_str()) == INVALID_FILE_ATTRIBUTES) {
     if (tray_) {
       tray_->ShowBalloon(L"CALT Focus", L"apply_pending_update.bat missing.");
@@ -1060,6 +1087,14 @@ void FocusApp::PushStatusTick() {
   const std::string status = ReadUtf8File(EnforcerStatusPath());
   const std::string softland = ReadUtf8File(SoftlandPolicyPath());
   if (status.empty() && softland.empty()) return;
+  const std::string fp = status + "\n" + softland;
+  const bool unchanged = (fp == last_status_push_fp_);
+  if (unchanged) {
+    // Keepalive only — FE extends pushHealthy without applying SoftLand (no re-render).
+    webview_->PostWebMessageJson("{\"type\":\"status_tick\",\"keepalive\":true}");
+    return;
+  }
+  last_status_push_fp_ = fp;
   std::string msg = "{\"type\":\"status_tick\",\"enforcer_status\":";
   msg += status.empty() ? "null" : status;
   msg += ",\"softland\":";

@@ -42,6 +42,9 @@ bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath);
 /** True when SoftLand goals.bible_done + bible_done_for_date == today. */
 bool DayLoopBibleDoneToday(const std::string& softlandDocumentJson);
 
+/** True when SoftLand goals.plan_confirmed + plan_confirmed_for_date == today. */
+bool DayLoopPlanConfirmedToday(const std::string& softlandDocumentJson);
+
 /** Drop study-temp kills (cursor.exe) after free/reward/pass; keep games/social. */
 bool DayLoopClearStudyTempKills(const std::wstring& behaviorDir);
 
@@ -52,7 +55,6 @@ bool DayLoopClearStudyTempKills(const std::wstring& behaviorDir);
 std::string DayLoopEmergencyWinddown(const std::wstring& behaviorDir, const std::string& payload);
 
 /**
- * Import unfinished goal blocks from from_date into today (shift start to now+slots).
- * Payload: from_date YYYY-MM-DD. Skips routine-like categories food/sleep/commute if present.
+ * Disabled: unfinished plans do not carry across days (returns carry_disabled).
  */
 std::string DayLoopImportFromDate(const std::string& payload, int userId, std::string* extraOut);

@@ -153,15 +153,15 @@ std::wstring FocusUrl() {
   if (HasPrebuiltWebUi()) {
     if (const wchar_t* mode = _wgetenv(L"CALT_FOCUS_UI_MODE")) {
       if (_wcsicmp(mode, L"file") == 0) {
-        return FileUrlFromPath(Join(DistDir(), L"index.html")) + L"#/productivity/focus";
+        return FileUrlFromPath(Join(DistDir(), L"index.html")) + L"#/home";
       }
       if (_wcsicmp(mode, L"static") == 0) {
-        return L"http://127.0.0.1:5174/index.html#/productivity/focus";
+        return L"http://127.0.0.1:5174/index.html#/home";
       }
     }
-    return L"https://calt.app/index.html#/productivity/focus";
+    return L"https://calt.app/index.html#/home";
   }
-  return L"http://127.0.0.1:5173/productivity/focus";
+  return L"http://127.0.0.1:5173/#/home";
 }
 
 std::wstring ProductivityUrl() {
@@ -173,15 +173,15 @@ std::wstring ProductivityUrl() {
   if (HasPrebuiltWebUi()) {
     if (const wchar_t* mode = _wgetenv(L"CALT_FOCUS_UI_MODE")) {
       if (_wcsicmp(mode, L"file") == 0) {
-        return FileUrlFromPath(Join(DistDir(), L"index.html")) + L"#/productivity?tab=home";
+        return FileUrlFromPath(Join(DistDir(), L"index.html")) + L"#/home";
       }
       if (_wcsicmp(mode, L"static") == 0) {
-        return L"http://127.0.0.1:5174/index.html#/productivity?tab=home";
+        return L"http://127.0.0.1:5174/index.html#/home";
       }
     }
-    return L"https://calt.app/index.html#/productivity?tab=home";
+    return L"https://calt.app/index.html#/home";
   }
-  return L"http://127.0.0.1:5173/productivity?tab=home";
+  return L"http://127.0.0.1:5173/#/home";
 }
 
 std::wstring SettingsUrl() {
@@ -194,16 +194,15 @@ std::wstring SettingsUrl() {
   if (HasPrebuiltWebUi()) {
     if (const wchar_t* mode = _wgetenv(L"CALT_FOCUS_UI_MODE")) {
       if (_wcsicmp(mode, L"file") == 0) {
-        return FileUrlFromPath(Join(DistDir(), L"index.html")) +
-               L"#/productivity?tab=settings";
+        return FileUrlFromPath(Join(DistDir(), L"index.html")) + L"#/settings";
       }
       if (_wcsicmp(mode, L"static") == 0) {
-        return L"http://127.0.0.1:5174/index.html#/productivity?tab=settings";
+        return L"http://127.0.0.1:5174/index.html#/settings";
       }
     }
-    return L"https://calt.app/index.html#/productivity?tab=settings";
+    return L"https://calt.app/index.html#/settings";
   }
-  return L"http://127.0.0.1:5173/productivity?tab=settings";
+  return L"http://127.0.0.1:5173/#/settings";
 }
 
 std::wstring CalendarUrl() {
@@ -215,16 +214,15 @@ std::wstring CalendarUrl() {
   if (HasPrebuiltWebUi()) {
     if (const wchar_t* mode = _wgetenv(L"CALT_FOCUS_UI_MODE")) {
       if (_wcsicmp(mode, L"file") == 0) {
-        return FileUrlFromPath(Join(DistDir(), L"index.html")) +
-               L"#/productivity?tab=calendar";
+        return FileUrlFromPath(Join(DistDir(), L"index.html")) + L"#/calendar";
       }
       if (_wcsicmp(mode, L"static") == 0) {
-        return L"http://127.0.0.1:5174/index.html#/productivity?tab=calendar";
+        return L"http://127.0.0.1:5174/index.html#/calendar";
       }
     }
-    return L"https://calt.app/index.html#/productivity?tab=calendar";
+    return L"https://calt.app/index.html#/calendar";
   }
-  return L"http://127.0.0.1:5173/productivity?tab=calendar";
+  return L"http://127.0.0.1:5173/#/calendar";
 }
 
 std::wstring PlanUrl() {
@@ -236,16 +234,15 @@ std::wstring PlanUrl() {
   if (HasPrebuiltWebUi()) {
     if (const wchar_t* mode = _wgetenv(L"CALT_FOCUS_UI_MODE")) {
       if (_wcsicmp(mode, L"file") == 0) {
-        return FileUrlFromPath(Join(DistDir(), L"index.html")) +
-               L"#/productivity?tab=plan";
+        return FileUrlFromPath(Join(DistDir(), L"index.html")) + L"#/plan";
       }
       if (_wcsicmp(mode, L"static") == 0) {
-        return L"http://127.0.0.1:5174/index.html#/productivity?tab=plan";
+        return L"http://127.0.0.1:5174/index.html#/plan";
       }
     }
-    return L"https://calt.app/index.html#/productivity?tab=plan";
+    return L"https://calt.app/index.html#/plan";
   }
-  return L"http://127.0.0.1:5173/productivity?tab=plan";
+  return L"http://127.0.0.1:5173/#/plan";
 }
 
 std::wstring WebViewUserDataDir() {

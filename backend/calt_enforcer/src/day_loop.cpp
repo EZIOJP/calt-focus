@@ -112,6 +112,21 @@ bool ArmHardBlock(const std::wstring& behaviorDir, bool* armedOut) {
   return true;
 }
 
+/** Arm stays off until Confirm couples SoftLand + Arm for today. */
+bool DisarmHardBlock(const std::wstring& behaviorDir) {
+  std::wstring dbPath = BehaviorToDbPath(behaviorDir);
+  std::wstring polPath = behaviorDir + L"\\enforcer_policy.json";
+  EnforcerSnapshot cur;
+  std::string loadErr;
+  LoadEnforcerSnapshot(dbPath, cur, loadErr);
+  if (!cur.armed && !cur.locked) return true;
+  cur.armed = false;
+  cur.locked = false;
+  if (!WriteEnforcerPolicyJson(polPath, cur, cur.anti_tamper, false)) return false;
+  SyncEnforcerRuntimeSqlite(dbPath, cur);
+  return true;
+}
+
 /** Drop cursor.exe from kill list after goal free (keep games/social armed). */
 bool ClearStudyTempKills(const std::wstring& behaviorDir) {
   std::wstring dbPath = BehaviorToDbPath(behaviorDir);
@@ -543,6 +558,9 @@ std::string DayLoopConfirmPlan(const std::wstring& behaviorDir, std::string* ext
   if (!GoalsDoneToday(s.document_json, "bible_done", "bible_done_for_date", today))
     return "bible_required";
 
+  // Require a real today plan before SoftLand+Arm couple — no empty confirm.
+  if (PlannedMinutesToday(1) <= 0) return "plan_required";
+
   int focus = DailyFocusMinutesFromDoc(s.document_json);
   if (!RewriteGoalsObject(s, true, true, false, focus, today, today)) return "policy_key_missing";
 
@@ -704,6 +722,11 @@ bool DayLoopBibleDoneToday(const std::string& softlandDocumentJson) {
   return GoalsDoneToday(softlandDocumentJson, "bible_done", "bible_done_for_date", LocalDate());
 }
 
+bool DayLoopPlanConfirmedToday(const std::string& softlandDocumentJson) {
+  return GoalsDoneToday(softlandDocumentJson, "plan_confirmed", "plan_confirmed_for_date",
+                        LocalDate());
+}
+
 bool DayLoopClearStudyTempKills(const std::wstring& behaviorDir) {
   return ClearStudyTempKills(behaviorDir);
 }
@@ -755,6 +778,15 @@ bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath) {
         s.reward_day_active = false;
         changed = true;
       }
+    }
+
+    // Legitimate morning gate: SoftLand ON (sites → morning_bible/plan), Arm OFF until Confirm.
+    if (!planToday) {
+      if (!s.softland_enabled) {
+        s.softland_enabled = true;
+        changed = true;
+      }
+      DisarmHardBlock(behaviorDir);
     }
   }
 
@@ -822,70 +854,9 @@ std::string DayLoopEmergencyWinddown(const std::wstring& behaviorDir, const std:
 }
 
 std::string DayLoopImportFromDate(const std::string& payload, int userId, std::string* extraOut) {
-  std::string fromDate;
-  JsonGetString(payload, "from_date", &fromDate);
-  if (fromDate.size() < 10) return "bad_payload";
-  const std::string today = LocalDate();
-  std::string from = fromDate + "T00:00:00";
-  std::string to = fromDate + "T23:59:59";
-  std::string arr = ProductivityPlanListJson(from, to, userId);
-  int imported = 0;
-  // Naive scan of blocks with "status":"scheduled" or in_progress
-  size_t pos = 0;
-  while (pos < arr.size()) {
-    size_t obj = arr.find('{', pos);
-    if (obj == std::string::npos) break;
-    int depth = 0;
-    size_t end = obj;
-    for (; end < arr.size(); ++end) {
-      if (arr[end] == '{')
-        ++depth;
-      else if (arr[end] == '}') {
-        --depth;
-        if (depth == 0) break;
-      }
-    }
-    if (end >= arr.size()) break;
-    std::string frag = arr.substr(obj, end - obj + 1);
-    pos = end + 1;
-    std::string status, cat, title;
-    JsonGetString(frag, "status", &status);
-    JsonGetString(frag, "category", &cat);
-    JsonGetString(frag, "title", &title);
-    if (status == "done" || status == "cancelled" || status == "rolled") continue;
-    if (IsFreeCategory(cat)) continue;
-    int planned = 60;
-    JsonGetInt(frag, "remaining_minutes", &planned);
-    if (planned <= 0) JsonGetInt(frag, "planned_minutes", &planned);
-    if (planned <= 0) planned = 60;
-    std::string start = AddMinutesLocalIso(imported * 30);
-    // Build upsert payload
-    char endBuf[40];
-    {
-      // end = start + planned minutes — approximate via second AddMinutes on start parse is hard;
-      // use planned as duration in upsert with start_at/end_at.
-      SYSTEMTIME st;
-      GetLocalTime(&st);
-      FILETIME ft;
-      SystemTimeToFileTime(&st, &ft);
-      ULARGE_INTEGER uli;
-      uli.LowPart = ft.dwLowDateTime;
-      uli.HighPart = ft.dwHighDateTime;
-      uli.QuadPart += (ULONGLONG)(imported * 30 + planned) * 60ULL * 10000000ULL;
-      ft.dwLowDateTime = uli.LowPart;
-      ft.dwHighDateTime = uli.HighPart;
-      SYSTEMTIME outSt;
-      FileTimeToSystemTime(&ft, &outSt);
-      snprintf(endBuf, sizeof(endBuf), "%04u-%02u-%02uT%02u:%02u:%02u", outSt.wYear, outSt.wMonth,
-               outSt.wDay, outSt.wHour, outSt.wMinute, outSt.wSecond);
-    }
-    std::string up = std::string("{\"title\":\"") + JsonEscape(title.empty() ? "Imported" : title) +
-                     "\",\"category\":\"" + JsonEscape(cat.empty() ? "study" : cat) +
-                     "\",\"start_at\":\"" + start + "\",\"end_at\":\"" + endBuf +
-                     "\",\"planned_minutes\":" + std::to_string(planned) + "}";
-    std::string outBlock;
-    if (ProductivityPlanUpsert(up, userId, &outBlock)) ++imported;
-  }
-  if (extraOut) *extraOut = ",\"imported\":" + std::to_string(imported);
-  return "";
+  (void)payload;
+  (void)userId;
+  (void)extraOut;
+  // Product rule: unfinished yesterday plans do not carry into today.
+  return "carry_disabled";
 }

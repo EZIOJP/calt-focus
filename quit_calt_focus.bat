@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal EnableDelayedExpansion
 rem Force-quit CALT Focus (calt_focus.exe). Lives in calt-focus/.
 echo === CALT Focus: quit ===
@@ -14,7 +14,7 @@ echo Closing calt_focus.exe ...
 taskkill /F /IM calt_focus.exe >nul 2>&1
 if errorlevel 1 (
   echo WARN: taskkill failed.
-  echo SoftLand/Arm watchdog may be holding it â€” turn SoftLand off, Disarm, then Quit from tray.
+  echo SoftLand/Arm watchdog may be holding it - run stop_calt_enforcer.bat first, then retry.
   echo Or run this bat as Administrator.
   endlocal
   exit /b 1

@@ -9,7 +9,7 @@ set(SQLITE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sqlite")
 if(NOT EXISTS "${SQLITE_DIR}/sqlite3.c")
   message(FATAL_ERROR
     "Missing ${SQLITE_DIR}/sqlite3.c — run:\\n"
-    "  powershell -File scripts/desktop_tracker/fetch_sqlite.ps1")
+    "  powershell -File scripts/build/fetch_sqlite.ps1")
 endif()
 
 add_executable(calt_enforcer

@@ -546,6 +546,8 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     if (!en && s.softland_enabled) {
       if (!ConfirmMatches(payload, "UNLOCK")) return "confirm_required";
     }
+    // Turning SoftLand *on* before Bible + Confirm today is the morning gate itself —
+    // allowed. Arm stays separate (only day.confirm_plan / reward / pass couple Arm).
     s.softland_enabled = en;
     s.updated_at = IsoLocalNow();
     ProductivityApplyCacheToDocument(s);
@@ -975,20 +977,8 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     return "";
   }
   if (op == "plan.roll_forward") {
-    int id = 0;
-    int userId = 1;
-    std::string newStart;
-    if (!JsonGetInt(payload, "id", &id) || id <= 0) return "bad_payload";
-    JsonGetInt(payload, "user_id", &userId);
-    if (userId <= 0) userId = 1;
-    JsonGetString(payload, "new_start", &newStart);
-    std::string rolled, neu;
-    if (!ProductivityPlanRollForward(id, userId, newStart, &rolled, &neu) || rolled.empty())
-      return "not_found";
-    if (extraOut)
-      *extraOut = ",\"rolled_block\":" + rolled + ",\"new_block\":" +
-                  (neu.empty() ? "null" : neu);
-    return "";
+    // Product rule: unfinished plans do not carry to tomorrow/today.
+    return "carry_disabled";
   }
   if (op == "routine.apply") {
     int userId = 1;
