@@ -1,0 +1,48 @@
+{
+  "focusHoursPerDay": 3,
+  "weeklyFocusHours": 24,
+  "mainGoal": "Complete daily study blocks before entertainment.",
+  "reward": "Free time after on-plan focus target.",
+  "extraGoals": [],
+  "studyTasks": [
+    {
+      "allowHosts": [
+        "scaler.com",
+        "scaleracademy.com",
+        "colab.research.google.com",
+        "github.com",
+        "stackoverflow.com"
+      ],
+      "blockCategories": [
+        "Gaming",
+        "Video Streaming",
+        "Social Media",
+        "Entertainment",
+        "Live Streaming"
+      ],
+      "id": "scaler-deep-work",
+      "minutes": 90,
+      "title": "Scaler / coursework"
+    },
+    {
+      "allowHosts": [
+        "scaler.com",
+        "scaleracademy.com",
+        "colab.research.google.com",
+        "github.com",
+        "stackoverflow.com"
+      ],
+      "blockCategories": [
+        "Gaming",
+        "Video Streaming",
+        "Social Media",
+        "Entertainment",
+        "Live Streaming"
+      ],
+      "id": "scaler-deep-work",
+      "minutes": 90,
+      "title": "Scaler / coursework"
+    }
+  ],
+  "weekKey": "2026-W36"
+}

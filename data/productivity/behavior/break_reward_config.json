@@ -1,0 +1,12 @@
+{
+  "work_minutes": 45,
+  "break_minutes": 8,
+  "max_incubations_per_hour": 1,
+  "allow_snooze": false,
+  "earn": {
+    "bible_done": 15,
+    "plan_confirm": 10,
+    "daily_goal": 30
+  },
+  "daily_earn_cap": 60
+}

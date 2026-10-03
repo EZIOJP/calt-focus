@@ -1,0 +1,12 @@
+{
+  "hard_block_armed": true,
+  "gate_locked": true,
+  "incubation_active": false,
+  "exes": ["notepad.exe", "steam.exe"],
+  "lock_mode": "none",
+  "lock_until_unix": 0,
+  "unlock_password": "",
+  "unlock_phrase": "",
+  "anti_tamper": true,
+  "note": "example — copy to enforcer_policy.json"
+}

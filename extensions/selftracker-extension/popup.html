@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SelfTracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@300;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 320px;
+    min-height: 420px;
+    background: #0a0a0f;
+    color: #e8e8f0;
+    font-family: 'Space Grotesk', sans-serif;
+    padding: 20px;
+    overflow: hidden;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #1e1e2e;
+    padding-bottom: 14px;
+  }
+
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #00ff88;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  h1 {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  .current-session {
+    background: #111120;
+    border: 1px solid #1e1e38;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .label {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #555570;
+    margin-bottom: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .site-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #00ff88;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .category-badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em;
+    background: #1a1a30;
+    border: 1px solid #2a2a50;
+    color: #8888cc;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .stat-box {
+    background: #111120;
+    border: 1px solid #1e1e38;
+    border-radius: 8px;
+    padding: 12px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .stat-value.accent { color: #00ff88; }
+  .stat-value.warn { color: #ff6644; }
+  .stat-value.info { color: #4488ff; }
+
+  .top-categories {
+    background: #111120;
+    border: 1px solid #1e1e38;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 16px;
+  }
+
+  .cat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .cat-row:last-child { margin-bottom: 0; }
+
+  .cat-name {
+    font-size: 11px;
+    color: #aaaacc;
+  }
+
+  .cat-bar-wrap {
+    flex: 1;
+    margin: 0 10px;
+    height: 4px;
+    background: #1e1e38;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .cat-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.5s ease;
+  }
+
+  .cat-time {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #555570;
+    min-width: 36px;
+    text-align: right;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+  }
+
+  button {
+    flex: 1;
+    padding: 9px 12px;
+    border-radius: 6px;
+    border: 1px solid #2a2a44;
+    background: #111120;
+    color: #aaaacc;
+    font-size: 11px;
+    font-family: 'Space Grotesk', sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: all 0.15s;
+  }
+
+  button:hover {
+    background: #1a1a30;
+    color: #fff;
+    border-color: #4444aa;
+  }
+
+  button.primary {
+    background: #1a3a25;
+    color: #00ff88;
+    border-color: #00ff88;
+  }
+
+  button.primary:hover {
+    background: #00ff88;
+    color: #0a0a0f;
+  }
+
+  .footer {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 9px;
+    color: #333350;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em;
+  }
+
+  .gate-panel {
+    background: #111120;
+    border: 1px solid #1e1e38;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 14px;
+  }
+  .gate-chip {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .gate-chip.locked { background: #f59e0b33; color: #fbbf24; border: 1px solid #f59e0b55; }
+  .gate-chip.open { background: #00ff8833; color: #00ff88; border: 1px solid #00ff8855; }
+  .gate-chip.down { background: #ff444433; color: #ff8888; border: 1px solid #ff444455; }
+  .gate-chip.enforce {
+    background: #dc2626;
+    color: #fff;
+    border: 2px solid #fca5a5;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    animation: pulse 1.4s infinite;
+  }
+  .enforce-banner {
+    display: none;
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #7f1d1d;
+    border: 2px solid #ef4444;
+    color: #fecaca;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .enforce-banner.on { display: block; }
+  .gate-meta { font-size: 10px; color: #6b6b80; line-height: 1.4; }
+  .gate-toggle { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: #a1a1b5; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="dot"></div>
+  <h1>CALT SelfTracker</h1>
+</div>
+
+<div class="enforce-banner" id="enforceBanner">ENFORCING · YT BLOCKED</div>
+
+<div class="gate-panel">
+  <div class="gate-chip down" id="gateChip">Gate…</div>
+  <div class="gate-meta" id="gateMeta">Polling distraction gate…</div>
+  <div id="jarvisLine" style="margin-top:8px;font-size:11px;color:#94a3b8;line-height:1.35;min-height:1.2em;"></div>
+  <label class="gate-toggle">
+    <input type="checkbox" id="redirectsToggle" checked />
+    Redirects: use <strong>CALT Gate</strong> popup (this toggle is display-only)
+  </label>
+  <div class="btn-row" style="margin-top:10px;">
+    <button type="button" class="primary" id="openBibleBtn">Bible</button>
+    <button type="button" id="openPlanBtn">Plan</button>
+  </div>
+</div>
+
+<div class="current-session">
+  <div class="label">Currently Tracking</div>
+  <div class="site-name" id="currentSite">Loading...</div>
+  <div class="category-badge" id="currentCategory">—</div>
+</div>
+
+<div class="stats-grid">
+  <div class="stat-box">
+    <div class="stat-value accent" id="totalSessions">—</div>
+    <div class="label">Sessions Today</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value info" id="tabSwitches">—</div>
+    <div class="label">Tab Switches</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value" id="productiveTime">—</div>
+    <div class="label">Productive (min)</div>
+  </div>
+  <div class="stat-box">
+    <div class="stat-value warn" id="leisureTime">—</div>
+    <div class="label">Leisure (min)</div>
+  </div>
+</div>
+
+<div class="top-categories">
+  <div class="label" style="margin-bottom:10px">Top Categories Today</div>
+  <div id="catList">
+    <div class="cat-row"><span class="cat-name" style="color:#555570">No data yet</span></div>
+  </div>
+</div>
+
+<div class="btn-row">
+  <button class="primary" id="openDash">📊 Full Dashboard</button>
+  <button id="exportBtn">⬇ Export CSV</button>
+</div>
+
+<div class="footer">EDGE/CHROME · GATE-AWARE · LOCAL</div>
+
+<script src="popup.js"></script>
+
+</body>
+</html>

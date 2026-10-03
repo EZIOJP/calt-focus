@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SelfTracker — Analytics Dashboard</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap');
+
+  :root {
+    --bg: #070710;
+    --bg2: #0d0d1a;
+    --bg3: #111125;
+    --border: #1a1a30;
+    --border2: #252540;
+    --text: #d8d8f0;
+    --muted: #555570;
+    --green: #00ff88;
+    --blue: #4488ff;
+    --red: #ff4455;
+    --orange: #ff8844;
+    --purple: #aa88ff;
+    --yellow: #ffcc44;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(0,255,136,0.4); }
+    50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(0,255,136,0); }
+  }
+
+  .brand-name {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #fff;
+  }
+
+  .brand-sub {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .nav-actions {
+    display: flex;
+    gap: 12px;
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .btn:hover { background: var(--border2); color: #fff; }
+  .btn.primary { background: rgba(0,255,136,0.1); border-color: var(--green); color: var(--green); }
+  .btn.primary:hover { background: var(--green); color: var(--bg); }
+  .btn.danger { border-color: var(--red); color: var(--red); }
+  .btn.danger:hover { background: var(--red); color: #fff; }
+
+  /* ── MAIN LAYOUT ── */
+  main { padding: 32px 40px; max-width: 1400px; margin: 0 auto; }
+
+  /* ── HERO STATS ── */
+  .hero-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .hero-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+
+  .hero-card.green::before { background: var(--green); }
+  .hero-card.blue::before { background: var(--blue); }
+  .hero-card.red::before { background: var(--red); }
+  .hero-card.orange::before { background: var(--orange); }
+  .hero-card.purple::before { background: var(--purple); }
+
+  .hero-val {
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .hero-val.green { color: var(--green); }
+  .hero-val.blue { color: var(--blue); }
+  .hero-val.red { color: var(--red); }
+  .hero-val.orange { color: var(--orange); }
+  .hero-val.purple { color: var(--purple); }
+
+  .hero-label {
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── SECTIONS ── */
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── CHARTS GRID ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 32px;
+  }
+
+  .chart-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+
+  .chart-card.wide {
+    grid-column: 1 / -1;
+  }
+
+  .chart-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 20px;
+  }
+
+  canvas { max-height: 250px; }
+  canvas.tall { max-height: 180px; }
+
+  /* ── SESSION LOG TABLE ── */
+  .table-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+
+  .table-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  thead th {
+    padding: 10px 16px;
+    text-align: left;
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  tbody tr:hover { background: var(--bg3); }
+  tbody tr:last-child { border-bottom: none; }
+
+  td {
+    padding: 10px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text);
+  }
+
+  td.url-cell {
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.05em;
+  }
+
+  .score-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .score-mini {
+    height: 4px;
+    border-radius: 2px;
+    min-width: 4px;
+  }
+
+  /* ── BEHAVIORAL ── */
+  .behavior-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 32px;
+  }
+
+  .beh-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .beh-val {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: #fff;
+  }
+
+  .beh-label {
+    font-size: 9px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── FILTERS ── */
+  .filter-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: 'Syne', sans-serif;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .filter-btn.active, .filter-btn:hover {
+    background: var(--border2);
+    color: var(--text);
+    border-color: var(--border2);
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 2;
+  }
+
+  .insight-box {
+    background: linear-gradient(135deg, rgba(0,255,136,0.05), rgba(68,136,255,0.05));
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 32px;
+    line-height: 1.6;
+  }
+
+  .insight-box strong { color: var(--green); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="live-dot"></div>
+    <div>
+      <div class="brand-name">SELFTRACKER</div>
+      <div class="brand-sub">Deep Context Analytics</div>
+    </div>
+  </div>
+  <div class="nav-actions">
+    <button class="btn" id="refreshBtn">⟳ Refresh</button>
+    <button class="btn primary" id="exportBtn">⬇ Export CSV</button>
+    <button class="btn danger" id="clearBtn">✕ Clear Data</button>
+  </div>
+</nav>
+
+<main>
+  <!-- HERO STATS -->
+  <div class="hero-grid" id="heroGrid">
+    <div class="hero-card green">
+      <div class="hero-val green" id="h-sessions">—</div>
+      <div class="hero-label">Total Sessions</div>
+    </div>
+    <div class="hero-card blue">
+      <div class="hero-val blue" id="h-tracked">—</div>
+      <div class="hero-label">Hours Tracked</div>
+    </div>
+    <div class="hero-card green">
+      <div class="hero-val green" id="h-prod">—</div>
+      <div class="hero-label">Productive (min)</div>
+    </div>
+    <div class="hero-card red">
+      <div class="hero-val red" id="h-leisure">—</div>
+      <div class="hero-label">Leisure (min)</div>
+    </div>
+    <div class="hero-card purple">
+      <div class="hero-val purple" id="h-switches">—</div>
+      <div class="hero-label">Tab Switches</div>
+    </div>
+  </div>
+
+  <!-- AI INSIGHT -->
+  <div class="insight-box" id="insightBox" style="display:none">
+    💡 <span id="insightText"></span>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="section-title">Time Breakdown</div>
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Category Distribution</div>
+      <canvas id="categoryPie"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Productivity vs Leisure</div>
+      <canvas id="prodLeisureBar"></canvas>
+    </div>
+    <div class="chart-card wide">
+      <div class="chart-title">Sessions Timeline (Today)</div>
+      <canvas id="timelineChart" class="tall"></canvas>
+    </div>
+  </div>
+
+  <!-- BEHAVIORAL SUMMARY -->
+  <div class="section-title">Behavioral Patterns</div>
+  <div class="behavior-grid" id="behaviorGrid">
+    <div class="beh-card"><div class="beh-val" id="b-mode">—</div><div class="beh-label">Most Common Mode</div></div>
+    <div class="beh-card"><div class="beh-val" id="b-scroll">—</div><div class="beh-label">Avg Scroll Depth %</div></div>
+    <div class="beh-card"><div class="beh-val" id="b-keystrokes">—</div><div class="beh-label">Total Keystrokes</div></div>
+    <div class="beh-card"><div class="beh-val" id="b-clicks">—</div><div class="beh-label">Total Clicks</div></div>
+    <div class="beh-card"><div class="beh-val" id="b-idle">—</div><div class="beh-label">Idle Events</div></div>
+    <div class="beh-card"><div class="beh-val" id="b-writing">—</div><div class="beh-label">Writing Sessions</div></div>
+  </div>
+
+  <!-- SESSION LOG -->
+  <div class="section-title">Session Log</div>
+  <div class="filter-row" id="filterRow"></div>
+  <div class="table-card">
+    <div class="table-header">
+      <span style="font-size:13px;font-weight:700;color:#fff">All Sessions</span>
+      <span id="sessionCount" style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace"></span>
+    </div>
+    <div id="tableWrap">
+      <div class="empty-state">No sessions recorded yet.<br>Browse a bit and come back!</div>
+    </div>
+  </div>
+</main>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

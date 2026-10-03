@@ -1,0 +1,25 @@
+{
+  "day": "2026-07-26",
+  "bible_seconds": 1750,
+  "game_consumed_seconds": 0,
+  "last_heartbeat_at": 1785031703.7721317,
+  "day_pass": false,
+  "chapters_completed": [
+    "Genesis|1"
+  ],
+  "chapter_dwell": {
+    "Genesis|1": 1400,
+    "Genesis|2": 25,
+    "Genesis|3": 25,
+    "Genesis|4": 25,
+    "Genesis|5": 25,
+    "Genesis|6": 25,
+    "Genesis|7": 25,
+    "Genesis|8": 25,
+    "Genesis|9": 25,
+    "Genesis|10": 50,
+    "Genesis|11": 50,
+    "Genesis|12": 25,
+    "Matthew|1": 25
+  }
+}

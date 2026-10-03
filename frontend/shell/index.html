@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CALT Focus</title>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/shell.css" />
+  </head>
+  <body>
+    <aside class="rail" id="rail" aria-label="Focus navigation">
+      <div class="brand">CALT Focus</div>
+      <nav>
+        <a href="#/home" data-route="home">Home</a>
+        <a href="#/calendar" data-route="calendar">Calendar</a>
+        <a href="#/settings" data-route="settings">Settings</a>
+        <a href="#/bible" data-route="bible">Bible</a>
+      </nav>
+    </aside>
+    <main id="app" class="app"></main>
+    <div id="morning" class="morning hidden" aria-live="polite"></div>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>

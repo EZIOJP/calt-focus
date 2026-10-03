@@ -1,0 +1,9 @@
+{
+  "name": "com.calt.msg_host",
+  "description": "CALT native messaging host (ping skeleton)",
+  "path": "C:\\\\REPLACE\\\\WITH\\\\calt_msg_host.exe",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://REPLACE_EXTENSION_ID/"
+  ]
+}

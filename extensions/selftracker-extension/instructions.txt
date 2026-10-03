@@ -1,0 +1,36 @@
+CALT SelfTracker — Microsoft Edge (Chromium MV3)
+================================================
+
+Tracking only. **Site blocking is CALT Gate.**
+
+Folders (Load unpacked):
+  …\calt-focus\extensions\calt-gate-extension
+  …\calt-focus\extensions\selftracker-extension
+
+Install BOTH in Microsoft Edge:
+1. edge://extensions → Developer mode ON
+2. Load unpacked → calt-gate-extension  (v1.0.8+)
+3. Load unpacked → selftracker-extension (v1.5.28+)
+4. Register native host with BOTH extension IDs:
+
+   powershell -File scripts\desktop_tracker\install\install_calt_msg_host.ps1 `
+     -ExtensionIds @('<GATE_ID>','<SELFTRACKER_ID>')
+
+5. Ensure calt_enforcer.exe is running (SoftLand SoT). Study :8000 is NOT required.
+
+After JS edits:
+  powershell -File scripts\build_extension_workers.ps1 -SkipSeedSync
+  edge://extensions → Reload both cards
+
+What SelfTracker does (v1.5.28):
+- Native track_tab → productivity.db (calt_msg_host)
+- Mode cache via get_softland_doc (same C++ SoftLand as Gate)
+- Optional Study :8000 only if storage caltGateHttpFallback / caltPythonTelemetry = true
+
+What CALT Gate does (v1.0.8):
+- get_mode per navigation + DNR → locked.html
+- get_softland_doc for policy cache
+- Temp-allow 60s (extension-local)
+- Popup shows msg_host OK / DOWN
+
+Keep redirects enabled in the **CALT Gate** popup.

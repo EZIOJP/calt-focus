@@ -1,0 +1,244 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CALT — This tab locked</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(245, 158, 11, 0.12), transparent 55%),
+        #0a0a0f;
+      color: #e8e8f0;
+      padding: 24px;
+    }
+    .card {
+      max-width: 480px;
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 28px;
+      background: rgba(255,255,255,0.03);
+    }
+    .eyebrow {
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #6b6b80;
+      margin-bottom: 10px;
+    }
+    h1 { font-size: 1.25rem; margin-bottom: 10px; color: #fbbf24; }
+    p { font-size: 0.9rem; line-height: 1.5; color: #a1a1b5; margin-bottom: 12px; }
+    .meta { font-size: 0.8rem; color: #6b6b80; margin-bottom: 16px; }
+    .section-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #6b6b80;
+      margin: 18px 0 10px;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 10px 12px;
+      background: rgba(0,0,0,0.25);
+    }
+    .stat.wide { grid-column: 1 / -1; }
+    .stat .k {
+      font-size: 0.65rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #6b6b80;
+      margin-bottom: 4px;
+    }
+    .stat .v {
+      font-size: 1.05rem;
+      font-weight: 650;
+      color: #e8e8f0;
+    }
+    .stat .v.accent { color: #fbbf24; }
+    .stat .v.muted { color: #8b8ba0; font-size: 0.9rem; font-weight: 500; }
+    .bar {
+      margin-top: 8px;
+      height: 6px;
+      border-radius: 99px;
+      background: #1a1a28;
+      overflow: hidden;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #d97706, #fbbf24);
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.35s ease;
+    }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    a.link {
+      display: inline-block;
+      padding: 9px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #e8e8f0;
+      background: #1e1e32;
+      border: 1px solid #333348;
+    }
+    a.link.primary {
+      background: #f59e0b;
+      color: #111;
+      border-color: transparent;
+    }
+    a.link.goal { border-color: rgba(251, 191, 36, 0.35); }
+    a.link.notes { border-color: rgba(96, 165, 250, 0.35); }
+    .temp-allow {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .temp-allow .host {
+      font-size: 0.8rem;
+      color: #8b8ba0;
+      margin-bottom: 10px;
+      word-break: break-all;
+    }
+    button.temp-btn {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 650;
+      cursor: pointer;
+      color: #111;
+      background: #34d399;
+      border: none;
+    }
+    button.temp-btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    button.temp-btn.hidden { display: none; }
+    .temp-msg {
+      font-size: 0.8rem;
+      margin-top: 8px;
+      color: #a1a1b5;
+      min-height: 1.2em;
+    }
+    .temp-msg.err { color: #f87171; }
+    .temp-msg.ok { color: #34d399; }
+    .empty {
+      font-size: 0.8rem;
+      color: #6b6b80;
+      font-style: italic;
+    }
+    .hint {
+      margin-top: 16px;
+      font-size: 0.75rem;
+      color: #5a5a70;
+      line-height: 1.4;
+    }
+    .redirect-dialog {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.72);
+      z-index: 50;
+      padding: 20px;
+    }
+    .redirect-dialog.hidden { display: none; }
+    .redirect-dialog .panel {
+      max-width: 420px;
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      background: #12121c;
+      padding: 22px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+    .redirect-dialog h2 {
+      font-size: 1.05rem;
+      color: #fbbf24;
+      margin-bottom: 10px;
+    }
+    .redirect-dialog p {
+      font-size: 0.88rem;
+      color: #c7c7d8;
+      margin-bottom: 10px;
+    }
+    .redirect-dialog .host {
+      font-family: Consolas, monospace;
+      font-size: 0.82rem;
+      color: #93c5fd;
+      word-break: break-all;
+      margin-bottom: 14px;
+    }
+    .redirect-dialog button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 16px;
+      background: #fbbf24;
+      color: #111;
+      font-weight: 650;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="redirectDialog" class="redirect-dialog hidden" role="dialog" aria-modal="true">
+    <div class="panel">
+      <h2>CALT Gate redirected this tab</h2>
+      <p>Microsoft Edge was <strong>not</strong> closed. Only this tab changed.</p>
+      <p class="host" id="redirectHost">—</p>
+      <p id="redirectDetail" class="meta"></p>
+      <button type="button" id="redirectDismiss">OK — got it</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="eyebrow">This tab only</div>
+    <h1 id="title">Distraction site blocked</h1>
+    <p id="body">
+      This tab was redirected. Your other Edge tabs stay open. Distractions, YouTube, and Netflix stay blocked in study mode.
+    </p>
+    <p class="meta" id="status">Checking gate…</p>
+
+    <div class="section-label">Study progress</div>
+    <div class="stats" id="stats">
+      <div class="stat wide"><div class="k">Status</div><div class="v muted">Loading…</div></div>
+    </div>
+
+    <div class="section-label">Go somewhere useful</div>
+    <div class="links" id="links">
+      <span class="empty" id="linksEmpty">Loading shortcuts…</span>
+    </div>
+
+    <div class="temp-allow" id="tempAllowBox" hidden>
+      <div class="section-label">This host only</div>
+      <p class="host" id="tempHostLabel"></p>
+      <button type="button" class="temp-btn" id="tempAllowBtn">Allow this site 60 sec</button>
+      <p class="temp-msg" id="tempAllowMsg"></p>
+    </div>
+
+    <p class="hint">Links open in this tab (no mass focus). Reload the extension after updates.</p>
+  </div>
+  <script src="gate_policy.js"></script>
+  <script src="locked.js"></script>
+</body>
+</html>

@@ -1,0 +1,294 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-09-11T09:31:34Z",
+  "default_score": 35,
+  "productive_threshold": 60,
+  "app_rules": [
+    {
+      "pattern": "code|cursor|pycharm|intellij|webstorm|vim|neovim|emacs|sublime|notepad\\+\\+",
+      "category": "IDE / Code Editor",
+      "score": 95
+    },
+    {
+      "pattern": "terminal|powershell|cmd\\.exe|wt\\.exe|windowsterminal|bash|conhost",
+      "category": "Terminal",
+      "score": 92
+    },
+    {
+      "pattern": "postman|insomnia|dbeaver|tableplus|datagrip|pgadmin|mongodb compass",
+      "category": "Dev Tools",
+      "score": 90
+    },
+    {
+      "pattern": "anki|quizlet|kindle|calibre|foxit|acrobat|sumatrapdf|okular",
+      "category": "Study / Reading",
+      "score": 90
+    },
+    {
+      "pattern": "notion|obsidian|logseq|roamresearch|onenote|evernote",
+      "category": "Knowledge Work",
+      "score": 88
+    },
+    {
+      "pattern": "word|excel|powerpoint|libreoffice|writer|calc|impress",
+      "category": "Office / Docs",
+      "score": 75
+    },
+    {
+      "pattern": "figma|photoshop|illustrator|inkscape|gimp|blender|canva",
+      "category": "Design",
+      "score": 80
+    },
+    {
+      "pattern": "discord",
+      "category": "Social Media",
+      "score": 15
+    },
+    {
+      "pattern": "slack|teams|zoom|skype|telegram|whatsapp|signal",
+      "category": "Communication",
+      "score": 45
+    },
+    {
+      "pattern": "chrome|firefox|msedge|brave|opera|arc|zen",
+      "category": "Browser",
+      "score": 40
+    },
+    {
+      "pattern": "explorer\\.exe|files\\.exe",
+      "category": "File Manager",
+      "score": 30
+    },
+    {
+      "pattern": "spotify|vlc|mpv|wmplayer|groove|musicbee|foobar|youtube[\\s\\-]?music|pear[\\s\\-]?desktop|pear\\.exe",
+      "category": "Music / Media",
+      "score": 20
+    },
+    {
+      "pattern": "netflix|primevideo|hotstar|jiocinema|mxplayer|popcorntime|disney\\+?|disneyplus|hulu|twitch",
+      "category": "Video Streaming",
+      "score": 10
+    },
+    {
+      "pattern": "steam|epicgameslauncher|battle\\.net|origin|eadesktop|ealauncher|ubisoft|upc\\.exe|rockstar|gog|galaxy.?client|itch\\.exe|xbox|gamingservices|gamebar|roblox|minecraft|valorant|csgo|dota2|league|start_protected_game|gameoverlayui|steamwebhelper|steamservice|win64-shipping|win32-shipping",
+      "category": "Gaming",
+      "score": 10
+    },
+    {
+      "pattern": "taskmgr|perfmon|processexplorer|resmon|task manager",
+      "category": "System Tools",
+      "score": 30
+    }
+  ],
+  "domain_rules": [
+    {
+      "pattern": "localhost|127\\.0\\.0\\.1",
+      "category": "Study (Browser)",
+      "score": 85
+    },
+    {
+      "pattern": "coursera|udemy|edx|khanacademy|khan\\s*academy|brilliant|codecademy|datacamp|pluralsight|skillshare|educative|scaler|simplilearn|fast\\.ai|deeplearning\\.ai|paperswithcode|distill\\.pub|ocw\\.mit|mit\\.edu|stanford\\.edu|\\.edu/",
+      "category": "Coursework (Browser)",
+      "score": 92
+    },
+    {
+      "pattern": "leetcode|hackerrank|codeforces|codechef|topcoder|exercism|neetcode|algoexpert|interviewbit|geeksforgeeks",
+      "category": "Coding Practice",
+      "score": 90
+    },
+    {
+      "pattern": "arxiv\\.org|scholar\\.google|researchgate|pubmed|jstor|ieee|acm\\.org|semanticscholar|sciencedirect",
+      "category": "Research",
+      "score": 90
+    },
+    {
+      "pattern": "anki|quizlet|remnote|brainscape|flashcard",
+      "category": "Study / Reading",
+      "score": 90
+    },
+    {
+      "pattern": "github\\.com|gitlab\\.com|bitbucket|codeberg|sourcehut",
+      "category": "Dev / Code",
+      "score": 92
+    },
+    {
+      "pattern": "stackoverflow|stackexchange|askubuntu|serverfault|superuser",
+      "category": "Dev / Code",
+      "score": 88
+    },
+    {
+      "pattern": "docs\\.python|docs\\.rust|developer\\.mozilla|devdocs\\.io|readthedocs|man7\\.org|cppreference|learn\\.microsoft|docs\\.microsoft|docs\\.google\\.com/document|docs\\.oracle|api\\.flutter|numpy\\.org|pandas\\.pydata|scipy\\.org|scikit-learn|matplotlib\\.org|seaborn\\.pydata|plotly\\.com|pytorch\\.org|tensorflow\\.org|keras\\.io|jax\\.dev|polars\\.tech|realpython\\.com|pydata\\.org",
+      "category": "Documentation",
+      "score": 88
+    },
+    {
+      "pattern": "pypi\\.org|npmjs\\.com|crates\\.io|packagist|rubygems|maven|hub\\.docker\\.com|registry\\.terraform",
+      "category": "Dev / Code",
+      "score": 85
+    },
+    {
+      "pattern": "vercel\\.com|netlify\\.com|railway\\.app|render\\.com|heroku|supabase|firebase\\.google|aws\\.amazon|console\\.cloud\\.google|portal\\.azure",
+      "category": "Dev / Cloud",
+      "score": 85
+    },
+    {
+      "pattern": "chat\\.openai|chatgpt|claude\\.ai|bard\\.google|gemini\\.google|copilot\\.microsoft|poe\\.com|perplexity",
+      "category": "AI Tools",
+      "score": 80
+    },
+    {
+      "pattern": "huggingface\\.co|kaggle\\.com|colab\\.research\\.google|jupyter|wandb\\.ai|mlflow|tensorboard|paperspace|deepnote|databricks",
+      "category": "AI / ML",
+      "score": 88
+    },
+    {
+      "pattern": "notion\\.so|obsidian\\.md|roamresearch|logseq|coda\\.io|airtable",
+      "category": "Knowledge Work",
+      "score": 85
+    },
+    {
+      "pattern": "wikipedia\\.org|wikimedia|wiktionary",
+      "category": "Reference",
+      "score": 70
+    },
+    {
+      "pattern": "medium\\.com|dev\\.to|hashnode|substack|towardsdatascience|hackernoon|freecodecamp|css-tricks",
+      "category": "Tech Reading",
+      "score": 75
+    },
+    {
+      "pattern": "docs\\.google\\.com|sheets\\.google|slides\\.google|drive\\.google|onedrive\\.live|dropbox\\.com|box\\.com",
+      "category": "Office / Docs",
+      "score": 75
+    },
+    {
+      "pattern": "figma\\.com|canva\\.com|miro\\.com|whimsical|excalidraw|draw\\.io",
+      "category": "Design",
+      "score": 80
+    },
+    {
+      "pattern": "trello\\.com|asana\\.com|monday\\.com|linear\\.app|jira|clickup|todoist",
+      "category": "Project Management",
+      "score": 80
+    },
+    {
+      "pattern": "calendar\\.google|outlook\\.live|outlook\\.office|mail\\.google|proton\\.me",
+      "category": "Email / Calendar",
+      "score": 55
+    },
+    {
+      "pattern": "slack\\.com|teams\\.microsoft|discord\\.com|element\\.io|matrix\\.org",
+      "category": "Communication",
+      "score": 45
+    },
+    {
+      "pattern": "zoom\\.us|meet\\.google|whereby\\.com|webex",
+      "category": "Communication",
+      "score": 50
+    },
+    {
+      "pattern": "twitter\\.com|(?<!\\w)x\\.com|facebook\\.com|instagram\\.com|threads\\.net|tiktok\\.com|snapchat\\.com|pinterest\\.com|tumblr\\.com|mastodon",
+      "category": "Social Media",
+      "score": 15
+    },
+    {
+      "pattern": "reddit\\.com",
+      "category": "Social / Forum",
+      "score": 25
+    },
+    {
+      "pattern": "linkedin\\.com",
+      "category": "Professional Social",
+      "score": 45
+    },
+    {
+      "pattern": "amazon\\.|flipkart|myntra|ajio|ebay|etsy|aliexpress|shopify|walmart|target\\.com|bestbuy|bigbasket|blinkit|ikea\\.com|housing\\.com|magicbricks|nobroker|99acres|nykaa|meesho",
+      "category": "Shopping",
+      "score": 10
+    },
+    {
+      "pattern": "youtube\\.com|youtu\\.be",
+      "category": "Video (YouTube)",
+      "score": 25
+    },
+    {
+      "pattern": "netflix\\.com|primevideo|hotstar|disneyplus|hulu|hbomax|crunchyroll|jiocinema|sonyliv|zee5|mxplayer|peacock",
+      "category": "Video Streaming",
+      "score": 8
+    },
+    {
+      "pattern": "twitch\\.tv|kick\\.com",
+      "category": "Live Streaming",
+      "score": 10
+    },
+    {
+      "pattern": "spotify\\.com|music\\.youtube|soundcloud|deezer|pandora|gaana|jiosaavn",
+      "category": "Music / Media",
+      "score": 20
+    },
+    {
+      "pattern": "steam\\b|epicgames|gog\\.com|itch\\.io|roblox|miniclip",
+      "category": "Gaming",
+      "score": 8
+    },
+    {
+      "pattern": "bbc\\.|cnn\\.|reuters|apnews|nytimes|washingtonpost|theguardian|aljazeera|ndtv|thehindu|indianexpress|moneycontrol|livemint|news\\.google|news\\.yahoo|bloomberg",
+      "category": "News",
+      "score": 30
+    },
+    {
+      "pattern": "bank|razorpay|paytm|phonepe|gpay|paypal|stripe|wise\\.com|zerodha|groww|upstox|kite\\.zerodha|tradingview",
+      "category": "Finance",
+      "score": 40
+    },
+    {
+      "pattern": "swiggy|zomato|ubereats|doordash|grubhub|dominos|pizzahut",
+      "category": "Food Delivery",
+      "score": 10
+    },
+    {
+      "pattern": "ola\\.com|uber\\.com|rapido|lyft",
+      "category": "Ride / Travel",
+      "score": 15
+    }
+  ],
+  "category_scores": {
+    "AI / ML": 88,
+    "AI Tools": 80,
+    "Browser": 40,
+    "Coding Practice": 90,
+    "Communication": 45,
+    "Coursework (Browser)": 92,
+    "Design": 80,
+    "Dev / Cloud": 85,
+    "Dev / Code": 92,
+    "Dev Tools": 90,
+    "Documentation": 88,
+    "Email / Calendar": 55,
+    "File Manager": 30,
+    "Finance": 40,
+    "Food Delivery": 10,
+    "Gaming": 10,
+    "IDE / Code Editor": 95,
+    "Knowledge Work": 88,
+    "Live Streaming": 10,
+    "Music / Media": 20,
+    "News": 30,
+    "Office / Docs": 75,
+    "Professional Social": 45,
+    "Project Management": 80,
+    "Reference": 70,
+    "Research": 90,
+    "Ride / Travel": 15,
+    "Shopping": 10,
+    "Social / Forum": 25,
+    "Social Media": 15,
+    "Study (Browser)": 85,
+    "Study / Reading": 90,
+    "System Tools": 30,
+    "Tech Reading": 75,
+    "Terminal": 92,
+    "Video (YouTube)": 25,
+    "Video Streaming": 10
+  }
+}

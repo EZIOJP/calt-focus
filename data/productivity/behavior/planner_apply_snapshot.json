@@ -1,0 +1,128 @@
+{
+  "user_id": 1,
+  "day": "2026-09-04",
+  "label": "apply_my_day",
+  "saved_at": "2026-09-04T04:38:15.706043+05:30",
+  "blocks": [
+    {
+      "id": 329,
+      "title": "bilbe reading moring",
+      "category": "spiritual",
+      "start_at": "2026-09-04T00:30:00Z",
+      "end_at": "2026-09-04T01:00:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 330,
+      "title": "Bath / self-care",
+      "category": "personal",
+      "start_at": "2026-09-04T01:00:00Z",
+      "end_at": "2026-09-04T01:30:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 331,
+      "title": "Breakfast",
+      "category": "food",
+      "start_at": "2026-09-04T01:30:00Z",
+      "end_at": "2026-09-04T02:00:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 332,
+      "title": "Daily review (SRS)",
+      "category": "study",
+      "start_at": "2026-09-04T02:30:00Z",
+      "end_at": "2026-09-04T03:05:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 338,
+      "title": "Scaler \u2014 daily lessons",
+      "category": "Coursework (Browser)",
+      "start_at": "2026-09-04T03:15:00Z",
+      "end_at": "2026-09-04T04:05:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 339,
+      "title": "Break",
+      "category": "break",
+      "start_at": "2026-09-04T04:05:00Z",
+      "end_at": "2026-09-04T04:15:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 340,
+      "title": "Scaler \u2014 practice / coding",
+      "category": "Coding Practice",
+      "start_at": "2026-09-04T04:15:00Z",
+      "end_at": "2026-09-04T05:05:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 341,
+      "title": "Break",
+      "category": "break",
+      "start_at": "2026-09-04T05:05:00Z",
+      "end_at": "2026-09-04T05:15:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 342,
+      "title": "AI/ML study block",
+      "category": "AI / ML",
+      "start_at": "2026-09-04T05:15:00Z",
+      "end_at": "2026-09-04T05:59:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 343,
+      "title": "Break",
+      "category": "break",
+      "start_at": "2026-09-04T05:59:00Z",
+      "end_at": "2026-09-04T06:09:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 333,
+      "title": "Lunch",
+      "category": "food",
+      "start_at": "2026-09-04T07:30:00Z",
+      "end_at": "2026-09-04T08:15:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 334,
+      "title": "Proverbs / Psalms (afternoon)",
+      "category": "spiritual",
+      "start_at": "2026-09-04T09:00:00Z",
+      "end_at": "2026-09-04T09:30:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 335,
+      "title": "Dinner",
+      "category": "food",
+      "start_at": "2026-09-04T14:00:00Z",
+      "end_at": "2026-09-04T14:45:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 336,
+      "title": "Get ready to sleep",
+      "category": "personal",
+      "start_at": "2026-09-04T14:45:00Z",
+      "end_at": "2026-09-04T15:15:00Z",
+      "status": "scheduled"
+    },
+    {
+      "id": 337,
+      "title": "Evening praise & hymn",
+      "category": "spiritual",
+      "start_at": "2026-09-04T15:30:00Z",
+      "end_at": "2026-09-04T15:55:00Z",
+      "status": "scheduled"
+    }
+  ]
+}

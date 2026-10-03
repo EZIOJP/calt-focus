@@ -1,0 +1,18 @@
+{
+  "owns": true,
+  "pid": 4812,
+  "last_kill": "2026-10-03 02:22:19 kill pid=35516 exe=steam.exe",
+  "last_kill_exe": "steam.exe",
+  "lock_present": true,
+  "service_running": true,
+  "armed": false,
+  "locked": false,
+  "incubation": false,
+  "policy_source": "sqlite+json",
+  "focus_running": true,
+  "softland_or_armed": true,
+  "focus_relaunch_count": 0,
+  "focus_last_relaunch_at": "",
+  "focus_relaunch_suppressed": false,
+  "updated_at": "2026-10-03T11:03:42Z"
+}

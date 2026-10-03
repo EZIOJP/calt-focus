@@ -1,0 +1,786 @@
+[
+  {
+    "ts": "2026-08-18T04:20:31.418726+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 13.9,
+      "calt_gate_age_s": 13.9,
+      "age_s": 13.9,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-18T04:36:27.088887+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 20.4,
+      "calt_gate_age_s": 21.9,
+      "age_s": 20.4,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-18T04:52:45.303247+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": false,
+      "startup_grace": true,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 21.8,
+      "calt_gate_age_s": 31.1,
+      "age_s": 21.8,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-18T05:07:45.142861+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 14.3,
+      "calt_gate_age_s": 14.3,
+      "age_s": 14.3,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-18T05:20:30.981941+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 13.7,
+      "calt_gate_age_s": 21.8,
+      "age_s": 13.7,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-18T05:52:03.895502+00:00",
+    "kind": "edge_closed",
+    "why": "Tracker closed Microsoft Edge because extensions were confirmed absent (two-strike). Detail: SelfTracker and CALT Gate both stopped polling while the API is up.",
+    "how_to_fix": "Reload SelfTracker + CALT Gate, then reopen Edge yourself. Do not use a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "dead",
+      "selftracker_status": "dead",
+      "calt_gate_status": "dead",
+      "selftracker_age_s": 1906.7,
+      "calt_gate_age_s": 1914.7,
+      "age_s": 1906.7,
+      "cases": [
+        "both_silent_api_up",
+        "two_strike_pending"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": "2026-08-18T05:52:03.880433+00:00",
+      "why_rules_idle": [
+        "No extension poll for 1906s while API is up \u2014 SelfTracker/CALT Gate likely unloaded.",
+        "Dead observation 0/2 \u2014 Edge stays until a second confirm."
+      ]
+    },
+    "extra": {
+      "killed_processes": 24,
+      "browser_mode": "planning"
+    }
+  },
+  {
+    "ts": "2026-08-18T18:55:22.476418+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 617.8,
+      "calt_gate_age_s": 621.3,
+      "age_s": 617.8,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-19T02:57:23.372364+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 25.4,
+      "calt_gate_age_s": 24.1,
+      "age_s": 24.1,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-19T03:12:05.499132+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 26.1,
+      "calt_gate_age_s": 26.6,
+      "age_s": 26.1,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-19T06:19:26.681564+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": true,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 28.4,
+      "calt_gate_age_s": 28.5,
+      "age_s": 28.4,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-19T06:47:29.343981+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: SelfTracker and CALT Gate both stopped polling while the API is up.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "dead",
+      "selftracker_status": "dead",
+      "calt_gate_status": "dead",
+      "selftracker_age_s": 784.3,
+      "calt_gate_age_s": 788.5,
+      "age_s": 784.3,
+      "cases": [
+        "both_silent_api_up",
+        "two_strike_pending"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "No extension poll for 784s while API is up \u2014 SelfTracker/CALT Gate likely unloaded.",
+        "Dead observation 0/2 \u2014 Edge stays until a second confirm."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-19T12:39:31.879775+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 15908.2,
+      "calt_gate_age_s": 15912.2,
+      "age_s": 15908.2,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-19T13:09:32.564605+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 17708.9,
+      "calt_gate_age_s": 17712.9,
+      "age_s": 17708.9,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-19T15:41:53.589105+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 26849.9,
+      "calt_gate_age_s": 26853.9,
+      "age_s": 26849.9,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-25T09:18:14.999969+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 522231.3,
+      "calt_gate_age_s": 522235.3,
+      "age_s": 522231.3,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-31T14:24:33.748030+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 339.8,
+      "calt_gate_age_s": 339.8,
+      "age_s": 339.8,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-08-31T17:54:34.126121+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 11709.5,
+      "calt_gate_age_s": 12175.3,
+      "age_s": 11709.5,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-09-01T12:09:33.297634+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 9103.7,
+      "calt_gate_age_s": 9107.7,
+      "age_s": 9103.7,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-09-01T12:50:56.222081+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 11586.7,
+      "calt_gate_age_s": 11590.7,
+      "age_s": 11586.7,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-09-02T05:54:34.740504+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 32676.6,
+      "calt_gate_age_s": 32676.7,
+      "age_s": 32676.6,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-09-02T18:03:30.339125+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Extensions are polling \u2014 this is healthy.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": true,
+      "web_up": true,
+      "startup_grace": false,
+      "extension_status": "alive",
+      "selftracker_status": "alive",
+      "calt_gate_status": "alive",
+      "selftracker_age_s": 6.6,
+      "calt_gate_age_s": 2.6,
+      "age_s": 2.6,
+      "cases": [
+        "fresh_poll"
+      ],
+      "false_positives": [],
+      "false_negatives": [],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": []
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-09-04T12:19:21.387267+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: Edge put the extension service worker to sleep. Not uninstalled.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 104.4,
+      "calt_gate_age_s": 108.4,
+      "age_s": 104.4,
+      "cases": [
+        "mv3_asleep"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_asleep"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "Extension silent 104s \u2014 MV3 service worker may be asleep, not uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-09-04T17:24:57.135009+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 18440.2,
+      "calt_gate_age_s": 18444.2,
+      "age_s": 18440.2,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  },
+  {
+    "ts": "2026-09-05T10:15:58.964561+00:00",
+    "kind": "edge_quit",
+    "why": "Edge quit or crashed on its own \u2014 the tracker did not close it. Gate service worker was likely Inactive; SelfTracker may show Errors. Detail: API is down, so extensions cannot heartbeat. Looks dead, is not.",
+    "how_to_fix": "Reopen Edge yourself. edge://extensions \u2192 click Errors on SelfTracker, then Reload both. Do not close Edge. Do not load a second browser.",
+    "facts": {
+      "api_up": false,
+      "web_up": false,
+      "startup_grace": false,
+      "extension_status": "stale",
+      "selftracker_status": "stale",
+      "calt_gate_status": "stale",
+      "selftracker_age_s": 79102.0,
+      "calt_gate_age_s": 79106.0,
+      "age_s": 79102.0,
+      "cases": [
+        "api_down_silent"
+      ],
+      "false_positives": [],
+      "false_negatives": [
+        "dead_while_api_down"
+      ],
+      "dead_strikes": 0,
+      "last_edge_close_at": null,
+      "why_rules_idle": [
+        "API is down \u2014 extension cannot heartbeat; do not treat as uninstalled.",
+        "API down \u2014 gate poll fails; cached extension rules go stale.",
+        "Web UI down \u2014 FOCUS tab command cannot land in CALT."
+      ]
+    },
+    "extra": {
+      "source": "process_watch",
+      "running": false
+    }
+  }
+]

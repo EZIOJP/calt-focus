@@ -1,0 +1,14 @@
+{
+  "day": "2026-08-03",
+  "bible_seconds": 475,
+  "game_consumed_seconds": 0,
+  "last_heartbeat_at": 1785752209.628847,
+  "day_pass": false,
+  "chapters_completed": [
+    "Genesis|1"
+  ],
+  "chapter_dwell": {
+    "Genesis|1": 450,
+    "Genesis|2": 25
+  }
+}

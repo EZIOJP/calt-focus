@@ -1,0 +1,13 @@
+{
+  "allow_extra": [
+    "docs.google.com"
+  ],
+  "watch_extra": [
+    "youtube.com",
+    "reddit.com",
+    "twitch.tv"
+  ],
+  "block_extra": [
+    "python-wrote-this.com"
+  ]
+}

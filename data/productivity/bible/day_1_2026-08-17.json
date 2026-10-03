@@ -1,0 +1,17 @@
+{
+  "day": "2026-08-17",
+  "bible_seconds": 2425,
+  "game_consumed_seconds": 0,
+  "last_heartbeat_at": 1786987898.240366,
+  "day_pass": false,
+  "reward_day": true,
+  "chapters_completed": [
+    "Genesis|26"
+  ],
+  "chapter_dwell": {
+    "Genesis|26": 2425
+  },
+  "assigned_book": "Genesis",
+  "assigned_chapter": 26,
+  "assigned_key": "Genesis|26"
+}

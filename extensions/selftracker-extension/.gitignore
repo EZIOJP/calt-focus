@@ -1,0 +1,3 @@
+# Never load signing keys with the unpacked extension (Edge/Chrome security warning)
+*.pem
+*.crx

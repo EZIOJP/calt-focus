@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CALT Gate</title>
+  <style>
+    body { font-family: "Segoe UI", system-ui, sans-serif; margin: 12px; min-width: 240px; background: #0a0a0f; color: #e8e8f0; }
+    h1 { font-size: 14px; margin: 0 0 4px; }
+    .muted { color: #888; font-size: 11px; margin-bottom: 10px; line-height: 1.35; }
+    button { width: 100%; padding: 8px; margin-top: 6px; border-radius: 6px; border: 1px solid #333; background: #1a1a24; color: #fff; cursor: pointer; }
+    #status { font-size: 12px; margin-top: 8px; line-height: 1.4; }
+    .warn { color: #fbbf24; }
+  </style>
+</head>
+<body>
+  <h1>CALT Gate</h1>
+  <p class="muted">Browser SoftLand · pairs with SelfTracker.<br/>OS app kills: <b>Focus → Enforcer</b> (web /productivity/focus).<br/>Reload this extension after updates.</p>
+  <div id="status">Loading…</div>
+  <button id="refresh">Refresh gate</button>
+  <button id="toggle">Toggle redirects</button>
+  <script src="popup.js"></script>
+</body>
+</html>

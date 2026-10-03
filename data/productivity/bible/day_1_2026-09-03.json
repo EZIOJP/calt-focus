@@ -1,0 +1,18 @@
+{
+  "day": "2026-09-03",
+  "bible_seconds": 25,
+  "game_consumed_seconds": 0,
+  "last_heartbeat_at": 1788447123.750364,
+  "day_pass": false,
+  "reward_day": false,
+  "chapters_completed": [
+    "Genesis|36"
+  ],
+  "chapter_dwell": {
+    "Genesis|36": 25
+  },
+  "assigned_book": "Genesis",
+  "assigned_chapter": 36,
+  "devotion": {},
+  "assigned_key": "Genesis|36"
+}

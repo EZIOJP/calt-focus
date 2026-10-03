@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "CALT SelfTracker (Edge / Chrome)",
+  "version": "1.5.28",
+  "description": "Browse tracking via calt_msg_host track_tab. SoftLand = CALT Gate. Study :8000 optional debug only.",
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "scripting",
+    "storage",
+    "alarms",
+    "idle",
+    "history",
+    "webNavigation",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "minimum_chrome_version": "109",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CALT SelfTracker",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}

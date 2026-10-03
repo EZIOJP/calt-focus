@@ -1,0 +1,12 @@
+:root {
+  --bg: #0c0e0b;
+  --fg: #e8e6e1;
+  --muted: #9a968c;
+  --panel: rgba(255, 255, 255, 0.04);
+  --border: rgba(255, 255, 255, 0.1);
+  --amber: #f5e6c8;
+  --amber-dim: rgba(245, 230, 200, 0.7);
+  --emerald: #6ee7b7;
+  --rail: 72px;
+  --font: "Segoe UI", system-ui, sans-serif;
+}

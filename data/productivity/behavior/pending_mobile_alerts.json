@@ -1,0 +1,112 @@
+[
+{
+"title": "Free mode",
+"body": "Hard-block locked \u2014 stay on productive work.",
+"browser_mode": "free",
+"morning_next": "open",
+"hard_block_armed": true,
+"locked": true,
+"ts": "2026-08-05T02:43:20.838587+00:00",
+"fingerprint": "free|open|1|1",
+"channel": "local"
+},
+{
+"title": "Confirm today's plan",
+"body": "Review and confirm today's plan.",
+"browser_mode": "planning",
+"morning_next": "plan",
+"hard_block_armed": true,
+"locked": false,
+"ts": "2026-08-18T03:58:14.097759+00:00",
+"fingerprint": "planning|plan|1|0",
+"channel": "local"
+},
+{
+"title": "Free mode",
+"body": "Hard-block armed \u00b7 mode free.",
+"browser_mode": "free",
+"morning_next": "open",
+"hard_block_armed": true,
+"locked": false,
+"ts": "2026-08-18T11:04:29.692087+00:00",
+"fingerprint": "free|open|1|0",
+"channel": "local"
+},
+{
+"title": "Bible first",
+"body": "Finish today's chapter before the day opens.",
+"browser_mode": "bible",
+"morning_next": "bible",
+"hard_block_armed": true,
+"locked": true,
+"ts": "2026-08-18T18:36:21.836937+00:00",
+"fingerprint": "bible|bible|1|1",
+"channel": "local"
+},
+{
+"title": "Study mode",
+"body": "Hard-block locked \u2014 stay on productive work.",
+"browser_mode": "study",
+"morning_next": "open",
+"hard_block_armed": true,
+"locked": true,
+"ts": "2026-08-31T06:41:03.291385+00:00",
+"fingerprint": "study|open|1|1",
+"channel": "local"
+},
+{
+"title": "Free mode",
+"body": "Hard-block armed \u00b7 mode free.",
+"browser_mode": "free",
+"morning_next": "open",
+"hard_block_armed": true,
+"locked": false,
+"ts": "2026-09-02T17:38:20.240512+00:00",
+"fingerprint": "free|open|1|0",
+"channel": "local"
+},
+{
+"title": "Study mode",
+"body": "Hard-block locked \u2014 stay on productive work.",
+"browser_mode": "study",
+"morning_next": "open",
+"hard_block_armed": true,
+"locked": true,
+"ts": "2026-09-03T05:42:13.842977+00:00",
+"fingerprint": "study|open|1|1",
+"channel": "local"
+},
+{
+"title": "Free mode",
+"body": "Hard-block armed \u00b7 mode free.",
+"browser_mode": "free",
+"morning_next": "open",
+"hard_block_armed": true,
+"locked": false,
+"ts": "2026-09-03T10:12:41.998696+00:00",
+"fingerprint": "free|open|1|0",
+"channel": "local"
+},
+{
+"title": "Bible first",
+"body": "Finish today's chapter before the day opens.",
+"browser_mode": "bible",
+"morning_next": "bible",
+"hard_block_armed": true,
+"locked": true,
+"ts": "2026-09-05T16:28:34.852964+00:00",
+"fingerprint": "bible|bible|1|1",
+"channel": "local"
+},
+{
+"title": "Study mode",
+"body": "Hard-block locked \u2014 stay on productive work.",
+"browser_mode": "study",
+"morning_next": "open",
+"hard_block_armed": true,
+"locked": true,
+"ts": "2026-09-07T08:12:57.164147+00:00",
+"fingerprint": "study|open|1|1",
+"channel": "local"
+}
+]

@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "CALT Gate (blocker)",
+  "version": "1.0.8",
+  "description": "Site SoftLand for CALT Focus via calt_msg_host (C++). DNR + locked page. Study :8000 optional debug only.",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "webNavigation",
+    "declarativeNetRequest",
+    "notifications",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*"
+  ],
+  "background": {
+    "service_worker": "service_worker.js"
+  },
+  "minimum_chrome_version": "109",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["gate_policy.js", "content_score.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CALT Gate",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["locked.html", "locked.js", "gate_policy.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

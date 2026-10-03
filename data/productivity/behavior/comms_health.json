@@ -1,0 +1,32 @@
+{
+  "sources": {
+    "calt-gate": {
+      "last_seen_at": "2026-09-11T09:52:46.334159+00:00",
+      "raw_source": "calt-gate"
+    },
+    "selftracker": {
+      "last_seen_at": "2026-09-11T09:52:46.929938+00:00",
+      "raw_source": "selftracker"
+    }
+  },
+  "extension": {
+    "last_seen_at": "2026-09-11T09:52:46.929938+00:00",
+    "source": "selftracker",
+    "family": "selftracker",
+    "server_mode": "bible",
+    "cached_mode": "bible",
+    "circuit_breaker": false,
+    "redirects_paused": false,
+    "last_event": "locked_page"
+  },
+  "tracker": {
+    "started_at": "2026-09-07T06:56:10.720380+00:00",
+    "last_seen_at": "2026-09-07T07:03:09.294963+00:00",
+    "alive": true
+  },
+  "watch": {},
+  "api_was_up": true,
+  "edge_running": false,
+  "dead_strikes": 0,
+  "api_recovered_at": "2026-09-08T22:30:06.921363+00:00"
+}
