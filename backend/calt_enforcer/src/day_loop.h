@@ -26,6 +26,12 @@ std::string DayLoopConfirmPlan(const std::wstring& behaviorDir, std::string* ext
 std::string DayLoopSnapshot(const std::wstring& behaviorDir, const std::wstring& dbPath,
                             std::string* extraOut);
 
+/** Full loop object JSON (for mirrors). Empty on failure. */
+std::string DayLoopSnapshotObjectJson(const std::wstring& behaviorDir);
+
+/** SQLite day-loop → behavior/day_loop.json for Focus FE (no pipe on load). */
+bool PublishDayLoopMirror(const std::wstring& behaviorDir);
+
 /**
  * Dual gate: all tasks done (or zero tasks) AND tracked ≥ 50% planned → grant 1h free once/day.
  * Returns error or empty; *extraOut may include grant info.

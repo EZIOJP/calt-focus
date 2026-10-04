@@ -16,7 +16,7 @@ class FocusApp {
 
   void CreateMainWindow(HINSTANCE instance);
   void CreateMessageWindow(HINSTANCE instance);
-  void ShowFocusWindow();
+  void ShowFocusWindow(bool maximize = false);
   void ShowOfflinePage();
   void RunStack();
   void StartWebStack();
@@ -30,10 +30,13 @@ class FocusApp {
   bool RunLifecycleCommand(const wchar_t* command, bool wait);
   bool WaitForPort(unsigned short port, DWORD timeoutMs);
   bool PortListening(unsigned short port);
+  bool BibleDoneTodayFromMirror() const;
+  void WakeOpenBibleGate();
   void OpenProductivity();
   void OpenSettings();
   void OpenCalendar();
   void OpenPlan();
+  void OpenBible();
   void NavigateShell(const std::wstring& url);
   void ReloadUi();
   void UpdateUi();

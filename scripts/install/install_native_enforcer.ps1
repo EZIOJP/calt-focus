@@ -83,6 +83,8 @@ function Copy-EnforcerRuntime([string]$DestDir, [string]$SrcExe) {
 }
 
 Copy-EnforcerRuntime $installDir $ExeSrc
+# Sidecar so a bare ProgramData launch (no inherited Machine env) still finds Focus SoT.
+Set-Content -Path (Join-Path $installDir "calt_db.path") -Value $DbPath -Encoding utf8
 Write-Host "Installed binary: $Exe"
 Get-ChildItem $installDir | ForEach-Object { Write-Host "  $($_.Name)" }
 

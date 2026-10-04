@@ -5,7 +5,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { PomodoroProvider } from "@/context/PomodoroContext";
 import { AppErrorBoundary } from "@/components/layout/AppErrorBoundary";
 import { DashboardChromeProvider } from "@/context/DashboardChromeContext";
-import { AppSidebar, SIDEBAR_RAIL_PX } from "@/layout/AppSidebar";
+import { AppSidebar } from "@/layout/AppSidebar";
 import { MorningGateRedirect } from "@/components/MorningGateRedirect";
 import MorningBibleOverlay from "@/components/productivity/MorningBibleOverlay";
 import MorningPlanOverlay from "@/components/productivity/MorningPlanOverlay";
@@ -15,6 +15,7 @@ import { ProductivityPage } from "@/pages/ProductivityPage";
 import FocusPage from "@/pages/FocusPage";
 import { JournalPage } from "@/pages/JournalPage";
 import { BibleReaderPage } from "@/pages/bible/BibleReaderPage";
+import { CurvedScrollArea } from "@/components/ui/CurvedScrollArea";
 
 /** Lean chrome: no Study presence / data-pipeline / Face overlay graph. */
 function FocusShell() {
@@ -24,13 +25,18 @@ function FocusShell() {
         <MorningGateRedirect />
         <MorningBibleOverlay />
         <MorningPlanOverlay />
+        {/* Sidebar overlays; pages use full width (no reserved rail inset). */}
         <AppSidebar />
-        <div
-          className="flex min-w-0 flex-1 flex-col"
-          style={{ paddingLeft: `${SIDEBAR_RAIL_PX}px` }}
-        >
-          <main className="flex-1 min-h-0 overflow-y-auto px-3 py-4 sm:px-4 sm:py-5">
-            <Outlet />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <main className="flex min-h-0 flex-1 flex-col">
+            <CurvedScrollArea
+              className="min-h-0 flex-1"
+              tone="accent"
+              radius={24}
+              contentClassName="curved-scrollbar__content--flush px-3 py-4 sm:px-4 sm:py-5"
+            >
+              <Outlet />
+            </CurvedScrollArea>
           </main>
         </div>
       </div>

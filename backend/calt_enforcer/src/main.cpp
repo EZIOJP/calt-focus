@@ -17,29 +17,69 @@ std::wstring ExeDir() {
   return (slash == std::wstring::npos) ? L"." : p.substr(0, slash);
 }
 
+std::wstring ReadUtf8FileTrim(const std::wstring& path) {
+  HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) return {};
+  char buf[1024];
+  DWORD n = 0;
+  const BOOL ok = ReadFile(h, buf, sizeof(buf) - 1, &n, nullptr);
+  CloseHandle(h);
+  if (!ok || n == 0) return {};
+  buf[n] = 0;
+  while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r' || buf[n - 1] == ' ')) {
+    buf[--n] = 0;
+  }
+  if (n == 0) return {};
+  int wlen = MultiByteToWideChar(CP_UTF8, 0, buf, (int)n, nullptr, 0);
+  if (wlen <= 0) return {};
+  std::wstring out(static_cast<size_t>(wlen), 0);
+  MultiByteToWideChar(CP_UTF8, 0, buf, (int)n, out.data(), wlen);
+  return out;
+}
+
+std::wstring MachineEnv(const wchar_t* name) {
+  HKEY key = nullptr;
+  if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment",
+                    0, KEY_READ, &key) != ERROR_SUCCESS) {
+    return {};
+  }
+  wchar_t buf[1024];
+  DWORD type = 0;
+  DWORD cb = sizeof(buf);
+  const LONG rc = RegQueryValueExW(key, name, nullptr, &type, reinterpret_cast<LPBYTE>(buf), &cb);
+  RegCloseKey(key);
+  if (rc != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ) || !buf[0]) return {};
+  return buf;
+}
+
 std::wstring DefaultDbPath() {
-  // Prefer CALT_DB; else data/productivity/productivity.db (Focus/Productivity SoT).
-  // Legacy CALT_DB pointing at vocab_app.db still works if set explicitly.
+  // Prefer CALT_DB process env; then Machine env (service/installer); then
+  // ProgramData sidecar written by install_native_enforcer.ps1; then walk up
+  // from the exe for the nearest Focus productivity.db.
   wchar_t* env = _wgetenv(L"CALT_DB");
   if (env && *env) return env;
-  std::wstring dir = ExeDir();
-  const wchar_t* candidates[] = {
-      L"\\..\\..\\..\\..\\..\\data\\productivity\\productivity.db",
-      L"\\..\\..\\..\\..\\data\\productivity\\productivity.db",
-      L"\\..\\..\\..\\data\\productivity\\productivity.db",
-      L"\\..\\..\\data\\productivity\\productivity.db",
-      // legacy fallback during transition
-      L"\\..\\..\\..\\..\\..\\data\\vocab_app.db",
-      L"\\..\\..\\..\\..\\data\\vocab_app.db",
-      L"\\..\\..\\..\\data\\vocab_app.db",
-      L"\\..\\..\\data\\vocab_app.db",
-      nullptr,
-  };
-  for (int i = 0; candidates[i]; ++i) {
-    std::wstring c = dir + candidates[i];
-    if (GetFileAttributesW(c.c_str()) != INVALID_FILE_ATTRIBUTES) return c;
+  const std::wstring machine = MachineEnv(L"CALT_DB");
+  if (!machine.empty() && GetFileAttributesW(machine.c_str()) != INVALID_FILE_ATTRIBUTES) {
+    return machine;
   }
-  return dir + L"\\..\\..\\..\\..\\..\\data\\productivity\\productivity.db";
+  const std::wstring sidecar = ExeDir() + L"\\calt_db.path";
+  const std::wstring fromSidecar = ReadUtf8FileTrim(sidecar);
+  if (!fromSidecar.empty() &&
+      GetFileAttributesW(fromSidecar.c_str()) != INVALID_FILE_ATTRIBUTES) {
+    return fromSidecar;
+  }
+  std::wstring cur = ExeDir();
+  for (int i = 0; i < 8; ++i) {
+    const std::wstring prod = cur + L"\\data\\productivity\\productivity.db";
+    if (GetFileAttributesW(prod.c_str()) != INVALID_FILE_ATTRIBUTES) return prod;
+    const std::wstring legacy = cur + L"\\data\\vocab_app.db";
+    if (GetFileAttributesW(legacy.c_str()) != INVALID_FILE_ATTRIBUTES) return legacy;
+    const size_t slash = cur.find_last_of(L"\\/");
+    if (slash == std::wstring::npos) break;
+    cur = cur.substr(0, slash);
+  }
+  return ExeDir() + L"\\..\\..\\..\\data\\productivity\\productivity.db";
 }
 
 std::wstring DefaultLockPath(const std::wstring& dbPath) {

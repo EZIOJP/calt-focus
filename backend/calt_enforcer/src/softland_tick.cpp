@@ -85,6 +85,11 @@ bool TickSoftlandClocks(const std::wstring& behaviorDir) {
     changed = true;
   }
 
+  return changed;
+}
+
+bool TickSoftlandPlanAndDayLoop(const std::wstring& behaviorDir) {
+  bool changed = false;
   // Phase 6b: active planner block → SoftLand free_until / runtime.plan_block
   if (ApplyActivePlanToSoftland(behaviorDir, 1)) changed = true;
 
@@ -96,6 +101,5 @@ bool TickSoftlandClocks(const std::wstring& behaviorDir) {
     std::wstring dbPath = dataDir + L"\\productivity.db";
     if (DayLoopTick(behaviorDir, dbPath)) changed = true;
   }
-
   return changed;
 }

@@ -2,6 +2,7 @@
   "name": "calt-focus",
   "private": true,
   "scripts": {
-    "build:focus": "scripts\\build\\build_focus_shell.bat"
+    "build:focus": "scripts\\build\\build_react_focus_ui.bat",
+    "sync:focus-ui": "scripts\\build\\sync_react_dist_from_study.bat"
   }
 }

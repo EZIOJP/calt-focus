@@ -163,6 +163,53 @@ std::string ReadFileUtf8(const std::wstring& path) {
   return out;
 }
 
+bool WriteFileUtf8Atomic(const std::wstring& dest, const std::string& body) {
+  if (dest.empty()) return false;
+  const size_t slash = dest.find_last_of(L"\\/");
+  if (slash != std::wstring::npos) {
+    CreateDirectoryW(dest.substr(0, slash).c_str(), nullptr);
+  }
+  const std::wstring tmp = dest + L".tmp";
+  FILE* f = nullptr;
+#if defined(_MSC_VER)
+  _wfopen_s(&f, tmp.c_str(), L"wb");
+#else
+  f = _wfopen(tmp.c_str(), L"wb");
+#endif
+  if (!f) return false;
+  fwrite(body.data(), 1, body.size(), f);
+  fclose(f);
+  if (!MoveFileExW(tmp.c_str(), dest.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+#if defined(_MSC_VER)
+    _wfopen_s(&f, dest.c_str(), L"wb");
+#else
+    f = _wfopen(dest.c_str(), L"wb");
+#endif
+    if (!f) {
+      DeleteFileW(tmp.c_str());
+      return false;
+    }
+    fwrite(body.data(), 1, body.size(), f);
+    fclose(f);
+    DeleteFileW(tmp.c_str());
+  }
+  return true;
+}
+
+std::wstring BehaviorDirBesideBible(const std::wstring& bibleDataDir) {
+  const size_t slash = bibleDataDir.find_last_of(L"\\/");
+  if (slash == std::wstring::npos) return {};
+  return bibleDataDir.substr(0, slash) + L"\\behavior";
+}
+
+void PublishDevotionMirrorBestEffort(const std::wstring& bibleDataDir,
+                                     const std::wstring& behaviorDirOpt, int userId) {
+  std::wstring beh = behaviorDirOpt;
+  if (beh.empty()) beh = BehaviorDirBesideBible(bibleDataDir);
+  if (beh.empty()) return;
+  PublishBibleDevotionMirror(beh, bibleDataDir, userId);
+}
+
 struct PlanChapter {
   std::string book;
   int chapter = 1;
@@ -788,6 +835,7 @@ bool LifeJournalUpsert(const std::string& payloadJson, int userId, std::string* 
                       "\",\"content\":\"" + EscapeJson(content) + "\",\"updated_at\":\"" +
                       EscapeJson(now) + "\"}";
     }
+    PublishJournalMirrors(ProductivityCurrentBehaviorDir(), userId);
     return true;
   }
 
@@ -815,7 +863,21 @@ bool LifeJournalUpsert(const std::string& payloadJson, int userId, std::string* 
                     "\",\"title\":\"" + EscapeJson(title) + "\",\"content\":\"" + EscapeJson(content) +
                     "\",\"updated_at\":\"" + EscapeJson(now) + "\"}";
   }
+  PublishJournalMirrors(ProductivityCurrentBehaviorDir(), userId);
   return true;
+}
+
+bool PublishJournalMirrors(const std::wstring& behaviorDir, int userId) {
+  if (behaviorDir.empty()) return false;
+  LifeEnsureTables();
+  const std::string day = LocalDateYmd();
+  const std::string summary = LifeJournalSummaryJson(day, userId);
+  const std::string log = LifeJournalLogJson(40, userId);
+  const bool a = WriteBehaviorMirrorFile(behaviorDir, L"journal_today.json", summary);
+  const bool b =
+      WriteBehaviorMirrorFile(behaviorDir, L"journal_log.json",
+                              std::string("{\"entries\":") + (log.empty() ? "[]" : log) + "}");
+  return a && b;
 }
 
 void LifeBibleEnsureToday(int userId, const std::wstring& bibleDataDir) {
@@ -965,6 +1027,7 @@ bool LifeBibleTick(int userId, const std::string& book, int chapter, bool done,
   met = CountCompleted(doc) >= 1 || (done && ChaptersCompletedHas(doc, key));
   // SoftLand goals must update or morning overlay never unlocks.
   if (!PublishBibleDone(done ? true : met, behaviorDir)) return false;
+  PublishDevotionMirrorBestEffort(bibleDataDir, behaviorDir, userId);
   if (outStateJson) *outStateJson = BuildStateJson(doc, assigned);
   return true;
 }
@@ -1093,6 +1156,20 @@ std::string LifeBibleDevotionTodayJson(int userId, const std::wstring& bibleData
          "\"hymns_catalog\":[],\"gate\":{}}";
 }
 
+bool PublishBibleDevotionMirror(const std::wstring& behaviorDir, const std::wstring& bibleDataDir,
+                                int userId) {
+  if (behaviorDir.empty() || bibleDataDir.empty()) return false;
+  LifeEnsureTables();
+  LifeBibleEnsureToday(userId, bibleDataDir);
+  std::string body = LifeBibleDevotionTodayJson(userId, bibleDataDir);
+  if (body.empty()) return false;
+  // Stamp for FE cache / debugging (mirror is SQLite projection, not a second SoT).
+  if (body.front() == '{') {
+    body.insert(1, "\"updated_at\":\"" + EscapeJson(IsoNow()) + "\",");
+  }
+  return WriteBehaviorMirrorFile(behaviorDir, L"bible_devotion.json", body);
+}
+
 bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
                            const std::wstring& bibleDataDir, const std::wstring& behaviorDir,
                            std::string* outJson) {
@@ -1115,6 +1192,7 @@ bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
       SaveReaderDoc(userId, reader);
     }
     if (outJson) *outJson = LifeBibleDevotionTodayJson(userId, bibleDataDir);
+    PublishDevotionMirrorBestEffort(bibleDataDir, behaviorDir, userId);
     return true;
   }
   LifeBibleEnsureToday(userId, bibleDataDir);
@@ -1139,6 +1217,7 @@ bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
     SaveReaderDoc(userId, reader);
   }
   if (outJson) *outJson = LifeBibleDevotionTodayJson(userId, bibleDataDir);
+  PublishDevotionMirrorBestEffort(bibleDataDir, behaviorDir, userId);
   return true;
 }
 
@@ -1162,6 +1241,7 @@ bool LifeBibleDevotionNotes(int userId, const std::string& slot, const std::stri
   LifeJournalUpsert(payload, userId, nullptr);
 
   if (outJson) *outJson = LifeBibleDevotionTodayJson(userId, bibleDataDir);
+  PublishDevotionMirrorBestEffort(bibleDataDir, L"", userId);
   return true;
 }
 
@@ -1197,6 +1277,7 @@ bool LifeBibleDevotionAssign(int userId, const std::string& slot, const std::str
   SaveDayRow(userId, day, doc);
   SaveReaderDoc(userId, reader);
   if (outJson) *outJson = LifeBibleDevotionTodayJson(userId, bibleDataDir);
+  PublishDevotionMirrorBestEffort(bibleDataDir, L"", userId);
   return true;
 }
 
@@ -1270,5 +1351,6 @@ bool LifeBibleDevotionPrayer(int userId, const std::string& slot, const std::str
   SaveDayRow(userId, day, doc);
   SaveReaderDoc(userId, reader);
   if (outJson) *outJson = LifeBibleDevotionTodayJson(userId, bibleDataDir);
+  PublishDevotionMirrorBestEffort(bibleDataDir, L"", userId);
   return true;
 }

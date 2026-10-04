@@ -546,6 +546,11 @@ std::wstring ProductivityBehaviorDirFromDb(const std::wstring& dbPath) {
   return Join(DirOf(dbPath), L"behavior");
 }
 
+std::wstring ProductivityCurrentBehaviorDir() {
+  if (gDbPath.empty()) return {};
+  return ProductivityBehaviorDirFromDb(gDbPath);
+}
+
 bool ProductivityStoreOpen(const std::wstring& dbPath) {
   ProductivityStoreClose();
   gDbPath = dbPath;
@@ -999,6 +1004,30 @@ std::string NormalizeTs(const std::string& iso) {
   return o;
 }
 
+/** Format UTC SYSTEMTIME as store stamp `YYYY-MM-DDTHH:MM:SS` (no Z). */
+std::string FormatUtcStore(const SYSTEMTIME& utc) {
+  char out[32];
+  snprintf(out, sizeof(out), "%04u-%02u-%02uT%02u:%02u:%02u", utc.wYear, utc.wMonth, utc.wDay,
+           utc.wHour, utc.wMinute, utc.wSecond);
+  return out;
+}
+
+/** Local wall clock → UTC store stamp. Routine HH:MM is local; FE sends real Z UTC. */
+std::string LocalWallToUtcStore(int year, int month, int day, int hour, int minute, int second) {
+  SYSTEMTIME local{};
+  local.wYear = (WORD)year;
+  local.wMonth = (WORD)month;
+  local.wDay = (WORD)day;
+  local.wHour = (WORD)hour;
+  local.wMinute = (WORD)minute;
+  local.wSecond = (WORD)second;
+  SYSTEMTIME utc{};
+  if (!TzSpecificLocalTimeToSystemTime(nullptr, &local, &utc)) {
+    return FormatUtcStore(local);
+  }
+  return FormatUtcStore(utc);
+}
+
 /** Convert any ISO input to UTC `YYYY-MM-DDTHH:MM:SS` for SQLite string compare vs Z stamps. */
 std::string ToStoreTs(const std::string& iso) {
   if (iso.empty()) return {};
@@ -1007,7 +1036,10 @@ std::string ToStoreTs(const std::string& iso) {
   if (iso.size() < 19 || iso[4] != '-' || iso[7] != '-') {
     std::string n = NormalizeTs(iso);
     if (n.size() >= 19 && n[10] == ' ') {
-      return n.substr(0, 10) + "T" + n.substr(11, 8);
+      // Naive local wall (routine apply) → UTC.
+      return LocalWallToUtcStore(atoi(n.c_str()), atoi(n.c_str() + 5), atoi(n.c_str() + 8),
+                                 atoi(n.c_str() + 11), atoi(n.c_str() + 14),
+                                 n.size() >= 19 ? atoi(n.c_str() + 17) : 0);
     }
     return n;
   }
@@ -1019,9 +1051,7 @@ std::string ToStoreTs(const std::string& iso) {
   if (tpos == std::string::npos) tpos = iso.find('t');
   if (tpos == std::string::npos) tpos = iso.find(' ');
   if (tpos == std::string::npos || tpos + 8 >= iso.size()) {
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%04d-%02d-%02dT00:00:00", year, month, day);
-    return buf;
+    return LocalWallToUtcStore(year, month, day, 0, 0, 0);
   }
   int hour = atoi(iso.c_str() + tpos + 1);
   int minute = atoi(iso.c_str() + tpos + 4);
@@ -1029,9 +1059,12 @@ std::string ToStoreTs(const std::string& iso) {
 
   int offMin = 0;
   bool hasOffset = false;
+  bool isZulu = false;
   size_t z = iso.find('Z');
   if (z == std::string::npos) z = iso.find('z');
-  if (z == std::string::npos) {
+  if (z != std::string::npos) {
+    isZulu = true;
+  } else {
     for (size_t i = tpos + 8; i < iso.size(); ++i) {
       if (iso[i] == '+' || iso[i] == '-') {
         hasOffset = true;
@@ -1047,7 +1080,15 @@ std::string ToStoreTs(const std::string& iso) {
     }
   }
 
-  if (hasOffset && offMin != 0) {
+  if (isZulu) {
+    // Already UTC digits.
+    char out[32];
+    snprintf(out, sizeof(out), "%04d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute,
+             second);
+    return out;
+  }
+
+  if (hasOffset) {
     // wall = UTC + offset → UTC = wall - offset
     long long secs =
         (long long)second + (long long)minute * 60 + (long long)hour * 3600 - (long long)offMin * 60;
@@ -1088,16 +1129,19 @@ std::string ToStoreTs(const std::string& iso) {
     day = d;
     month = mo;
     year = y;
+    char out[32];
+    snprintf(out, sizeof(out), "%04d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute,
+             second);
+    return out;
   }
 
-  char out[32];
-  snprintf(out, sizeof(out), "%04d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute,
-           second);
-  return out;
+  // No zone → local wall (routines / IsoLocalNow) → UTC store.
+  return LocalWallToUtcStore(year, month, day, hour, minute, second);
 }
 
 std::string ToApiIso(const std::string& stored) {
   if (stored.empty()) return "";
+  // Store is UTC (naive). Label it Z for the FE Date parser.
   std::string s = stored;
   for (char& c : s) {
     if (c == ' ') c = 'T';
@@ -1320,6 +1364,74 @@ const char* kRoutineSelectCols =
 
 }  // namespace
 
+/** One-shot: rows written as local wall → UTC store (ToApiIso used to slap Z on local). */
+void MaybeNormalizePlannerBlocksUtc() {
+  if (!gDb) return;
+  Exec("ALTER TABLE productivity_planner_meta ADD COLUMN utc_norm_at TEXT;");
+  sqlite3_stmt* st = nullptr;
+  bool done = false;
+  if (sqlite3_prepare_v2(gDb, "SELECT utc_norm_at FROM productivity_planner_meta WHERE id=1;", -1,
+                         &st, nullptr) == SQLITE_OK) {
+    if (sqlite3_step(st) == SQLITE_ROW) {
+      const char* p = reinterpret_cast<const char*>(sqlite3_column_text(st, 0));
+      done = p && *p;
+    }
+    sqlite3_finalize(st);
+  }
+  if (done) return;
+
+  if (sqlite3_prepare_v2(gDb, "SELECT id, start_at, end_at, created_at FROM planner_blocks;", -1,
+                         &st, nullptr) == SQLITE_OK) {
+    while (sqlite3_step(st) == SQLITE_ROW) {
+      long long id = sqlite3_column_int64(st, 0);
+      auto col = [&](int i) -> std::string {
+        const char* p = reinterpret_cast<const char*>(sqlite3_column_text(st, i));
+        return p ? p : "";
+      };
+      // Legacy stamps are local wall without Z. Force local→UTC (strip any mistaken Z first).
+      auto asLocalNaive = [](std::string s) {
+        for (char& c : s) {
+          if (c == 'T' || c == 't') c = ' ';
+        }
+        size_t z = s.find('Z');
+        if (z == std::string::npos) z = s.find('z');
+        if (z != std::string::npos) s = s.substr(0, z);
+        size_t plus = s.find('+', 11);
+        if (plus != std::string::npos) s = s.substr(0, plus);
+        return s;
+      };
+      std::string startUtc = ToStoreTs(asLocalNaive(col(1)));
+      std::string endUtc = ToStoreTs(asLocalNaive(col(2)));
+      std::string createdRaw = col(3);
+      std::string createdUtc = createdRaw.empty() ? "" : ToStoreTs(asLocalNaive(createdRaw));
+
+      sqlite3_stmt* up = nullptr;
+      if (sqlite3_prepare_v2(gDb,
+                             "UPDATE planner_blocks SET start_at=?, end_at=?, created_at=? WHERE id=?;",
+                             -1, &up, nullptr) == SQLITE_OK) {
+        sqlite3_bind_text(up, 1, startUtc.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(up, 2, endUtc.c_str(), -1, SQLITE_TRANSIENT);
+        if (createdUtc.empty())
+          sqlite3_bind_null(up, 3);
+        else
+          sqlite3_bind_text(up, 3, createdUtc.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(up, 4, id);
+        sqlite3_step(up);
+        sqlite3_finalize(up);
+      }
+    }
+    sqlite3_finalize(st);
+  }
+
+  std::string now = IsoLocalNow();
+  if (sqlite3_prepare_v2(gDb, "UPDATE productivity_planner_meta SET utc_norm_at=? WHERE id=1;", -1,
+                         &st, nullptr) == SQLITE_OK) {
+    sqlite3_bind_text(st, 1, now.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_step(st);
+    sqlite3_finalize(st);
+  }
+}
+
 void ProductivityEnsurePlanner() {
   if (!gDb) return;
   Exec(
@@ -1373,21 +1485,23 @@ void ProductivityEnsurePlanner() {
     }
     sqlite3_finalize(st);
   }
-  if (already) return;
-
-  int blocks = ScalarInt("SELECT COUNT(*) FROM planner_blocks;", nullptr, nullptr);
-  int routines = ScalarInt("SELECT COUNT(*) FROM planner_routines;", nullptr, nullptr);
-  std::string now = IsoLocalNow();
-  if (sqlite3_prepare_v2(gDb,
-                         "UPDATE productivity_planner_meta SET imported_at=?, block_count=?, "
-                         "routine_count=? WHERE id=1;",
-                         -1, &st, nullptr) == SQLITE_OK) {
-    sqlite3_bind_text(st, 1, now.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(st, 2, blocks);
-    sqlite3_bind_int(st, 3, routines);
-    sqlite3_step(st);
-    sqlite3_finalize(st);
+  if (!already) {
+    int blocks = ScalarInt("SELECT COUNT(*) FROM planner_blocks;", nullptr, nullptr);
+    int routines = ScalarInt("SELECT COUNT(*) FROM planner_routines;", nullptr, nullptr);
+    std::string now = IsoLocalNow();
+    if (sqlite3_prepare_v2(gDb,
+                           "UPDATE productivity_planner_meta SET imported_at=?, block_count=?, "
+                           "routine_count=? WHERE id=1;",
+                           -1, &st, nullptr) == SQLITE_OK) {
+      sqlite3_bind_text(st, 1, now.c_str(), -1, SQLITE_TRANSIENT);
+      sqlite3_bind_int(st, 2, blocks);
+      sqlite3_bind_int(st, 3, routines);
+      sqlite3_step(st);
+      sqlite3_finalize(st);
+    }
   }
+
+  MaybeNormalizePlannerBlocksUtc();
 }
 
 std::string ProductivityPlanListJson(const std::string& fromIso, const std::string& toIso,
@@ -1530,9 +1644,9 @@ bool ProductivityPlanUpsert(const std::string& payloadJson, int userId, std::str
                outSt.wDay, outSt.wHour, outSt.wMinute, outSt.wSecond);
       endAt = buf;
     } else {
-      endAt = ToStoreTs(curEnd);
+      endAt = curEnd;  // already UTC store form
     }
-    startAt = ToStoreTs(startAt);
+    // startAt: API inputs already passed ToStoreTs; DB echoes stay as stored UTC.
 
     int rem = hasRem ? remaining : curRemaining;
     if (hasDur && duration > 0 && !hasRem) rem = planned;
@@ -1651,6 +1765,63 @@ bool ProductivityPlanDelete(long long id, int userId) {
   if (!ok || changes <= 0) return false;
   ProductivityBumpSeq();
   return true;
+}
+
+int ProductivityPlanClearDay(int userId, const std::string& dateYmdOrEmpty) {
+  if (!gDb || userId <= 0) return -1;
+  ProductivityEnsurePlanner();
+
+  std::string day = dateYmdOrEmpty;
+  if (day.size() < 10) {
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%04u-%02u-%02u", st.wYear, st.wMonth, st.wDay);
+    day = buf;
+  } else {
+    day = day.substr(0, 10);
+  }
+
+  int y = 0, mo = 0, d = 0;
+  if (sscanf(day.c_str(), "%d-%d-%d", &y, &mo, &d) != 3) return -1;
+  auto dim = [](int y_, int m_) {
+    static const int mdays[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int n = mdays[m_];
+    if (m_ == 2 && ((y_ % 4 == 0 && y_ % 100 != 0) || (y_ % 400 == 0))) n = 29;
+    return n;
+  };
+  int ny = y, nmo = mo, nd = d + 1;
+  if (nd > dim(ny, nmo)) {
+    nd = 1;
+    nmo += 1;
+    if (nmo > 12) {
+      nmo = 1;
+      ny += 1;
+    }
+  }
+  char nextDay[16];
+  snprintf(nextDay, sizeof(nextDay), "%04d-%02d-%02d", ny, nmo, nd);
+
+  // Local day [00:00, next 00:00) → UTC store; overlap start < endExclusive AND end > start.
+  std::string from = ToStoreTs(day + "T00:00:00");
+  std::string toExclusive = ToStoreTs(std::string(nextDay) + "T00:00:00");
+
+  sqlite3_stmt* st = nullptr;
+  if (sqlite3_prepare_v2(gDb,
+                         "DELETE FROM planner_blocks WHERE user_id=? AND start_at < ? AND "
+                         "end_at > ?;",
+                         -1, &st, nullptr) != SQLITE_OK) {
+    return -1;
+  }
+  sqlite3_bind_int(st, 1, userId);
+  sqlite3_bind_text(st, 2, toExclusive.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(st, 3, from.c_str(), -1, SQLITE_TRANSIENT);
+  bool ok = sqlite3_step(st) == SQLITE_DONE;
+  int changes = sqlite3_changes(gDb);
+  sqlite3_finalize(st);
+  if (!ok) return -1;
+  if (changes > 0) ProductivityBumpSeq();
+  return changes;
 }
 
 std::string ProductivityRoutineListJson(int userId) {
@@ -2218,13 +2389,16 @@ int ProductivityRoutineApply(int userId, const std::string& dateYmdOrEmpty, bool
     }
     int minutes = MinutesBetweenIso(startAt, endAt);
     if (minutes <= 0) continue;
-    if (skipOverlaps && BlockOverlaps(userId, startAt, endAt, 0)) continue;
+    // Local wall → UTC store, then Z-label for upsert (ToStoreTs keeps Zulu digits).
+    std::string startUtc = ToStoreTs(startAt);
+    std::string endUtc = ToStoreTs(endAt);
+    if (skipOverlaps && BlockOverlaps(userId, startUtc, endUtc, 0)) continue;
 
     std::string payload = std::string("{\"title\":\"") + JsonEscape(title) +
                           "\",\"category\":\"" +
                           JsonEscape(category.empty() ? "personal" : category) +
-                          "\",\"start_at\":\"" + JsonEscape(ToApiIso(startAt)) +
-                          "\",\"end_at\":\"" + JsonEscape(ToApiIso(endAt)) +
+                          "\",\"start_at\":\"" + JsonEscape(ToApiIso(startUtc)) +
+                          "\",\"end_at\":\"" + JsonEscape(ToApiIso(endUtc)) +
                           "\",\"planned_minutes\":" + std::to_string(minutes) +
                           ",\"remaining_minutes\":" + std::to_string(minutes) +
                           ",\"status\":\"scheduled\"";
@@ -2300,15 +2474,16 @@ std::string ProductivityPlanAdherenceJson(const std::string& dayYmd, int userId)
   } else {
     day = day.substr(0, 10);
   }
-  std::string from = day + " 00:00:00";
-  std::string to = day + " 23:59:59";
+  // Local day bounds → UTC store so string compare matches planner_blocks.
+  std::string from = ToStoreTs(day + "T00:00:00");
+  std::string to = ToStoreTs(day + "T23:59:59");
 
   int planned = 0;
   int blockCount = 0;
   sqlite3_stmt* st = nullptr;
   if (sqlite3_prepare_v2(gDb,
                          "SELECT planned_minutes FROM planner_blocks WHERE user_id=? AND "
-                         "start_at <= ? AND end_at >= ? AND status NOT IN ('cancelled');",
+                         "start_at < ? AND end_at > ? AND status NOT IN ('cancelled');",
                          -1, &st, nullptr) == SQLITE_OK) {
     sqlite3_bind_int(st, 1, userId);
     sqlite3_bind_text(st, 2, to.c_str(), -1, SQLITE_TRANSIENT);

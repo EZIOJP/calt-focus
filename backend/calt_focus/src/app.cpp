@@ -10,6 +10,9 @@
 #include <objbase.h>
 #include <shellapi.h>
 #include <tlhelp32.h>
+#include <wtsapi32.h>
+
+#pragma comment(lib, "wtsapi32.lib")
 
 #include <cstring>
 #include <fstream>
@@ -29,6 +32,7 @@ constexpr WPARAM SHELL_QUIT = 3;
 constexpr WPARAM SHELL_OPEN_SETTINGS = 4;
 constexpr WPARAM SHELL_POPUP_TRAY = 5;
 constexpr WPARAM SHELL_RESTART_ENFORCER = 6;
+constexpr WPARAM SHELL_WAKE_BIBLE = 7;
 
 UINT g_taskbar_created = 0;
 
@@ -43,8 +47,10 @@ bool AlreadyRunning() {
 void ActivateExisting() {
   HWND hwnd = FindWindowW(kMainClass, nullptr);
   if (hwnd) {
-    ShowWindow(hwnd, SW_SHOW);
+    ShowWindow(hwnd, SW_SHOWMAXIMIZED);
     SetForegroundWindow(hwnd);
+    // Wake existing shell into the morning Bible gate when needed.
+    PostMessageW(hwnd, WM_FOCUS_SHELL, SHELL_WAKE_BIBLE, 0);
   }
 }
 
@@ -94,7 +100,7 @@ int FocusApp::Run(HINSTANCE instance) {
   tray_->SetOnStartStack([this]() { StartWebStack(); });
   tray_->SetOnStartApi([this]() { StartApiOnly(); });
   tray_->SetOnStartFe([this]() { StartFrontendOnly(); });
-  tray_->SetOnOpen([this]() { ShowFocusWindow(); });
+  tray_->SetOnOpen([this]() { WakeOpenBibleGate(); });
   tray_->SetOnSettings([this]() { OpenSettings(); });
   tray_->SetOnCalendar([this]() { OpenCalendar(); });
   tray_->SetOnPlan([this]() { OpenPlan(); });
@@ -130,7 +136,7 @@ int FocusApp::Run(HINSTANCE instance) {
                 L"CALT Focus",
                 L"Productivity ready — SoftLand/Arm/Plan via enforcer (no Study API).");
           }
-          ShowFocusWindow();
+          WakeOpenBibleGate();
         } else {
           ShowOfflinePage();
         }
@@ -157,9 +163,9 @@ int FocusApp::Run(HINSTANCE instance) {
   });
 
   tip_timer_ = SetTimer(msg_hwnd_, kTipTimerId, 2500, nullptr);
-  // Status push was on the tip timer (2.5s) and flooded the WebView — keep tray
-  // snappy, push mirrors much less often (content-hash skip inside PushStatusTick).
-  push_timer_ = SetTimer(msg_hwnd_, kPushTimerId, 15000, nullptr);
+  // Push mirrors into WebView; content-hash skip avoids re-render spam.
+  // 8s feels live while enforcer DB/plan sync stays at 1 min.
+  push_timer_ = SetTimer(msg_hwnd_, kPushTimerId, 8000, nullptr);
   RefreshTrayTip();
   PushStatusTick();
 
@@ -219,6 +225,8 @@ void FocusApp::CreateMainWindow(HINSTANCE instance) {
     DwmSetWindowAttribute(main_hwnd_, DWMWA_CAPTION_COLOR, &caption, sizeof(caption));
     DwmSetWindowAttribute(main_hwnd_, DWMWA_BORDER_COLOR, &border, sizeof(border));
     DwmSetWindowAttribute(main_hwnd_, DWMWA_TEXT_COLOR, &text, sizeof(text));
+    // Session unlock → bring Focus up full-screen for the morning Bible gate.
+    WTSRegisterSessionNotification(main_hwnd_, NOTIFY_FOR_THIS_SESSION);
   }
 }
 
@@ -291,8 +299,17 @@ LRESULT FocusApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
       case SHELL_RESTART_ENFORCER:
         RestartEnforcer();
         return 0;
+      case SHELL_WAKE_BIBLE:
+        WakeOpenBibleGate();
+        return 0;
       default:
         break;
+    }
+  }
+  if (hwnd == main_hwnd_ && msg == WM_WTSSESSION_CHANGE) {
+    if (wParam == WTS_SESSION_UNLOCK || wParam == WTS_SESSION_LOGON) {
+      WakeOpenBibleGate();
+      return 0;
     }
   }
   if (g_taskbar_created && msg == g_taskbar_created) {
@@ -329,28 +346,71 @@ LRESULT FocusApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
   return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-void FocusApp::ShowFocusWindow() {
+bool FocusApp::BibleDoneTodayFromMirror() const {
+  const std::wstring path = SoftlandPolicyPath();
+  HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) return false;
+  LARGE_INTEGER sz{};
+  if (!GetFileSizeEx(h, &sz) || sz.QuadPart <= 0 || sz.QuadPart > 2 * 1024 * 1024) {
+    CloseHandle(h);
+    return false;
+  }
+  std::string body(static_cast<size_t>(sz.QuadPart), '\0');
+  DWORD n = 0;
+  const BOOL ok = ReadFile(h, body.data(), static_cast<DWORD>(body.size()), &n, nullptr);
+  CloseHandle(h);
+  if (!ok || n == 0) return false;
+  body.resize(n);
+  if (body.find("\"bible_done\":true") == std::string::npos &&
+      body.find("\"bible_done\": true") == std::string::npos) {
+    return false;
+  }
+  SYSTEMTIME st{};
+  GetLocalTime(&st);
+  char today[16];
+  sprintf_s(today, "%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
+  const std::string needle = std::string("\"bible_done_for_date\":\"") + today + "\"";
+  return body.find(needle) != std::string::npos;
+}
+
+void FocusApp::OpenBible() {
+  NavigateShell(BibleUrl());
+}
+
+void FocusApp::WakeOpenBibleGate() {
+  EnsureEnforcer();
+  const bool bibleDone = BibleDoneTodayFromMirror();
+  ShowFocusWindow(true);
+  if (!bibleDone) {
+    OpenBible();
+    if (tray_) {
+      tray_->ShowBalloon(L"CALT Focus",
+                         L"Morning chapter first — read, then mark done.");
+    }
+  }
+}
+
+void FocusApp::ShowFocusWindow(bool maximize) {
   if (!main_hwnd_) {
     return;
   }
   if (webview_ && webview_->Ready()) {
     if (HasPrebuiltWebUi()) {
-      if (EnsurePrebuiltUiReady()) {
-        webview_->Navigate(FocusUrl());
-      } else {
+      if (!EnsurePrebuiltUiReady()) {
         ShowOfflinePage();
       }
-    } else if (PortListening(5173)) {
-      webview_->Navigate(FocusUrl());
-    } else {
+    } else if (!PortListening(5173)) {
       ShowOfflinePage();
     }
   } else if (webview_failed_) {
     ShellExecuteW(nullptr, L"open", FocusUrl().c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     return;
   }
-  ShowWindow(main_hwnd_, SW_SHOW);
-  ShowWindow(main_hwnd_, SW_RESTORE);
+  ShowWindow(main_hwnd_, maximize ? SW_SHOWMAXIMIZED : SW_SHOW);
+  if (!maximize) {
+    ShowWindow(main_hwnd_, SW_RESTORE);
+  }
   SetForegroundWindow(main_hwnd_);
 }
 
@@ -631,12 +691,12 @@ void FocusApp::RestartEnforcer() {
 
   bool ok = StartEnforcerService();
   if (!ok) {
-    // ProgramData install path (service binary) or console bat.
-    const std::wstring pd =
-        std::wstring(L"C:\\ProgramData\\CALT\\enforcer\\calt_enforcer.exe");
-    if (GetFileAttributesW(pd.c_str()) != INVALID_FILE_ATTRIBUTES) {
-      ShellExecuteW(nullptr, L"open", pd.c_str(), nullptr,
-                    L"C:\\ProgramData\\CALT\\enforcer", SW_HIDE);
+    // Never bare-launch ProgramData exe — without CALT_DB it writes the wrong tree.
+    // Console bat sets CALT_DB to this repo's productivity.db.
+    const std::wstring console = RepoRoot() + L"\\scripts\\run\\run_native_enforcer_console.bat";
+    if (GetFileAttributesW(console.c_str()) != INVALID_FILE_ATTRIBUTES) {
+      ShellExecuteW(nullptr, L"open", console.c_str(), nullptr, RepoRoot().c_str(),
+                    SW_SHOWMINNOACTIVE);
       ok = true;
     } else {
       EnsureEnforcer();

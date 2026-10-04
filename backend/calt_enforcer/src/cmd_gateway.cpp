@@ -370,6 +370,9 @@ std::string SaveAndPublish(ProductivitySoftland& s, const std::wstring& behavior
   if (!ProductivitySaveSoftland(s)) return "store_save_failed";
   ProductivityBumpSeq();
   PublishSoftlandMirror(behaviorDir, s);
+  // FE reads mirrors — refresh immediately after SoftLand writes (don't wait 1 min).
+  PublishDayStatusMirror(behaviorDir);
+  PublishDayLoopMirror(behaviorDir);
   return "";
 }
 
@@ -413,6 +416,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     JsonGetInt(payload, "user_id", &userId);
     std::string out;
     if (!DayLoopTaskUpsert(payload, userId, &out)) return "task_upsert_failed";
+    PublishDayLoopMirror(behaviorDir);
     if (extraOut) *extraOut = ",\"task\":" + out;
     return "";
   }
@@ -425,6 +429,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     if (JsonGetInt(payload, "id", &idInt)) id = idInt;
     JsonGetBool(payload, "done", &done);
     if (!DayLoopTaskSetDone(id, done, userId)) return "task_set_done_failed";
+    PublishDayLoopMirror(behaviorDir);
     return "";
   }
   if (op == "day.task_delete") {
@@ -433,6 +438,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     JsonGetInt(payload, "user_id", &userId);
     if (!JsonGetInt(payload, "id", &idInt)) return "bad_payload";
     if (!DayLoopTaskDelete(idInt, userId)) return "task_delete_failed";
+    PublishDayLoopMirror(behaviorDir);
     return "";
   }
   if (op == "softland.set_bedtime") {
@@ -769,6 +775,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
                ",\"balance_seconds\":" + std::to_string(s.earned_ledger_seconds) +
                ",\"free_until\":" + (s.free_until.empty() ? "null" : "\"" + s.free_until + "\"") +
                ",\"reward_day_active\":" + (s.reward_day_active ? "true" : "false");
+      PublishDayStatusMirror(behaviorDir);
     }
     if (extraOut) *extraOut = extra;
     return "";
@@ -901,6 +908,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     std::string blockJson;
     if (!ProductivityPlanUpsert(payload, userId, &blockJson) || blockJson.empty())
       return "store_save_failed";
+    PublishPlanBlocksMirror(behaviorDir);
     if (extraOut) *extraOut = ",\"block\":" + blockJson;
     return "";
   }
@@ -911,7 +919,20 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     JsonGetInt(payload, "user_id", &userId);
     if (userId <= 0) userId = 1;
     if (!ProductivityPlanDelete(id, userId)) return "not_found";
+    PublishPlanBlocksMirror(behaviorDir);
     if (extraOut) *extraOut = ",\"deleted\":true,\"block_id\":" + std::to_string(id);
+    return "";
+  }
+  if (op == "plan.clear_day") {
+    int userId = 1;
+    std::string date;
+    JsonGetInt(payload, "user_id", &userId);
+    if (userId <= 0) userId = 1;
+    JsonGetString(payload, "date", &date);
+    int n = ProductivityPlanClearDay(userId, date);
+    if (n < 0) return "store_save_failed";
+    PublishPlanBlocksMirror(behaviorDir);
+    if (extraOut) *extraOut = ",\"deleted\":" + std::to_string(n);
     return "";
   }
   if (op == "routine.list") {
@@ -990,6 +1011,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     JsonGetBool(payload, "skip_overlaps", &skip);
     int n = ProductivityRoutineApply(userId, date, skip);
     if (n < 0) return "store_save_failed";
+    PublishPlanBlocksMirror(behaviorDir);
     if (extraOut) *extraOut = ",\"created\":" + std::to_string(n);
     return "";
   }
@@ -1095,6 +1117,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
       int userId = 1;
       JsonGetInt(payload, "user_id", &userId);
       if (userId <= 0) userId = 1;
+      PublishBibleDevotionMirror(behaviorDir, bibleDir, userId);
       if (extraOut) *extraOut = ",\"devotion\":" + LifeBibleDevotionTodayJson(userId, bibleDir);
       return "";
     }

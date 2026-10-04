@@ -9,8 +9,7 @@ This repository is **standalone**. It does not require the Study (GRE/notes) pro
 ```text
 backend/          calt_enforcer · calt_focus · calt_msg_host
 extensions/       Gate + SelfTracker
-frontend/shell/   HTML/CSS/JS UI (primary — hybrid design)
-frontend/         Legacy Vite entry (optional; no Study src/)
+frontend/         Thin notes + optional Vite entry (UI built in Study → dist-focus)
 scripts/          build · install · run
 data/productivity SoftLand SoT + mirrors (+ bible corpus)
 docs/             BLOCKING_RULES + designs
@@ -29,7 +28,7 @@ npm run build:focus
 scripts\run\run_calt_desktop.bat
 ```
 
-Edit UI under `frontend\shell\` → `npm run build:focus` → tray **Reload UI**.
+UI: React Focus SPA from Study sibling → `dist-focus/` (`npm run build:focus` or `sync:focus-ui`). Tray **Reload UI** after sync.
 
 ## Naming
 
@@ -43,5 +42,4 @@ SoftLand ON ≠ Arm.
 ## Docs
 
 - [docs/BLOCKING_RULES.md](docs/BLOCKING_RULES.md)
-- [Hybrid HTML shell](docs/superpowers/specs/2026-10-03-calt-focus-hybrid-html-shell-design.md)
 - [Separate-repo extract](docs/superpowers/specs/2026-10-03-calt-focus-separate-repo-design.md)

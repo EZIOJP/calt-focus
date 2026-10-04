@@ -6,21 +6,19 @@ CT-class split (pattern only, no CT code):
   calt_enforcer.exe  = OS kills + stay-alive + non-browser track
 ```
 
-## UI (HTML shell)
+## UI (React → dist-focus)
 
 Focus loads prebuilt UI from repo `dist-focus/` via WebView2 (`https://calt.app`).
 
-Source of truth: **`frontend/shell/`** (plain HTML/CSS/JS).
+Build/sync the React Focus SPA from the Study sibling:
 
 ```bat
 npm run build:focus
+:: or: npm run sync:focus-ui
 scripts\run\run_calt_desktop.bat
 ```
 
-`build:focus` copies `frontend\shell` → `dist-focus`.  
-`run_calt_desktop.bat` ships the shell automatically if `dist-focus\` is missing.
-
-Edit loop: change files under `frontend/shell/` → `npm run build:focus` → tray **Reload UI**.
+`run_calt_desktop.bat` syncs Study `dist-focus` if local `dist-focus\` is missing.
 
 SoftLand / Arm / Plan writes go through WebView2 → enforcer named pipe (no Study `:8000`).
 

@@ -86,6 +86,9 @@ std::string ProductivityPendingListJson(int limit);
 
 std::wstring ProductivityBehaviorDirFromDb(const std::wstring& dbPath);
 
+/** behavior/ beside the currently open productivity.db (empty if store closed). */
+std::wstring ProductivityCurrentBehaviorDir();
+
 // ---------------------------------------------------------------------------
 // P5a — unlock accounting (day passes, reward credits, per-day earn events).
 // Local calendar dates ("YYYY-MM-DD"); weeks are Monday-start local.
@@ -138,6 +141,12 @@ std::string ProductivityPlanGetJson(long long id, int userId = 1);
 bool ProductivityPlanUpsert(const std::string& payloadJson, int userId, std::string* outBlockJson);
 
 bool ProductivityPlanDelete(long long id, int userId = 1);
+
+/**
+ * Delete all planner blocks overlapping the local calendar day (YYYY-MM-DD).
+ * Empty date = today. Returns deleted row count (-1 on error).
+ */
+int ProductivityPlanClearDay(int userId, const std::string& dateYmdOrEmpty);
 
 std::string ProductivityRoutineListJson(int userId = 1);
 

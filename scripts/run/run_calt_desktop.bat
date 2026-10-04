@@ -10,10 +10,10 @@ echo SoftLand/Arm: native enforcer (no Study :8000)
 echo.
 
 if not exist "%ROOT%\dist-focus\index.html" (
-  echo dist-focus missing — shipping frontend\shell...
-  call "%ROOT%\scripts\build\build_focus_shell.bat"
+  echo dist-focus missing — syncing React UI from Study sibling...
+  call "%ROOT%\scripts\build\sync_react_dist_from_study.bat"
   if errorlevel 1 (
-    echo ERROR: could not build dist-focus from shell
+    echo ERROR: could not restore dist-focus from Study
     exit /b 1
   )
 )

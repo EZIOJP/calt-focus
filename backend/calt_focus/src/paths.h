@@ -17,6 +17,7 @@ std::wstring ProductivityUrl();
 std::wstring SettingsUrl();
 std::wstring CalendarUrl();
 std::wstring PlanUrl();
+std::wstring BibleUrl();
 std::wstring WebViewUserDataDir();
 
 // Virtual host used with WebView2 SetVirtualHostNameToFolderMapping(dist).

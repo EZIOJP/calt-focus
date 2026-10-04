@@ -579,11 +579,10 @@ std::string DayLoopConfirmPlan(const std::wstring& behaviorDir, std::string* ext
   return "";
 }
 
-std::string DayLoopSnapshot(const std::wstring& behaviorDir, const std::wstring& /*dbPath*/,
-                            std::string* extraOut) {
+std::string DayLoopSnapshotObjectJson(const std::wstring& behaviorDir) {
   DayLoopEnsureSchema();
   ProductivitySoftland s;
-  if (!ProductivityLoadSoftland(s)) return "store_load_failed";
+  if (!ProductivityLoadSoftland(s)) return {};
   const std::string today = LocalDate();
   int planned = PlannedMinutesToday(1);
   int tracked = TrackedProductiveMinutes(behaviorDir);
@@ -612,26 +611,34 @@ std::string DayLoopSnapshot(const std::wstring& behaviorDir, const std::wstring&
   std::string wakeJs = wake.empty() ? "null" : ("\"" + JsonEscape(wake) + "\"");
   std::string emJs = emergency.empty() ? "null" : ("\"" + JsonEscape(emergency) + "\"");
 
-  if (extraOut) {
-    *extraOut =
-        ",\"loop\":{"
-        "\"date\":\"" +
-        today + "\",\"planned_minutes\":" + std::to_string(planned) +
-        ",\"tracked_productive_minutes\":" + std::to_string(tracked) +
-        ",\"threshold_minutes\":" + std::to_string(need) +
-        ",\"tasks_total\":" + std::to_string(total) + ",\"tasks_done\":" + std::to_string(done) +
-        ",\"checkboxes_ok\":" + (checkboxesOk ? "true" : "false") +
-        ",\"time_ok\":" + (timeOk ? "true" : "false") +
-        ",\"dual_gate_ok\":" + ((checkboxesOk && timeOk) ? "true" : "false") +
-        ",\"closeout_free_granted\":" + (freeGranted ? "true" : "false") +
-        ",\"free_until\":" + freeJs + ",\"bedtime_hm\":" + bedJs + ",\"wake_hm\":" + wakeJs +
-        ",\"bedtime_active\":" + (bedtimeActive ? "true" : "false") +
-        ",\"emergency_until\":" + emJs +
-        ",\"bible_done\":" + (bibleDone ? "true" : "false") +
-        ",\"plan_confirmed\":" + (planConfirmed ? "true" : "false") +
-        ",\"softland_enabled\":" + (s.softland_enabled ? "true" : "false") +
-        ",\"tasks\":" + tasks + "}";
-  }
+  return std::string("{") + "\"date\":\"" + today + "\",\"planned_minutes\":" +
+         std::to_string(planned) + ",\"tracked_productive_minutes\":" + std::to_string(tracked) +
+         ",\"threshold_minutes\":" + std::to_string(need) + ",\"tasks_total\":" +
+         std::to_string(total) + ",\"tasks_done\":" + std::to_string(done) +
+         ",\"checkboxes_ok\":" + (checkboxesOk ? "true" : "false") +
+         ",\"time_ok\":" + (timeOk ? "true" : "false") +
+         ",\"dual_gate_ok\":" + ((checkboxesOk && timeOk) ? "true" : "false") +
+         ",\"closeout_free_granted\":" + (freeGranted ? "true" : "false") +
+         ",\"free_until\":" + freeJs + ",\"bedtime_hm\":" + bedJs + ",\"wake_hm\":" + wakeJs +
+         ",\"bedtime_active\":" + (bedtimeActive ? "true" : "false") +
+         ",\"emergency_until\":" + emJs + ",\"bible_done\":" + (bibleDone ? "true" : "false") +
+         ",\"plan_confirmed\":" + (planConfirmed ? "true" : "false") +
+         ",\"softland_enabled\":" + (s.softland_enabled ? "true" : "false") + ",\"tasks\":" +
+         tasks + "}";
+}
+
+bool PublishDayLoopMirror(const std::wstring& behaviorDir) {
+  std::string body = DayLoopSnapshotObjectJson(behaviorDir);
+  if (body.empty()) return false;
+  return WriteBehaviorMirrorFile(behaviorDir, L"day_loop.json", body);
+}
+
+std::string DayLoopSnapshot(const std::wstring& behaviorDir, const std::wstring& /*dbPath*/,
+                            std::string* extraOut) {
+  std::string loop = DayLoopSnapshotObjectJson(behaviorDir);
+  if (loop.empty()) return "store_load_failed";
+  WriteBehaviorMirrorFile(behaviorDir, L"day_loop.json", loop);
+  if (extraOut) *extraOut = ",\"loop\":" + loop;
   return "";
 }
 
@@ -837,6 +844,7 @@ bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath) {
   std::string extra;
   DayLoopEvaluateClose(behaviorDir, dbPath, &extra);
   (void)extra;
+  PublishDayLoopMirror(behaviorDir);
   return changed;
 }
 
