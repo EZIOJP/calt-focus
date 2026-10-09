@@ -51,6 +51,13 @@ bool DayLoopBibleDoneToday(const std::string& softlandDocumentJson);
 /** True when SoftLand goals.plan_confirmed + plan_confirmed_for_date == today. */
 bool DayLoopPlanConfirmedToday(const std::string& softlandDocumentJson);
 
+/**
+ * Morning ritual cleared: bible done today, and Confirm-plan done when planning_enabled.
+ * Used so SoftLand site/schedule/mode edits work without a free day once the day is open.
+ * Arm / kill-list still require ProductivityFreeDayOpen.
+ */
+bool DayLoopMorningLockCleared(const std::string& softlandDocumentJson);
+
 /** Drop study-temp kills (cursor.exe) after free/reward/pass; keep games/social. */
 bool DayLoopClearStudyTempKills(const std::wstring& behaviorDir);
 

@@ -382,8 +382,16 @@ int DailyFocusMinutesFromDoc(const std::string& doc) {
   return focus;
 }
 
+/** goals.planning_enabled — default false (session-first). true keeps Confirm-plan morning phase. */
+bool PlanningPhaseEnabled(const std::string& doc) {
+  bool v = false;
+  if (JsonGetBool(doc, "planning_enabled", &v)) return v;
+  return false;
+}
+
 bool RewriteGoalsObject(ProductivitySoftland& s, bool bible, bool planConfirmed, bool goalMet,
                         int focusMin, const std::string& planDate, const std::string& bibleDate) {
+  const bool planningOn = PlanningPhaseEnabled(s.document_json);
   std::string goalsRaw = std::string("{\"daily_focus_minutes\":") + std::to_string(focusMin) +
                          ",\"goal_met\":" + (goalMet ? "true" : "false") +
                          ",\"bible_done\":" + (bible ? "true" : "false") +
@@ -391,7 +399,8 @@ bool RewriteGoalsObject(ProductivitySoftland& s, bool bible, bool planConfirmed,
                          (bibleDate.empty() ? "null" : ("\"" + bibleDate + "\"")) +
                          ",\"plan_confirmed_for_date\":" +
                          (planDate.empty() ? "null" : ("\"" + planDate + "\"")) +
-                         ",\"plan_confirmed\":" + (planConfirmed ? "true" : "false") + "}";
+                         ",\"plan_confirmed\":" + (planConfirmed ? "true" : "false") +
+                         ",\"planning_enabled\":" + (planningOn ? "true" : "false") + "}";
   return ProductivityReplaceJsonValue(s.document_json, "goals", goalsRaw);
 }
 
@@ -559,7 +568,8 @@ std::string DayLoopConfirmPlan(const std::wstring& behaviorDir, std::string* ext
     return "bible_required";
 
   // Require a real today plan before SoftLand+Arm couple — no empty confirm.
-  if (PlannedMinutesToday(1) <= 0) return "plan_required";
+  // When planning phase is off, Confirm is a no-op path (DayLoopTick auto-opens).
+  if (PlanningPhaseEnabled(s.document_json) && PlannedMinutesToday(1) <= 0) return "plan_required";
 
   int focus = DailyFocusMinutesFromDoc(s.document_json);
   if (!RewriteGoalsObject(s, true, true, false, focus, today, today)) return "policy_key_missing";
@@ -604,6 +614,7 @@ std::string DayLoopSnapshotObjectJson(const std::wstring& behaviorDir) {
   bool planConfirmed =
       GoalsDoneToday(s.document_json, "plan_confirmed", "plan_confirmed_for_date", today);
   bool bibleDone = GoalsDoneToday(s.document_json, "bible_done", "bible_done_for_date", today);
+  const bool planningOn = PlanningPhaseEnabled(s.document_json);
 
   std::string tasks = DayLoopTaskListJson(today, 1);
   std::string freeJs = s.free_until.empty() ? "null" : ("\"" + JsonEscape(s.free_until) + "\"");
@@ -623,6 +634,7 @@ std::string DayLoopSnapshotObjectJson(const std::wstring& behaviorDir) {
          ",\"bedtime_active\":" + (bedtimeActive ? "true" : "false") +
          ",\"emergency_until\":" + emJs + ",\"bible_done\":" + (bibleDone ? "true" : "false") +
          ",\"plan_confirmed\":" + (planConfirmed ? "true" : "false") +
+         ",\"planning_enabled\":" + (planningOn ? "true" : "false") +
          ",\"softland_enabled\":" + (s.softland_enabled ? "true" : "false") + ",\"tasks\":" +
          tasks + "}";
 }
@@ -703,7 +715,9 @@ bool DayLoopMaybeGrantGoalFree(const std::wstring& behaviorDir) {
   if (!s.softland_enabled) return false;
 
   const std::string today = LocalDate();
-  if (!GoalsDoneToday(s.document_json, "plan_confirmed", "plan_confirmed_for_date", today))
+  // Planning phase off → no Confirm gate for goal free.
+  if (PlanningPhaseEnabled(s.document_json) &&
+      !GoalsDoneToday(s.document_json, "plan_confirmed", "plan_confirmed_for_date", today))
     return false;
 
   std::string granted;
@@ -720,7 +734,7 @@ bool DayLoopMaybeGrantGoalFree(const std::wstring& behaviorDir) {
   s.free_until = EndOfLocalDayIso();
   SetRuntimeString(s, "goal_free_granted_date", today, false);
   if (!SaveSoftland(s, behaviorDir).empty()) return false;
-  DayLoopClearStudyTempKills(behaviorDir);  // drop cursor.exe; keep games/social armed
+  DayLoopClearStudyTempKills(behaviorDir);  // drop study-temp cursor.exe; Arm stays on for goal free
   ProductivityLedgerAdd("earn", 0, "goal_met free until eod", "day_loop");
   return true;
 }
@@ -732,6 +746,12 @@ bool DayLoopBibleDoneToday(const std::string& softlandDocumentJson) {
 bool DayLoopPlanConfirmedToday(const std::string& softlandDocumentJson) {
   return GoalsDoneToday(softlandDocumentJson, "plan_confirmed", "plan_confirmed_for_date",
                         LocalDate());
+}
+
+bool DayLoopMorningLockCleared(const std::string& softlandDocumentJson) {
+  if (!DayLoopBibleDoneToday(softlandDocumentJson)) return false;
+  if (!PlanningPhaseEnabled(softlandDocumentJson)) return true;
+  return DayLoopPlanConfirmedToday(softlandDocumentJson);
 }
 
 bool DayLoopClearStudyTempKills(const std::wstring& behaviorDir) {
@@ -787,8 +807,22 @@ bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath) {
       }
     }
 
+    const bool planningOn = PlanningPhaseEnabled(s.document_json);
+    // Planning phase off: after Bible, auto-confirm plan + couple SoftLand/Arm (no Confirm overlay).
+    if (!planningOn && !planToday && bibleToday) {
+      int focus = DailyFocusMinutesFromDoc(s.document_json);
+      if (RewriteGoalsObject(s, true, true, false, focus, today, today)) {
+        s.softland_enabled = true;
+        bool armed = false;
+        ArmHardBlock(behaviorDir, &armed);
+        (void)armed;
+        changed = true;
+        planToday = true;
+      }
+    }
+
     // Legitimate morning gate: SoftLand ON (sites → morning_bible/plan), Arm OFF until Confirm.
-    if (!planToday) {
+    if (planningOn && !planToday) {
       if (!s.softland_enabled) {
         s.softland_enabled = true;
         changed = true;

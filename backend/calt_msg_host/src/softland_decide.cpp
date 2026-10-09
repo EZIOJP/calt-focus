@@ -511,6 +511,51 @@ std::wstring SoftlandPolicyPathW() {
                   L"data\\productivity\\behavior\\softland_policy.json");
 }
 
+// Active work session: only the chosen hosts (plus localhost). Returns true when
+// the session made the decision. Inactive sessions return false.
+bool WorkSessionSiteDecision(const std::wstring& policyPath, const std::string& url,
+                             SoftlandModeResult* r) {
+  if (!r) return false;
+  size_t slash = policyPath.find_last_of(L"\\/");
+  if (slash == std::wstring::npos) return false;
+  std::string body = ReadFileUtf8(policyPath.substr(0, slash) + L"\\work_session.json");
+  if (body.empty()) return false;
+  bool active = false;
+  if (!JsonBoolNear(body, "active", &active) || !active) return false;
+  std::string ends;
+  JsonStringNear(body, "ends_at", &ends);
+  if (!ends.empty() && ends != "null") {
+    LocalNow now = LocalClock();
+    if (!IsoStillActive(ends, now.unix)) return false;
+  }
+  std::vector<std::string> sites;
+  ParseStringArrayNear(body, "sites", sites);
+  std::string host = HostFromUrl(url);
+  r->ok = true;
+  r->mode = "study";
+  r->enforce = true;
+  r->softland_enabled = true;
+  if (host.empty()) {
+    r->action = "allow";
+    r->reason = "no_host";
+    r->enforce = false;
+    r->interstitial = false;
+    return true;
+  }
+  if (host == "localhost" || host == "127.0.0.1" || ListMatch(host, sites)) {
+    r->action = "allow";
+    r->reason = "session_site";
+    r->matched = host;
+    r->interstitial = false;
+    return true;
+  }
+  r->action = "block";
+  r->reason = "session_block";
+  r->matched = host;
+  r->interstitial = true;
+  return true;
+}
+
 SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*now_iso_opt*/) {
   SoftlandModeResult r;
   r.schema_version = 1;
@@ -548,6 +593,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   }
   r.softland_enabled = enabled;
   if (!enabled) {
+    if (WorkSessionSiteDecision(path, url, &r)) return r;
     r.ok = true;
     r.action = "allow";
     r.enforce = false;
@@ -570,15 +616,19 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   std::string goalsObj = ExtractObject(body, "goals");
   bool bible_done = false;
   bool plan_confirmed = false;
+  bool planning_enabled = false;
   std::string bible_date, plan_date;
   if (!goalsObj.empty()) {
     JsonBoolNear(goalsObj, "bible_done", &bible_done);
     JsonBoolNear(goalsObj, "plan_confirmed", &plan_confirmed);
     JsonStringNear(goalsObj, "bible_done_for_date", &bible_date);
     JsonStringNear(goalsObj, "plan_confirmed_for_date", &plan_date);
+    // Absent key → planning on (legacy). Explicit false skips Confirm-plan gate.
+    if (!JsonBoolNear(goalsObj, "planning_enabled", &planning_enabled)) planning_enabled = false;
   }
   const bool bible_today = bible_done && bible_date == now.ymd;
-  const bool plan_today = plan_confirmed && plan_date == now.ymd;
+  const bool plan_today =
+      !planning_enabled || (plan_confirmed && plan_date == now.ymd);
   const bool morning_pending = !bible_today || !plan_today;
 
   bool incubating = IsoStillActive(incubation_until, now.unix);
@@ -653,7 +703,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     ParseStringArrayNear(site_rules, "block_extra", block_extra);
   }
 
-  if (ListMatch(host, allow_extra) || host == "localhost" || host == "127.0.0.1") {
+  if (host == "localhost" || host == "127.0.0.1") {
     r.ok = true;
     r.action = "allow";
     r.reason = "allow_list";
@@ -670,6 +720,18 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     r.reason = !bible_today ? "morning_bible" : "morning_plan";
     r.matched = host;
     r.interstitial = true;
+    return r;
+  }
+
+  // Work session: only the chosen sites. Allow-extra and free mode do not widen it.
+  if (WorkSessionSiteDecision(path, url, &r)) return r;
+
+  if (ListMatch(host, allow_extra)) {
+    r.ok = true;
+    r.action = "allow";
+    r.reason = "allow_list";
+    r.matched = host;
+    r.interstitial = false;
     return r;
   }
 
@@ -851,6 +913,7 @@ std::string SoftlandGateSnapshotJson() {
   std::string goals = ExtractObject(body, "goals");
   bool bible_done = false;
   bool plan_confirmed = false;
+  bool planning_enabled = false;
   bool goal_met = false;
   int daily_focus = 0;
   std::string bible_date, plan_date;
@@ -861,9 +924,11 @@ std::string SoftlandGateSnapshotJson() {
     JsonIntNear(goals, "daily_focus_minutes", &daily_focus);
     JsonStringNear(goals, "bible_done_for_date", &bible_date);
     JsonStringNear(goals, "plan_confirmed_for_date", &plan_date);
+    if (!JsonBoolNear(goals, "planning_enabled", &planning_enabled)) planning_enabled = false;
   }
   const bool bible_today = bible_done && bible_date == now.ymd;
-  const bool plan_today = plan_confirmed && plan_date == now.ymd;
+  const bool plan_today =
+      !planning_enabled || (plan_confirmed && plan_date == now.ymd);
 
   // Live productive minutes from enforcer day_rollup.json (same folder as policy).
   int productive_minutes = 0;

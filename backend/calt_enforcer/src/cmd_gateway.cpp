@@ -1,4 +1,6 @@
+#include "app_limits.h"
 #include "cmd_gateway.h"
+#include "work_session.h"
 #include "day_loop.h"
 #include "device_block.h"
 #include "life_content.h"
@@ -376,6 +378,21 @@ std::string SaveAndPublish(ProductivitySoftland& s, const std::wstring& behavior
   return "";
 }
 
+bool OpNeedsFreeDay(const std::string& op, const std::string& payload) {
+  (void)payload;
+  // Session-first: work sessions, plan/routines, goals stay open every day.
+  // Arm / kill-list / device-block / SoftLand master toggle need free day or day pass.
+  // SoftLand site/schedule/mode patches: free day OR morning lock cleared (see HandleOp).
+  return op == "arm.set" || op == "app_limits.set" || op == "softland.set_enabled" ||
+         op == "device_block.save" || op == "device_block.apply" || op == "device_block.remove" ||
+         op == "pending.add";
+}
+
+bool OpNeedsMorningClearOrFreeDay(const std::string& op) {
+  return op == "softland.patch_site_rules" || op == "softland.patch_schedules" ||
+         op == "softland.patch_mode_flags";
+}
+
 std::string HandleOp(const std::string& op, const std::string& payload,
                      const std::wstring& behaviorDir, std::string* extraOut) {
   // A Python writer may have touched the mirror since the last tick; import
@@ -383,6 +400,18 @@ std::string HandleOp(const std::string& op, const std::string& payload,
   ProductivityImportIfStale(behaviorDir + L"\\softland_policy.json");
 
   if (op == "status.snapshot" || op.empty()) return "";
+
+  // Arm / SoftLand master / device-block wait for free day or day pass.
+  // SoftLand site/schedule/mode: free day OR morning ritual cleared (bible + plan if required).
+  // Work sessions, plan/routines, goals (planning on/off), Bible, journal stay open.
+  if (OpNeedsFreeDay(op, payload) && !ProductivityFreeDayOpen()) return "free_day_required";
+  if (OpNeedsMorningClearOrFreeDay(op) && !ProductivityFreeDayOpen()) {
+    ProductivitySoftland gateSoft;
+    if (!ProductivityLoadSoftland(gateSoft) ||
+        !DayLoopMorningLockCleared(gateSoft.document_json)) {
+      return "free_day_required";
+    }
+  }
 
   if (op == "day.confirm_plan") {
     return DayLoopConfirmPlan(behaviorDir, extraOut);
@@ -590,16 +619,9 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     return "";
   }
   if (op == "softland.spend_free") {
-    int minutes = 0;
-    if (!JsonGetInt(payload, "minutes", &minutes) || minutes <= 0) return "bad_payload";
-    int need = minutes * 60;
-    if (s.earned_ledger_seconds < need) return "insufficient_ledger";
-    s.earned_ledger_seconds -= need;
-    s.free_until = ExtendFreeWindowIso(s.free_until, minutes);
-    std::string err = SaveAndPublish(s, behaviorDir);
-    if (!err.empty()) return err;
-    ProductivityLedgerAdd("spend", need, "free window " + std::to_string(minutes) + "m", "gateway");
-    return "";
+    // Earned balance no longer buys free time for games or apps. Use time limits
+    // and a work session instead.
+    return "spend_retired";
   }
   if (op == "softland.patch_site_rules") {
     std::string section;
@@ -949,6 +971,8 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     std::string routineJson;
     if (!ProductivityRoutineUpsert(payload, userId, &routineJson) || routineJson.empty())
       return "store_save_failed";
+    // FE reads routines from plan_blocks.json — republish or delete/add looks like a no-op.
+    PublishPlanBlocksMirror(behaviorDir);
     if (extraOut) *extraOut = ",\"routine\":" + routineJson;
     return "";
   }
@@ -958,8 +982,12 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     if (!JsonGetInt(payload, "id", &id) || id <= 0) return "bad_payload";
     JsonGetInt(payload, "user_id", &userId);
     if (userId <= 0) userId = 1;
-    if (!ProductivityRoutineDelete(id, userId)) return "not_found";
-    if (extraOut) *extraOut = ",\"deleted\":true,\"routine_id\":" + std::to_string(id);
+    int blocksCleared = 0;
+    if (!ProductivityRoutineDelete(id, userId, &blocksCleared)) return "not_found";
+    PublishPlanBlocksMirror(behaviorDir);
+    if (extraOut)
+      *extraOut = ",\"deleted\":true,\"routine_id\":" + std::to_string(id) +
+                  ",\"blocks_cleared\":" + std::to_string(blocksCleared);
     return "";
   }
   // Phase 6b — force-sync active plan block → SoftLand
@@ -1314,6 +1342,28 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     // Keep SQLite enforcer_runtime aligned with JSON (JSON remains authoritative).
     SyncEnforcerRuntimeSqlite(dbPath, cur);
     ProductivityBumpSeq();
+    return "";
+  }
+
+  if (op == "session.set") {
+    std::string mirror;
+    std::string err = WorkSessionHandleSet(behaviorDir, payload, &mirror);
+    if (!err.empty()) return err;
+    if (extraOut && !mirror.empty()) *extraOut = ",\"work_session\":" + mirror;
+    return "";
+  }
+
+  if (op == "app_limits.set") {
+    std::wstring dataDir = behaviorDir;
+    size_t slash = dataDir.find_last_of(L"\\/");
+    if (slash != std::wstring::npos) dataDir = dataDir.substr(0, slash);
+    std::wstring dbPath = dataDir + L"\\productivity.db";
+    if (GetFileAttributesW(dbPath.c_str()) == INVALID_FILE_ATTRIBUTES)
+      dbPath = dataDir + L"\\vocab_app.db";
+    std::string mirror;
+    std::string err = AppLimitsHandleSet(behaviorDir, dbPath, payload, &mirror);
+    if (!err.empty()) return err;
+    if (extraOut && !mirror.empty()) *extraOut = ",\"app_limits\":" + mirror;
     return "";
   }
   return "unknown_op";
