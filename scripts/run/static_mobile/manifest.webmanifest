@@ -1,0 +1,17 @@
+{
+  "name": "CALT NutriNode",
+  "short_name": "NutriNode",
+  "description": "Log meals from your phone on the home network",
+  "start_url": "/n",
+  "display": "standalone",
+  "background_color": "#0f1412",
+  "theme_color": "#1a2e24",
+  "icons": [
+    {
+      "src": "/n/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

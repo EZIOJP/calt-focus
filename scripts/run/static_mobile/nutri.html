@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a2e24" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/n/manifest.webmanifest" />
+  <link rel="icon" href="/n/icon.svg" type="image/svg+xml" />
+  <title>CALT NutriNode</title>
+  <style>
+    :root {
+      --bg: #0f1412; --panel: #17201c; --panel2: #1e2a24; --line: #2a3b33;
+      --text: #e8f0eb; --muted: #8aa396; --accent: #3d8f6a; --accent2: #8fd4b0;
+      --danger: #e07a7a; --warn: #d4b06a; --radius: 14px;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      background:
+        radial-gradient(120% 80% at 10% -10%, #24382e 0%, transparent 55%),
+        radial-gradient(90% 60% at 100% 0%, #1a2830 0%, transparent 50%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    body { padding: 16px 16px calc(24px + var(--safe-b)); max-width: 560px; margin: 0 auto; }
+    .brand { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent2); margin: 0 0 4px; }
+    h1 { margin: 0; font-size: 1.65rem; font-weight: 700; letter-spacing: -0.02em; }
+    .sub { margin: 6px 0 14px; color: var(--muted); font-size: 0.9rem; line-height: 1.35; }
+    .card {
+      background: linear-gradient(180deg, var(--panel2), var(--panel));
+      border: 1px solid var(--line); border-radius: var(--radius);
+      padding: 14px; margin-bottom: 12px;
+    }
+    .banner {
+      display: none; background: #2a2414; border: 1px solid #6a5a2a; color: #f0e0a8;
+      border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 0.88rem; line-height: 1.4;
+    }
+    .banner.on { display: block; }
+    .banner a { color: #ffe08a; }
+    .totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+    .totals strong { display: block; font-size: 1.05rem; }
+    .totals span { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; }
+    label.field { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"], input[type="number"], select {
+      width: 100%; background: #0c1210; border: 1px solid var(--line); color: var(--text);
+      border-radius: 10px; padding: 12px; font-size: 1rem; outline: none;
+    }
+    input:focus, select:focus { border-color: var(--accent); }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn {
+      appearance: none; border: none; border-radius: 12px; padding: 13px 14px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    }
+    .btn:disabled { opacity: 0.5; cursor: wait; }
+    .btn-primary { background: var(--accent); color: #04140c; }
+    .btn-secondary { background: #24332c; color: var(--text); border: 1px solid var(--line); }
+    .btn-camera {
+      background: linear-gradient(180deg, #2d6b4f, #245a42); color: #eafff4;
+      border: 1px solid #3d8f6a; min-height: 52px; font-size: 1.05rem;
+    }
+    .stack { display: grid; gap: 10px; }
+    .hints { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      border: 1px solid var(--line); background: #121a16; color: var(--text);
+      border-radius: 999px; padding: 8px 12px; font-size: 0.85rem; cursor: pointer;
+    }
+    .meals { display: grid; gap: 8px; }
+    .meal {
+      display: flex; justify-content: space-between; gap: 10px;
+      padding: 10px 0; border-bottom: 1px solid rgba(42,59,51,0.7);
+    }
+    .meal:last-child { border-bottom: none; }
+    .meal .name { font-weight: 600; text-transform: capitalize; }
+    .meal .meta { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    .meal .when { font-size: 0.75rem; color: var(--accent2); margin-top: 3px; opacity: 0.9; }
+    .meal .tags { font-size: 0.7rem; color: var(--muted); margin-top: 2px; }
+    .del { background: transparent; border: none; color: var(--danger); font-size: 0.8rem; cursor: pointer; }
+    .msg {
+      font-size: 0.9rem; margin: 0; padding: 10px 12px; border-radius: 10px;
+      border: 1px solid transparent; line-height: 1.35;
+    }
+    .msg.err { color: #ffd0d0; background: rgba(224,122,122,0.12); border-color: rgba(224,122,122,0.35); }
+    .msg.ok { color: #d8ffe9; background: rgba(61,143,106,0.18); border-color: rgba(143,212,176,0.4); }
+    .msg.info { color: var(--muted); background: rgba(255,255,255,0.03); border-color: var(--line); }
+    .totals.flash { animation: totalsFlash 0.7s ease; }
+    @keyframes totalsFlash {
+      0% { box-shadow: inset 0 0 0 0 rgba(143,212,176,0); }
+      35% { box-shadow: inset 0 0 0 2px rgba(143,212,176,0.55); }
+      100% { box-shadow: inset 0 0 0 0 rgba(143,212,176,0); }
+    }
+    #toastHost {
+      position: fixed; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%);
+      z-index: 50; width: min(480px, calc(100% - 24px)); pointer-events: none;
+      display: grid; gap: 8px;
+    }
+    .toast {
+      pointer-events: none;
+      background: #163528; color: #eafff4; border: 1px solid #3d8f6a;
+      border-radius: 14px; padding: 12px 14px; font-size: 0.92rem; font-weight: 600;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      animation: toastIn 0.22s ease, toastOut 0.25s ease 2.4s forwards;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .toast.err { background: #3a1c1c; border-color: #e07a7a; color: #ffe4e4; }
+    .toast .mark {
+      flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
+      background: var(--accent2); color: #0a1a12; display: grid; place-items: center;
+      font-size: 0.8rem; margin-top: 1px;
+    }
+    .toast.err .mark { background: #e07a7a; color: #2a1010; }
+    .toast .body { flex: 1; min-width: 0; }
+    .toast .body small { display: block; font-weight: 500; opacity: 0.85; margin-top: 2px; font-size: 0.8rem; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes toastOut { to { opacity: 0; transform: translateY(8px); } }
+    .sr-file {
+      position: absolute !important; width: 1px !important; height: 1px !important;
+      padding: 0 !important; margin: -1px !important; overflow: hidden !important;
+      clip: rect(0,0,0,0) !important; border: 0 !important;
+    }
+    .shot {
+      position: relative; border: 1.5px dashed #3d8f6a; border-radius: 16px;
+      min-height: 220px; background: #0c1210; overflow: hidden; display: grid; place-items: center;
+    }
+    .shot.has-img { border-style: solid; }
+    .shot video, .shot img { width: 100%; height: 240px; object-fit: cover; display: block; background: #111; }
+    .shot video { transform: none; background: #1a1a1a; }
+    .shot .placeholder { text-align: center; padding: 24px 16px; color: var(--muted); }
+    .shot .placeholder strong { display: block; color: var(--accent2); font-size: 1.1rem; margin-bottom: 6px; }
+    .cam-wait {
+      display: none; position: absolute; inset: 0; place-items: center;
+      background: rgba(0,0,0,0.55); color: var(--accent2); font-size: 0.9rem; z-index: 2;
+    }
+    .cam-wait.on { display: grid; }
+    .live-bar { display: none; grid-template-columns: 1.3fr 1fr; gap: 10px; }
+    .live-bar.on { display: grid; }
+    label.as-btn { margin: 0; cursor: pointer; }
+    label.as-btn.disabled { opacity: 0.5; pointer-events: none; }
+    .status {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.75rem; color: var(--muted); margin-top: 8px;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); display: inline-block; }
+    .dot.on { background: var(--accent2); box-shadow: 0 0 0 3px rgba(143,212,176,0.15); }
+    footer { margin-top: 18px; color: var(--muted); font-size: 0.75rem; line-height: 1.45; }
+    footer code { color: var(--accent2); }
+  </style>
+</head>
+<body>
+  <p class="brand">CALT · NutriNode</p>
+  <h1>Log a meal</h1>
+  <p class="sub">Webcam / photo → recognize → set grams → add. Same day totals as Focus.</p>
+
+  <div class="banner" id="secureBanner"></div>
+
+  <section class="card">
+    <div class="totals">
+      <div><strong id="tKcal">—</strong><span>kcal</span></div>
+      <div><strong id="tP">—</strong><span>protein</span></div>
+      <div><strong id="tC">—</strong><span>carbs</span></div>
+      <div><strong id="tF">—</strong><span>fat</span></div>
+    </div>
+    <div class="status">
+      <span><span class="dot" id="dot"></span> <span id="hubLabel">checking…</span></span>
+      <button type="button" class="del" id="btnRefresh" style="color:var(--accent2)">Refresh</button>
+    </div>
+  </section>
+
+  <section class="card stack">
+    <div class="shot" id="shot">
+      <div class="placeholder" id="shotPh">
+        <strong>Camera</strong>
+        On Windows Chrome: tap <em>Start webcam</em><br />
+        On phone: use <em>Take photo</em>
+      </div>
+      <div class="cam-wait" id="camWait">Starting camera…</div>
+      <video id="live" playsinline muted autoplay style="display:none"></video>
+      <img id="preview" alt="Preview" style="display:none" />
+    </div>
+    <select id="camPick" class="btn btn-secondary" style="display:none; text-align:left; font-weight:500"></select>
+
+    <button type="button" class="btn btn-camera" id="btnLive">Start webcam</button>
+    <div class="live-bar" id="liveBar">
+      <button type="button" class="btn btn-camera" id="btnSnap">Capture plate</button>
+      <button type="button" class="btn btn-secondary" id="btnStopLive">Stop</button>
+    </div>
+
+    <div class="row">
+      <label class="btn btn-secondary as-btn" id="lblCamera" for="fileCamera">Take photo</label>
+      <label class="btn btn-secondary as-btn" id="lblGallery" for="fileGallery">Choose file</label>
+    </div>
+    <input id="fileCamera" class="sr-file" type="file" accept="image/*" capture="environment" />
+    <input id="fileGallery" class="sr-file" type="file" accept="image/jpeg,image/png,image/webp,image/*" />
+
+    <button type="button" class="btn btn-secondary" id="btnRecognize" disabled>Recognize food</button>
+    <div class="hints" id="hints" hidden></div>
+    <p class="msg" id="msg" hidden></p>
+
+    <div>
+      <label class="field" for="food">Food</label>
+      <input id="food" type="text" placeholder="roti, dosa, biryani…" autocomplete="off" />
+    </div>
+    <div class="row">
+      <div>
+        <label class="field" for="weight">Weight (g)</label>
+        <input id="weight" type="number" inputmode="decimal" min="1" step="1" value="100" />
+      </div>
+      <div>
+        <label class="field" for="mealType">Meal</label>
+        <select id="mealType">
+          <option value="breakfast">Breakfast</option>
+          <option value="lunch" selected>Lunch</option>
+          <option value="dinner">Dinner</option>
+          <option value="snack">Snack</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary" id="btnAdd">Add to today</button>
+  </section>
+
+  <section class="card">
+    <label class="field">Today</label>
+    <div class="meals" id="meals"><p class="msg" style="color:var(--muted)">No meals yet</p></div>
+  </section>
+
+  <footer>
+    This page: <code id="selfUrl"></code><br />
+    Windows webcam needs HTTPS or localhost — use <code>https://127.0.0.1:8766/n</code>
+  </footer>
+
+  <div id="toastHost" aria-live="polite"></div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msgEl = $("msg");
+    const hintsEl = $("hints");
+    let pendingB64 = null;
+    let pendingMime = "image/jpeg";
+    let busy = false;
+    let liveStream = null;
+    /** Session breadcrumb so later logs explain how the meal was created */
+    let session = {
+      capture: "manual",
+      camera_label: "",
+      prepare_ms: 0,
+      capture_ms: 0,
+      recognize_ms: 0,
+      image_bytes: 0,
+      suggested_names: [],
+      photo_confidence: null,
+      photo_description: "",
+      flow_started_at: 0,
+    };
+
+    const isLocalhost = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+    const canWebcam = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+    const uaHint = (() => {
+      const ua = navigator.userAgent || "";
+      if (/Android/i.test(ua)) return "android_chrome";
+      if (/iPhone|iPad/i.test(ua)) return "ios_safari";
+      if (/Windows/i.test(ua)) return "windows_chrome";
+      if (/Mac/i.test(ua)) return "mac_chrome";
+      return "web";
+    })();
+
+    function resetSession(capture) {
+      session = {
+        capture: capture || "manual",
+        camera_label: session.camera_label || "",
+        prepare_ms: 0,
+        capture_ms: 0,
+        recognize_ms: 0,
+        image_bytes: 0,
+        suggested_names: [],
+        photo_confidence: null,
+        photo_description: "",
+        flow_started_at: Date.now(),
+      };
+    }
+
+    function fmtClock(isoOrLocal) {
+      if (!isoOrLocal) return "";
+      try {
+        const d = new Date(isoOrLocal);
+        if (!Number.isNaN(d.getTime())) {
+          return d.toLocaleString(undefined, {
+            weekday: "short", hour: "2-digit", minute: "2-digit", second: "2-digit",
+            day: "2-digit", month: "short",
+          });
+        }
+      } catch {}
+      return String(isoOrLocal);
+    }
+
+    function fmtMs(ms) {
+      if (ms == null || ms === "") return "";
+      const n = Number(ms);
+      if (!(n >= 0)) return "";
+      return n >= 1000 ? (n / 1000).toFixed(1) + "s" : n + "ms";
+    }
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function setMsg(text, kind) {
+      if (!text) { msgEl.hidden = true; return; }
+      msgEl.hidden = false;
+      msgEl.className = "msg " + (kind || "info");
+      msgEl.textContent = text;
+    }
+
+    function toast(title, detail, kind) {
+      const host = $("toastHost");
+      const el = document.createElement("div");
+      el.className = "toast" + (kind === "err" ? " err" : "");
+      const mark = kind === "err" ? "!" : "✓";
+      el.innerHTML =
+        '<span class="mark">' + mark + "</span>" +
+        '<div class="body">' + esc(title) +
+        (detail ? "<small>" + esc(detail) + "</small>" : "") +
+        "</div>";
+      host.appendChild(el);
+      setTimeout(() => el.remove(), 2800);
+      if (navigator.vibrate && kind !== "err") {
+        try { navigator.vibrate(24); } catch {}
+      }
+    }
+
+    function flashTotals() {
+      const el = $("totals");
+      if (!el) return;
+      el.classList.remove("flash");
+      void el.offsetWidth;
+      el.classList.add("flash");
+    }
+
+    function setBusy(on) {
+      busy = on;
+      ["btnAdd", "btnRecognize", "btnRefresh", "btnLive", "btnSnap", "btnStopLive"].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        if (id === "btnRecognize") el.disabled = on || !pendingB64;
+        else el.disabled = on;
+      });
+      $("lblCamera").classList.toggle("disabled", on);
+      $("lblGallery").classList.toggle("disabled", on);
+    }
+
+    function showSecureBanner() {
+      const b = $("secureBanner");
+      if (window.isSecureContext || isLocalhost) {
+        b.classList.remove("on");
+        return;
+      }
+      // http://LAN — Chrome blocks webcam getUserMedia
+      const httpsLocal = "https://127.0.0.1:8766/n";
+      const httpsHere = "https://" + location.hostname + ":8766/n";
+      b.innerHTML =
+        "<strong>Webcam blocked on plain HTTP.</strong><br>" +
+        "On this Windows PC open: <a href=\"" + httpsLocal + "\">" + httpsLocal + "</a><br>" +
+        "Or LAN HTTPS: <a href=\"" + httpsHere + "\">" + httpsHere + "</a> " +
+        "(Chrome → Advanced → Proceed). Phone <em>Take photo</em> still works on HTTP.";
+      b.classList.add("on");
+    }
+
+    async function api(path, opts) {
+      const res = await fetch(path, opts);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || res.statusText || "Request failed");
+      return data;
+    }
+
+    function showPreviewDataUrl(dataUrl) {
+      const v = $("live");
+      v.style.display = "none";
+      v.srcObject = null;
+      $("shotPh").style.display = "none";
+      const img = $("preview");
+      img.src = dataUrl;
+      img.style.display = "block";
+      $("shot").classList.add("has-img");
+    }
+
+    function renderToday(data) {
+      const t = data.totals || {};
+      $("tKcal").textContent = Math.round(t.total_kcal || 0);
+      $("tP").textContent = Math.round(t.protein_g || 0) + "g";
+      $("tC").textContent = Math.round(t.carbs_g || 0) + "g";
+      $("tF").textContent = Math.round(t.fat_g || 0) + "g";
+      const meals = data.meals || [];
+      const box = $("meals");
+      if (!meals.length) {
+        box.innerHTML = '<p class="msg" style="color:var(--muted)">No meals yet</p>';
+        return;
+      }
+      box.innerHTML = meals.map((m) => {
+        const when = m.local_clock || m.local_time || m.timestamp;
+        const tm = m.timings || {};
+        const timingBits = [
+          tm.recognize_ms != null ? "AI " + fmtMs(tm.recognize_ms) : "",
+          tm.total_ms != null ? "flow " + fmtMs(tm.total_ms) : "",
+        ].filter(Boolean).join(" · ");
+        const tags = [
+          m.capture || "",
+          m.macros_source || "",
+          m.client || "",
+          m.weekday || "",
+        ].filter(Boolean).join(" · ");
+        return `
+        <div class="meal">
+          <div>
+            <div class="name">${esc(m.food_item || "?")}</div>
+            <div class="meta">${Math.round(m.total_kcal || 0)} kcal · ${m.weight_g || "?"}g · ${esc(m.meal_type || "")}</div>
+            <div class="when">${esc(fmtClock(when))}${timingBits ? " · " + esc(timingBits) : ""}</div>
+            ${tags ? `<div class="tags">${esc(tags)}</div>` : ""}
+          </div>
+          <button type="button" class="del" data-id="${esc(m.meal_id || "")}">Remove</button>
+        </div>`;
+      }).join("");
+      box.querySelectorAll(".del").forEach((btn) => {
+        btn.addEventListener("click", () => removeMeal(btn.getAttribute("data-id")));
+      });
+    }
+
+    async function refresh() {
+      try {
+        const data = await api("/api/nutrition/today");
+        renderToday(data);
+        $("dot").classList.add("on");
+        $("hubLabel").textContent = "hub online · " + (data.date || "today");
+      } catch (e) {
+        $("dot").classList.remove("on");
+        $("hubLabel").textContent = "hub offline";
+        setMsg(e.message || "Cannot reach hub", "err");
+      }
+    }
+
+    async function fileToJpegB64(file) {
+      const bmp = await createImageBitmap(file);
+      const maxEdge = 1280;
+      let w = bmp.width, h = bmp.height;
+      if (Math.max(w, h) > maxEdge) {
+        const scale = maxEdge / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      canvas.getContext("2d").drawImage(bmp, 0, 0, w, h);
+      bmp.close?.();
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      showPreviewDataUrl(dataUrl);
+      return dataUrl.split(",", 2)[1];
+    }
+
+    async function onFile(file, captureKind) {
+      if (!file) return;
+      resetSession(captureKind || "gallery");
+      setBusy(true);
+      setMsg("Preparing photo…", "info");
+      const tPrep = Date.now();
+      try {
+        stopLive();
+        pendingB64 = await fileToJpegB64(file);
+        pendingMime = "image/jpeg";
+        session.prepare_ms = Date.now() - tPrep;
+        session.image_bytes = Math.round((pendingB64.length * 3) / 4);
+        $("btnRecognize").disabled = false;
+        toast("Photo ready", "Recognizing food…");
+        setMsg("Photo ready — recognizing…", "ok");
+        await recognize();
+      } catch (e) {
+        toast("Photo failed", e.message || "Could not read photo", "err");
+        setMsg(e.message || "Could not read photo", "err");
+      } finally {
+        setBusy(false);
+        $("fileCamera").value = "";
+        $("fileGallery").value = "";
+      }
+    }
+
+    async function recognize() {
+      if (!pendingB64) return;
+      setBusy(true);
+      setMsg("Recognizing foods…", "info");
+      hintsEl.hidden = true;
+      hintsEl.innerHTML = "";
+      const tRec = Date.now();
+      try {
+        const res = await api("/api/nutrition/analyze-photo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image_b64: pendingB64, mime: pendingMime }),
+        });
+        session.recognize_ms = res.recognize_ms != null ? res.recognize_ms : (Date.now() - tRec);
+        session.image_bytes = res.image_bytes || session.image_bytes;
+        session.photo_description = res.description || "";
+        const items = res.items || [];
+        session.suggested_names = items.map((it) => it.suggested_name).filter(Boolean);
+        session.photo_confidence = items[0] ? items[0].confidence : null;
+        if (!items.length) {
+          toast("Nothing detected", res.description || "Type a food name instead", "err");
+          setMsg(res.description || "No foods detected — type a name", "err");
+          return;
+        }
+        const first = items[0];
+        $("food").value = first.suggested_name || "";
+        if (first.estimated_weight_g) $("weight").value = String(Math.round(first.estimated_weight_g));
+        hintsEl.hidden = false;
+        items.forEach((it) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "chip";
+          const w = it.estimated_weight_g ? ` · ~${Math.round(it.estimated_weight_g)}g` : "";
+          b.textContent = (it.suggested_name || "?") + w;
+          b.addEventListener("click", () => {
+            $("food").value = it.suggested_name || "";
+            if (it.estimated_weight_g) $("weight").value = String(Math.round(it.estimated_weight_g));
+          });
+          hintsEl.appendChild(b);
+        });
+        const names = session.suggested_names.slice(0, 3).join(", ");
+        toast(
+          "Food recognized",
+          names + " · " + fmtMs(session.recognize_ms) + " — set grams, then Add"
+        );
+        setMsg(
+          "Success: found " + items.length + " item" + (items.length === 1 ? "" : "s") +
+            " in " + fmtMs(session.recognize_ms) +
+            (res.description ? " · " + res.description : "") +
+            " — set weight, then Add",
+          "ok"
+        );
+      } catch (e) {
+        toast("Recognize failed", e.message || "Try again", "err");
+        setMsg(e.message || "Recognize failed", "err");
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function buildMealMeta() {
+      const total = session.flow_started_at ? Date.now() - session.flow_started_at : null;
+      return {
+        client: "mobile_web",
+        logged_via: location.protocol + "//" + location.host + "/n",
+        capture: session.capture || "manual",
+        camera_label: session.camera_label || "",
+        ua_hint: uaHint,
+        recognize_ms: session.recognize_ms || undefined,
+        capture_ms: session.capture_ms || undefined,
+        prepare_ms: session.prepare_ms || undefined,
+        total_ms: total || undefined,
+        image_bytes: session.image_bytes || undefined,
+        suggested_names: session.suggested_names || [],
+        photo_confidence: session.photo_confidence,
+        photo_description: session.photo_description || "",
+        notes: "",
+      };
+    }
+
+    async function addMeal() {
+      const food = ($("food").value || "").trim();
+      const weight = Number($("weight").value);
+      if (!food) { setMsg("Enter a food name", "err"); toast("Missing food", "Enter a name first", "err"); return; }
+      if (!(weight > 0)) { setMsg("Set weight in grams", "err"); toast("Missing weight", "Enter grams", "err"); return; }
+      if (!session.flow_started_at) resetSession(session.capture || "manual");
+      setBusy(true);
+      const tLog = Date.now();
+      try {
+        const meta = buildMealMeta();
+        meta.log_ms = 0;
+        const res = await api("/api/nutrition/meals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meal_type: $("mealType").value || "lunch",
+            meta,
+            items: [{ food_name: food, weight_g: weight, servings: 1, meta }],
+          }),
+        });
+        meta.log_ms = Date.now() - tLog;
+        const meal = (res.meals && res.meals[0]) || {};
+        const kcal = Math.round(meal.total_kcal || 0);
+        const dayKcal = Math.round((res.totals && res.totals.total_kcal) || 0);
+        const when = (meal.local_clock || (res.logged_at && res.logged_at.local_clock) || "").toString();
+        toast(
+          "Added to today",
+          food + " · " + weight + "g" + (kcal ? " · " + kcal + " kcal" : "") +
+            (when ? " · " + when : "") +
+            (dayKcal ? " · day " + dayKcal + " kcal" : "")
+        );
+        setMsg(
+          "Success: logged " + food + " at " + (when || "now") +
+            " (" + weight + "g" + (kcal ? ", " + kcal + " kcal" : "") + ")" +
+            (session.recognize_ms ? " · AI " + fmtMs(session.recognize_ms) : "") +
+            " — saved with timeline",
+          "ok"
+        );
+        $("food").value = "";
+        hintsEl.hidden = true;
+        hintsEl.innerHTML = "";
+        pendingB64 = null;
+        resetSession("manual");
+        $("preview").style.display = "none";
+        $("shotPh").style.display = "";
+        $("shot").classList.remove("has-img");
+        $("btnRecognize").disabled = true;
+        await refresh();
+        flashTotals();
+      } catch (e) {
+        toast("Log failed", e.message || "Try again", "err");
+        setMsg(e.message || "Log failed", "err");
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function removeMeal(id) {
+      if (!id) return;
+      setBusy(true);
+      try {
+        await api("/api/nutrition/meals/" + encodeURIComponent(id), { method: "DELETE" });
+        await refresh();
+        flashTotals();
+        toast("Removed", "Meal deleted from today");
+        setMsg("Success: meal removed", "ok");
+      } catch (e) {
+        toast("Delete failed", e.message || "Try again", "err");
+        setMsg(e.message || "Delete failed", "err");
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    const likelyPhone = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+    function stopLive() {
+      if (liveStream) {
+        liveStream.getTracks().forEach((t) => t.stop());
+        liveStream = null;
+      }
+      const v = $("live");
+      v.pause?.();
+      v.srcObject = null;
+      v.removeAttribute("src");
+      v.style.display = "none";
+      $("camWait").classList.remove("on");
+      $("liveBar").classList.remove("on");
+      $("btnLive").style.display = canWebcam ? "block" : "none";
+    }
+
+    function waitForVideo(v, ms) {
+      return new Promise((resolve, reject) => {
+        const t0 = Date.now();
+        const done = (ok, err) => {
+          clearInterval(iv);
+          v.removeEventListener("loadeddata", onReady);
+          v.removeEventListener("playing", onReady);
+          ok ? resolve() : reject(err || new Error("Camera preview timed out"));
+        };
+        const onReady = () => {
+          if (v.videoWidth > 0 && v.videoHeight > 0) done(true);
+        };
+        v.addEventListener("loadeddata", onReady);
+        v.addEventListener("playing", onReady);
+        const iv = setInterval(() => {
+          if (v.videoWidth > 0 && v.videoHeight > 0) done(true);
+          else if (Date.now() - t0 > ms) done(false);
+        }, 100);
+        onReady();
+      });
+    }
+
+    async function listCameras() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices.filter((d) => d.kind === "videoinput");
+      } catch {
+        return [];
+      }
+    }
+
+    async function fillCamPick(selectedId) {
+      const cams = await listCameras();
+      const sel = $("camPick");
+      if (cams.length < 2) {
+        sel.style.display = "none";
+        return cams;
+      }
+      sel.innerHTML = cams.map((c, i) =>
+        `<option value="${esc(c.deviceId)}"${c.deviceId === selectedId ? " selected" : ""}>${esc(c.label || ("Camera " + (i + 1)))}</option>`
+      ).join("");
+      sel.style.display = "block";
+      return cams;
+    }
+
+    async function openStream(deviceId) {
+      // Windows laptop webcams often break with facingMode:environment — try simple first.
+      const attempts = [];
+      if (deviceId) {
+        attempts.push({ audio: false, video: { deviceId: { exact: deviceId } } });
+        attempts.push({ audio: false, video: { deviceId: { ideal: deviceId }, width: { ideal: 1280 } } });
+      }
+      if (likelyPhone) {
+        attempts.push({ audio: false, video: { facingMode: { ideal: "environment" } } });
+      }
+      attempts.push({ audio: false, video: true });
+      attempts.push({ audio: false, video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+
+      let lastErr = null;
+      for (const constraints of attempts) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          return stream;
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error("Could not open webcam");
+    }
+
+    async function startLive(deviceId) {
+      if (!canWebcam) {
+        setMsg("No camera API in this browser — use Choose file", "err");
+        return;
+      }
+      if (!window.isSecureContext && !isLocalhost) {
+        showSecureBanner();
+        setMsg("Open the HTTPS link in the yellow banner for webcam", "err");
+        return;
+      }
+      setBusy(true);
+      setMsg("Starting webcam…", "info");
+      $("camWait").classList.add("on");
+      $("camWait").textContent = "Starting camera…";
+      if (!session.flow_started_at || session.capture !== "webcam") {
+        resetSession("webcam");
+      }
+      try {
+        stopLive();
+        liveStream = await openStream(deviceId || $("camPick").value || undefined);
+        const track = liveStream.getVideoTracks()[0];
+        if (track) {
+          track.enabled = true;
+          try { await track.applyConstraints?.({ advanced: [{ focusMode: "continuous" }] }); } catch {}
+        }
+        const v = $("live");
+        $("shotPh").style.display = "none";
+        $("preview").style.display = "none";
+        v.style.display = "block";
+        v.muted = true;
+        v.setAttribute("playsinline", "");
+        v.srcObject = liveStream;
+        // Some Windows drivers need play() after loadedmetadata
+        await new Promise((r) => {
+          if (v.readyState >= 1) r();
+          else v.onloadedmetadata = () => r();
+          setTimeout(r, 1500);
+        });
+        try { await v.play(); } catch (playErr) {
+          // Autoplay quirk — user already clicked Start webcam
+          console.warn(playErr);
+          await v.play();
+        }
+        await waitForVideo(v, 8000);
+        $("camWait").classList.remove("on");
+        $("liveBar").classList.add("on");
+        $("btnLive").style.display = "none";
+        $("shot").classList.add("has-img");
+        const label = track?.label || "webcam";
+        session.camera_label = label;
+        session.capture = "webcam";
+        toast("Webcam ready", label);
+        setMsg("Success: webcam live (" + label + ") — aim at food, then Capture plate", "ok");
+        await fillCamPick(track?.getSettings?.().deviceId || "");
+      } catch (e) {
+        stopLive();
+        $("camWait").classList.remove("on");
+        $("shotPh").style.display = "";
+        const name = e && e.name ? e.name : "";
+        if (name === "NotAllowedError") {
+          toast("Camera blocked", "Allow Camera for this site in Chrome", "err");
+          setMsg("Camera permission denied — Chrome address bar 🔒 → Site settings → Camera → Allow", "err");
+        } else if (name === "NotFoundError") {
+          toast("No webcam", "Use Choose file instead", "err");
+          setMsg("No webcam found — plug one in, or use Choose file", "err");
+        } else if (String(e.message || "").includes("timed out")) {
+          toast("Preview stuck", "Close Zoom/Teams, retry — or Choose file", "err");
+          setMsg("Camera opened but preview stayed black (driver). Close Zoom/Teams, then retry — or use Choose file.", "err");
+        } else {
+          toast("Webcam failed", (e && e.message) || "Try Choose file", "err");
+          setMsg((e && e.message) || "Could not open webcam — try Choose file", "err");
+        }
+        showSecureBanner();
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function snapLive() {
+      const v = $("live");
+      if (!v.videoWidth) {
+        toast("Not ready", "Wait for preview, or use Choose file", "err");
+        setMsg("Camera not ready — wait for preview, or Stop and use Choose file", "err");
+        return;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = v.videoWidth;
+      canvas.height = v.videoHeight;
+      canvas.getContext("2d").drawImage(v, 0, 0);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      // Reject pure-black frames (stuck stream)
+      const sample = canvas.getContext("2d").getImageData(0, 0, Math.min(32, canvas.width), Math.min(32, canvas.height)).data;
+      let sum = 0;
+      for (let i = 0; i < sample.length; i += 4) sum += sample[i] + sample[i + 1] + sample[i + 2];
+      if (sum < 50) {
+        toast("Black frame", "Stop camera and try again", "err");
+        setMsg("Capture was black — Stop, close other apps using the camera, Start webcam again", "err");
+        return;
+      }
+      const camLabel = (liveStream && liveStream.getVideoTracks()[0] && liveStream.getVideoTracks()[0].label) || session.camera_label || "";
+      const started = session.flow_started_at || Date.now();
+      resetSession("webcam");
+      session.flow_started_at = started;
+      session.capture_ms = Date.now() - started;
+      session.camera_label = camLabel;
+      pendingB64 = dataUrl.split(",", 2)[1];
+      pendingMime = "image/jpeg";
+      session.image_bytes = Math.round((pendingB64.length * 3) / 4);
+      stopLive();
+      showPreviewDataUrl(dataUrl);
+      $("btnRecognize").disabled = false;
+      toast("Captured", "Recognizing food…");
+      setMsg("Success: plate captured — recognizing…", "ok");
+      await recognize();
+    }
+
+    $("fileCamera").addEventListener("change", (e) => onFile(e.target.files && e.target.files[0], "phone_camera"));
+    $("fileGallery").addEventListener("change", (e) => onFile(e.target.files && e.target.files[0], "gallery"));
+    $("btnRecognize").addEventListener("click", () => recognize());
+    $("btnAdd").addEventListener("click", () => addMeal());
+    $("btnRefresh").addEventListener("click", () => refresh());
+    $("btnLive").addEventListener("click", () => startLive());
+    $("btnSnap").addEventListener("click", () => snapLive());
+    $("camPick").addEventListener("change", () => startLive($("camPick").value));
+    $("btnStopLive").addEventListener("click", () => {
+      stopLive();
+      $("camPick").style.display = "none";
+      if (!$("preview").src) {
+        $("shotPh").style.display = "";
+        $("shot").classList.remove("has-img");
+      } else {
+        $("preview").style.display = "block";
+      }
+    });
+    $("food").addEventListener("keydown", (e) => { if (e.key === "Enter") addMeal(); });
+
+    $("selfUrl").textContent = location.href.split("?")[0];
+    $("btnLive").style.display = canWebcam ? "block" : "none";
+    showSecureBanner();
+    refresh();
+    setInterval(refresh, 20000);
+    // No auto-start — Windows often opens a black stream until user clicks Start webcam.
+  </script>
+</body>
+</html>

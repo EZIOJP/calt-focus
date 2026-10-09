@@ -1,0 +1,6 @@
+msgid ""
+msgstr ""
+"Language: en_US\n"
+
+msgid "appName"
+msgstr "CALT Sync"

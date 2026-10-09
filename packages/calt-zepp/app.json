@@ -1,0 +1,72 @@
+{
+  "configVersion": "v3",
+  "app": {
+    "appName": "CALT Sync",
+    "appId": 1088801,
+    "appType": "app",
+    "version": {
+      "code": 20,
+      "name": "4.3.0"
+    },
+    "icon": "icon.png",
+    "vender": "calt",
+    "description": "CALT Sync 4.3 — dump/send + optional auto every 3h"
+  },
+  "permissions": [
+    "data:os.device.info",
+    "data:user.info",
+    "device:os.local_storage",
+    "device:os.alarm",
+    "data:user.hd.sleep",
+    "data:user.hd.heart_rate",
+    "data:user.hd.step",
+    "data:user.hd.calorie",
+    "data:user.hd.distance",
+    "data:user.hd.spo2",
+    "data:user.hd.stress",
+    "data:user.hd.pai",
+    "data:user.hd.stand",
+    "data:user.hd.fat_burning",
+    "data:user.hd.workout"
+  ],
+  "runtime": {
+    "apiVersion": {
+      "compatible": "3.0",
+      "target": "4.0",
+      "minVersion": "3.0"
+    }
+  },
+  "targets": {
+    "480x480-t-rex-3": {
+      "module": {
+        "page": {
+          "pages": ["page/index", "page/settings", "page/log"]
+        },
+        "app-side": {
+          "path": "app-side/index"
+        },
+        "setting": {
+          "path": "setting/index"
+        }
+      },
+      "platforms": [
+        { "name": "t-rex-3", "deviceSource": 8716544 },
+        { "name": "t-rex-3-w", "deviceSource": 8716545 },
+        { "name": "t-rex-3-c", "deviceSource": 8716547 },
+        { "name": "t-rex-3-pro-48", "deviceSource": 10551552 },
+        { "name": "t-rex-3-pro-48-w", "deviceSource": 10551553 },
+        { "name": "t-rex-3-pro-48-c", "deviceSource": 10551555 },
+        { "name": "t-rex-3-pro-44", "deviceSource": 10682624 },
+        { "name": "t-rex-3-pro-44-w", "deviceSource": 10682625 },
+        { "name": "t-rex-3-pro-44-c", "deviceSource": 10682627 }
+      ],
+      "designWidth": 480
+    }
+  },
+  "i18n": {
+    "en-US": {
+      "appName": "CALT Sync"
+    }
+  },
+  "defaultLanguage": "en-US"
+}

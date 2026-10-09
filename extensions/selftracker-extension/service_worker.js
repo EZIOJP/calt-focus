@@ -1191,6 +1191,54 @@ var trackerBootstrapped = false;
 
 const BULK_FLUSH_MINUTES = 3;
 const BULK_FLUSH_MAX = 25;
+/** Keep extension chrome.storage logs for today + N prior days (was grow-only / slice-cap). */
+const LOG_RETAIN_DAYS = 2;
+const DAILY_LOG_HARD_CAP = 2000;
+const BEHAVIORAL_LOG_HARD_CAP = 1000;
+
+function localMidnightMs(daysAgo) {
+  var d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - (daysAgo || 0));
+  return d.getTime();
+}
+
+/** Drop old dailyLog rows; returns true if mutated. */
+function pruneDailyLogMemory() {
+  var keepFrom = localMidnightMs(LOG_RETAIN_DAYS);
+  var before = dailyLog.length;
+  dailyLog = (dailyLog || []).filter(function (e) {
+    var t = Number((e && (e.timestamp || e.end_timestamp)) || 0);
+    return t >= keepFrom;
+  });
+  if (dailyLog.length > DAILY_LOG_HARD_CAP) {
+    dailyLog = dailyLog.slice(-DAILY_LOG_HARD_CAP);
+  }
+  return dailyLog.length !== before;
+}
+
+function pruneBehavioralLogArray(log) {
+  var keepFrom = localMidnightMs(LOG_RETAIN_DAYS);
+  var out = (log || []).filter(function (e) {
+    var t = Number((e && e.timestamp) || 0);
+    return t >= keepFrom;
+  });
+  if (out.length > BEHAVIORAL_LOG_HARD_CAP) out = out.slice(-BEHAVIORAL_LOG_HARD_CAP);
+  return out;
+}
+
+/** Persist pruned logs (call after memory prune or on flush). */
+function persistPrunedTrackerLogs() {
+  pruneDailyLogMemory();
+  extAPI.storage.local.get(["behavioralLog"], function (result) {
+    var behavioral = pruneBehavioralLogArray(result.behavioralLog || []);
+    extAPI.storage.local.set({
+      dailyLog: dailyLog,
+      behavioralLog: behavioral,
+      tabSwitchCount: tabSwitchCount,
+    });
+  });
+}
 
 extAPI.storage.local.get(
   [
@@ -1221,6 +1269,8 @@ extAPI.storage.local.get(
       tempAllowsCache = pruneTempAllows(result.tempAllows, Date.now());
     }
     studyHttpFallback = Boolean(result.caltGateHttpFallback || result.caltSoftlandHttpFallback);
+    // Drop stale multi-day chrome.storage logs on boot (SoT for Focus is SQLite).
+    persistPrunedTrackerLogs();
   },
 );
 
@@ -2162,7 +2212,7 @@ function logCurrentSession(reason = "tab_switch") {
     gate_locked: Boolean(gateCache && gateCache.locked),
   };
   dailyLog.push(entry);
-  if (dailyLog.length > 5000) dailyLog = dailyLog.slice(-5000);
+  pruneDailyLogMemory();
   extAPI.storage.local.set({ dailyLog, lastEntry: entry, tabSwitchCount });
   enqueueOutbound({ type: "SESSION_END", source: "extension", ...entry });
 }
@@ -2240,6 +2290,7 @@ extAPI.alarms.onAlarm.addListener((alarm) => {
   }
   if (alarm.name === "flush") {
     flushOutboundQueue();
+    persistPrunedTrackerLogs();
     if (
       windowFocused &&
       activeUrl &&
@@ -2284,10 +2335,10 @@ extAPI.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       ...msg.data,
     };
     extAPI.storage.local.get(["behavioralLog"], (result) => {
-      const log = result.behavioralLog || [];
+      const log = pruneBehavioralLogArray(result.behavioralLog || []);
       log.push(rawPayload);
-      if (log.length > 2000) log.splice(0, log.length - 2000);
-      extAPI.storage.local.set({ behavioralLog: log });
+      const trimmed = pruneBehavioralLogArray(log);
+      extAPI.storage.local.set({ behavioralLog: trimmed });
     });
     enqueueOutbound(rawPayload);
     return false;

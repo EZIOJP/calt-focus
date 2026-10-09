@@ -1,0 +1,12 @@
+{
+  "name": "calt-zepp",
+  "version": "4.3.0",
+  "private": true,
+  "description": "CALT Sync 4.3 — dump/send + auto every 3h",
+  "scripts": {
+    "preview": "zeus preview",
+    "dev": "zeus dev",
+    "build": "zeus build",
+    "login": "zeus login"
+  }
+}

@@ -154,7 +154,22 @@ Built-in watch/porn lists are **not** edited here.
 | Windows | Label, start/end, mode (Study/Free/Planning/Bible), Mon–Sun, delete | `schedules.windows` | First matching window wins | SoftLand |
 | Add window / Save | Buttons | same | Gateway | SoftLand |
 
-### 4.2 Apps (Arm) — `AppKillRulesPanel`
+### 4.2 Apps — time limits — `AppTimeLimitsPanel`
+
+Daily budget per exe. While minutes remain, the app can run. When today's foreground time reaches the budget, the enforcer kills that exe until local midnight. **Independent of Arm.** A free day / reward day does not restore a spent budget. Browsers are rejected (use Sites). Idle gaps over 5 minutes are not counted.
+
+| Control | Presentation | Write path | Backend | Class |
+|---------|--------------|------------|---------|-------|
+| On / Off | Pill; applies on Save | `app_limits.set` | `app_limits.json` `enabled` | Time limit |
+| Quick chips | Steam 1h, Discord 45m, Roblox 45m, Spotify 1.5h | Local until Save | — | Time limit |
+| Per-app minutes | Number 1–1440 | Local until Save | `limits[].daily_minutes` | Time limit |
+| Used / left bar | Polled from mirror (~10s) | Read | Tick writes `usage[]` | Display |
+| Add exe | Name + minutes | Local until Save | — | Time limit |
+| Save | Button | `app_limits.set` | `app_limits.cpp` kill when `used >= limit` | Time limit |
+
+Mirror: `behavior/app_limits.json`. Live open window: `behavior/fg_live.json` (tracker, so the budget does not wait for a session flush).
+
+### 4.3 Apps (Arm) — `AppKillRulesPanel`
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
@@ -165,7 +180,7 @@ Built-in watch/porn lists are **not** edited here.
 
 SoftLand site domains never belong on this list.
 
-### 4.3 Filters (Device) — `DeviceBlockPanel`
+### 4.4 Filters (Device) — `DeviceBlockPanel`
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
@@ -186,7 +201,7 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
-| Daily goal minutes | Number (≈15–960) | `softland.patch_goals` (+ local goals key) | SoftLand `goals.daily_focus_minutes` | Goals |
+| Daily goal minutes | Number (≈15–960); Plan → Goals shows **goal / available** hours where available = free gaps between first→last routine on the day; stepper clamps goal ≤ that max when routines exist | `softland.patch_goals` (+ local goals key) | SoftLand `goals.daily_focus_minutes` | Goals |
 | Reward day | Button → type `REWARD` | `reward.claim` / bible client | Needs Bible done + reward available; sets free until EOD; clears study temp kills | Unlock |
 | Day pass | Button → type `PASS` | `day.grant_pass` | Quota (2/week); Bible done; free until EOD | Unlock |
 | Gate / progress | Ring / status | Read mirrors | day rollup / SoftLand | Display |
@@ -229,7 +244,7 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 |-------|--------------|------|-------|
 | `DesktopManagedBanner` | Banner → Overview | Nav | Copy |
 | `SessionOverridePanel` | Pick session → mark productive / clear | Study PATCH tracked sessions | Study-only |
-| `ActivitiesPanel` | Day table, uncategorized filter | Study activities API | Study-only |
+| `ActivitiesPanel` | Day table, uncategorized filter | Focus: `day_activities.json` mirror; Study: activities API | Focus-native |
 | `ClassificationReview` | Scan / approve / reject LLM suggestions | Study classification API | Study-only |
 
 ---
@@ -257,20 +272,92 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 
 | Control | Write path | Backend | Class |
 |---------|------------|---------|-------|
+| **Require Confirm plan** | `softland.patch_goals` `planning_enabled` | SoftLand decide + DayLoopTick skip plan phase when false | Goals |
 | Auto-apply routines on login | `localStorage` planning prefs | Read by app auth/bootstrap | Local |
 | Apply once (today) / Force apply | `routine.apply` | Enforcer planner routines → `plan_blocks.json` | Plan |
 | Clear today (Daily routines) | `plan.clear_day` | Deletes today's `planner_blocks` → `plan_blocks.json` | Plan |
-| Lock in range (Today / Week / Month) | FE loops `routine.apply` per day (max 31) | Same mirror; weekday masks per day | Plan |
-| Clear range | FE loops `plan.clear_day` | Clears blocks for selected days | Plan |
+| Planning range (Today / Week / Month) — Plan → Range | FE loops `routine.apply` per day (max 31) | Same mirror; weekday masks per day | Plan |
+| Clear range days — Plan → Range | FE loops `plan.clear_day` | Clears blocks for selected days | Plan |
 | Knob rows (morning gate, etc.) | Read-only distraction gate / defaults | Often “—” in Focus | Display |
+
+When **Require Confirm plan** is off (default): Bible still runs; Confirm-plan overlay is hidden; after Bible, DayLoop auto-confirms plan and couples SoftLand+Arm. SoftLand decide treats plan as satisfied. Prefer Home **work sessions** as the daily focus loop; Plan/routines stay optional.
+
+### 7.3b LLM host — `FocusLlmHostPanel`
+
+| Control | Persist | Backend | Class |
+|---------|---------|---------|-------|
+| Use LLM for session Suggest + Jarvis | `localStorage` `calt:focus-llm-host:v1` | Hosted `/v1/chat/completions` (9Router / OpenRouter / custom) | Local |
+| Preset 9Router / OpenRouter / Custom | same | Default base URLs | Local |
+| Base URL, model, Bearer (OpenRouter `sk-or-…`) | same | Keys stay in this browser / on the host you run | Local |
+| OpenRouter attribution | `HTTP-Referer` + `X-OpenRouter-Title` (+ legacy `X-Title`) | Optional rankings headers | Local |
+| Test host | GET `{base}/models` | Ping only (OpenRouter needs Bearer) | Diagnostic |
+
+**Indication:** `FocusAiStatusChip` in Settings LiveStatusStrip, Home mode header, Suggest rail, and LLM/Jarvis panels (OpenRouter / 9Router / off + optional ping).
+
+Work session **Suggest** (Home allow/block rail) and **Jarvis** briefs call that host; on failure Suggest uses heuristics and Jarvis uses a canned line. See `services/llm_host/README.md`.
+
+### 7.3c Jarvis — `FocusJarvisPanel`
+
+Study voice_agent spirit (`jarvis` | `normal`). Default **Jarvis** picks Microsoft Ryan / en-GB (Study `en-GB-RyanNeural`); **Normal** picks Jenny / en-US. Speaks via WebView2 `speechSynthesis` (Edge neural voices when installed) — no Study `:8000` / edge-tts process.
+
+| Control | Persist | Backend | Class |
+|---------|---------|---------|-------|
+| Enable Jarvis | `localStorage` `calt:focus-jarvis:v1` | Home card + brief | Local |
+| Speak aloud | same | Web `speechSynthesis` | Local |
+| Voice model jarvis \| normal | same (`voiceMode`) | Auto voice + rate/pitch presets | Local |
+| Pinned voice | same (`voiceURI`) | Optional `speechSynthesis` voice | Local |
+| Rate / pitch | same | Utterance tuning | Local |
+| Test voice / Stop | — | Speak sample / cancel | Local |
+| Auto morning brief | same | Once/day on Home | Local |
+| Run brief | LLM host chat or canned | No Study `:8000` | Local |
+| Command box | same UI | `focusCommands` → mirrors / enforcer / WhatsApp | Local |
+| Mic (PTT) | same UI | Edge Web Speech (`focusStt`) | Local |
+
+Study voice_agent used **faster-whisper** (Python) when installed, else SpeechRecognition. Focus uses **Web Speech** in WebView2 (no Python STT process).
+
+Commands: `help`, `brief`, `status`, `report`, `speak on|off`, `voice jarvis|normal`, `session end`, `softland on`, `softland off UNLOCK`, `pass`. SoftLand off still requires typed `UNLOCK` (server-enforced).
+
+Home also shows day-loop **Goals · todos** (`day.task_*`) plus Plan **side todos** (`productivity:goals:v1` `extraGoals`).
+
+### 7.3d WhatsApp daily report — `FocusWhatsAppReportPanel`
+
+| Control | Persist | Backend | Class |
+|---------|---------|---------|-------|
+| Enable daily send | `localStorage` `calt:focus-whatsapp-report:v1` | Auto-open while Focus running | Local |
+| Members (name + E.164) | same (`members[]`) | One `wa.me` chat per member | Local |
+| Send time (local) | same | Once/day window (~20m) | Local |
+| Include top apps / todos | same | From `day_activities` / `day_loop` | Local |
+| Preview / **Send report** | — | Compose + open all member chats | Local |
+| Home Send report | compact card | Same send path (testing) | Local |
+
+Opens WhatsApp with a prefilled report per member (tap Send). No Meta Business API / Study `:8000`.
 
 ### 7.4 Demo — `DemoModePanel`
 
 Shown **only outside** Focus desktop shell. Fake SoftLand clock via Study `:8000`. **Hidden in Focus.**
 
-### 7.5 Watch ↔ PC — `WearablesSyncPanel`
+### 7.5 Watch / Health — `WearablesSyncPanel` + sidebar **Health**
 
-Token, ping, test ingest, status → Study wearables APIs + local token storage. **Study-backed.**
+**Primary:** Amazfit **CALT Sync 4.3** Dump & Send (or Auto every 3h) → Focus hub `:8765` → Life Tracker (`/life`).
+
+| Control | Persist | Backend | Class |
+|---------|---------|---------|-------|
+| Hub URL | `localStorage` `calt:wearables:hubUrl` | `scripts/run/wearables_hub.py` | Local |
+| Ingest token | `localStorage` `calt:wearables:token` | Bearer / `X-CALT-Wearable-Key` | Local |
+| Auto sync | Watch `localStorage` + `@zos/alarm` | Dump & Send on wake | Watch |
+| Life / Health UI | — | `GET /api/life/daily/*` + mirrors | Hub read |
+
+See [`docs/WEARABLES.md`](WEARABLES.md).
+
+### 7.5b NutriNode — sidebar **NutriNode** (`/nutrition`)
+
+Meal search/log + daily macros via Focus hub `:8765` (`/api/nutrition/*`). Stores `behavior/nutrition_today.json`.
+
+**Photo suggest:** camera/file → hub `POST /api/nutrition/analyze-photo` (Gemini vision) → suggested names + optional weight hint → user sets grams → Add → Send. Needs `GEMINI_API_KEY` or `LLM_CLOUD_API_KEY` in the hub process env, or `data/productivity/behavior/nutrition/nutrition_llm.json` (`{"gemini_api_key":"..."}`), or sibling Study `.env`. Pipeline CSV/ESP32 stay Study-only.
+
+**Phone Chrome:** same hub on LAN → `http://<PC-LAN-IP>:8765/n` (Add to Home screen). Firewall once: `scripts/run/open_firewall_hub_8765.bat` as Admin. Windows webcam: `https://127.0.0.1:8766/n`.
+
+Each meal stores local clock (`Asia/Kolkata`), weekday, capture path (webcam/gallery/manual), client, AI recognize ms, and suggested names. Append-only timeline: `behavior/nutrition/nutrition_events.jsonl` · `GET /api/nutrition/events`.
 
 ### 7.6 Plan reminders — `PlannerRemindersPanel`
 
@@ -281,6 +368,14 @@ Token, ping, test ingest, status → Study wearables APIs + local token storage.
 | Next block hint | `plan_blocks` mirror | Local |
 
 **Caveat:** scheduler runs while this panel is mounted (Settings → More open).
+
+### 7.3d Quit helper — `QuitHowToPanel`
+
+| Control | Persist | Backend | Class |
+|---------|---------|---------|-------|
+| Why Quit is blocked | Reads `enforcer_status.json` + SoftLand | Native tray refuse while SoftLand or Arm on | Display |
+
+Focus desktop only. No bypass — points to SoftLand UNLOCK + Disarm, then tray Quit.
 
 ### 7.7 Export (`ProductivitySettingsTab` toolsContent)
 
@@ -318,11 +413,14 @@ Design host `:5180` without WebView → gated sections behave read-only.
 | `softland.patch_site_rules` | Allow/Watch/Block lists |
 | `softland.patch_schedules` | Gate schedules |
 | `softland.patch_mode_flags` | SoftLand mode flags |
-| `softland.patch_goals` | Daily goal |
+| `softland.patch_goals` | Daily goal + `planning_enabled` (plan phase on/off) |
 | `softland.spend_free` | Spend earned free |
 | `softland.set_reward_day` / `reward.claim` | Reward day |
 | `softland.set_day_pass` / `day.grant_pass` | Day pass |
 | `arm.set` | Arm, lock, kill list |
+| `app_limits.set` | Daily app time limits (`enabled`, `limits[]`) |
+| `session.set` | Dashboard work session. Start/end open every day (session-first). |
+| `softland.spend_free` | Retired (`spend_retired`). Balance does not open games or apps. |
 | `device_block.*` | Device hosts lock |
 | `routine.apply` | Apply routines |
 | `plan.clear_day` | Delete all plan blocks for a local day |
@@ -337,7 +435,7 @@ Design host `:5180` without WebView → gated sections behave read-only.
 3. **Productive scoring** — much of the rich category UI is Study `:8000` era; Focus offline path is thinner.
 4. **Kill-list edits** — authoritative UI is Blocks → Apps (`arm.set`), not Unlock’s leftover chips.
 5. **Secrets in `enforcer_policy.json`** — unlock password/phrase stored in plaintext today.
-6. **Export / wearables / demo / classification** — need Study API; not enforcer SoT.
+6. **Export / demo / classification** — still Study API where noted. **Wearables** → Focus `:8765` hub (not Study `:8000`).
 7. **Mode label vs decide** — Overview chip can disagree with full SoftLand decide ladder (schedules / morning).
 8. **Device Status in Focus** — may reflect settings mirror more than live hosts parse.
 
@@ -354,6 +452,7 @@ Design host `:5180` without WebView → gated sections behave read-only.
 | Mode flags | `SoftLandModeFlagsPanel.tsx` |
 | Schedules | `GateSchedulesPanel.tsx` |
 | Kill list | `AppKillRulesPanel.tsx` |
+| App time limits | `AppTimeLimitsPanel.tsx` · `backend/calt_enforcer/src/app_limits.cpp` |
 | Device hosts | `DeviceBlockPanel.tsx` |
 | Now / Arm | `FocusControlPanel.tsx` |
 | Pipe client | `lib/enforcerNativeCmd.ts` |
