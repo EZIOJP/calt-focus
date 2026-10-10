@@ -138,10 +138,50 @@ function rename(root){
   }
 }
 var scheduled=false;
+function collapseHourLabels(){
+  var blocks=document.querySelectorAll(".hour-seg-block");
+  if(blocks.length<2)return;
+  var items=[];
+  for(var i=0;i<blocks.length;i++){
+    var el=blocks[i];
+    var r=el.getBoundingClientRect();
+    if(r.width<8||r.height<4)continue;
+    var text=(el.innerText||"").replace(/\s+/g," ").trim();
+    items.push({el:el,top:r.top,left:r.left,height:r.height,text:text});
+  }
+  items.sort(function(a,b){return a.top-b.top||a.left-b.left;});
+  var prev=null;
+  for(var j=0;j<items.length;j++){
+    var it=items[j];
+    if(prev&&it.text&&prev.text===it.text){
+      var dy=it.top-prev.top;
+      var row=Math.max(it.height,prev.height,8);
+      if(dy>row*0.45&&dy<row*1.8&&Math.abs(it.left-prev.left)<24){
+        var spans=it.el.querySelectorAll("span");
+        for(var s=0;s<spans.length;s++){if(spans[s].textContent)spans[s].textContent="";}
+        for(var c=0;c<it.el.childNodes.length;c++){
+          var n=it.el.childNodes[c];
+          if(n.nodeType===3&&n.nodeValue&&n.nodeValue.trim())n.nodeValue="";
+        }
+        if(!it.el.getAttribute("aria-label"))it.el.setAttribute("aria-label",it.text);
+        it.el.style.top="0";
+        it.el.style.height="100%";
+        it.el.style.borderTopLeftRadius="0";
+        it.el.style.borderTopRightRadius="0";
+        prev.el.style.borderBottomLeftRadius="0";
+        prev.el.style.borderBottomRightRadius="0";
+        if(prev.el.style.top!=="0")prev.el.style.height="calc(100% - 2px)";
+        prev={el:it.el,top:it.top,left:it.left,height:it.height,text:prev.text};
+        continue;
+      }
+    }
+    if(it.text)prev=it;
+  }
+}
 function schedule(){
   if(scheduled||!document.body)return;
   scheduled=true;
-  requestAnimationFrame(function(){scheduled=false;rename(document.body);});
+  requestAnimationFrame(function(){scheduled=false;rename(document.body);collapseHourLabels();});
 }
 function retitle(){
   var inputs=document.querySelectorAll("input[type=text]");
