@@ -16,16 +16,16 @@ Ship FE: `npm run build:focus` (builds Study + syncs `dist-focus/`). Tray → Re
 New day
   → SoftLand host gate ON, Arm OFF
   → Bible pending → DayGateStrip (Plan/Calendar still editable; SoftLand blocks hosts)
-  → If planning_enabled:
+  → If the user confirms a plan:
         Confirm couples SoftLand + Arm (strip CTA → Plan / Home Confirm)
      Else:
-        DayLoop auto-confirms after Bible (no Confirm phase)
+        Skipped plan is a lazy day — no auto-confirm, no default Arm, no morning_plan block
   → SoftLand site/schedule/mode editable after morning clear (or free day)
   → Arm / kill-list still need free day or day pass
   → Prefer Home work session (Allow + Start) for focus blocks
 ```
 
-**Locks:** SoftLand ON ≠ Arm. Confirm (or auto-confirm when planning off) is the couple point. **No plan carry-forward** (`carry_disabled`).
+**Locks:** SoftLand ON ≠ Arm. Confirm is the couple point, and only when the user confirms. Ignoring the plan does not arm or block. **No plan carry-forward** (`carry_disabled`).
 
 **Session-first (current default):** `goals.planning_enabled` defaults **false** (FE + msg-host + enforcer agree). Work sessions and routines/plan edits are **not** free-day gated and are **not** trapped behind full-screen morning modals.
 
@@ -56,9 +56,9 @@ New day
 |------|-------|---------------|------------------|--------|---------------|
 | New day reset | Clears sticky bible/plan/goal + stale `free_until` | — | `DayLoopTick` | Backend only | After midnight: flags not sticky from yesterday |
 | Morning bible gate | Until `bible_done_for_date == today` | `MorningBibleOverlay.tsx` | `bible.devotion.done` | **Live** | Overlay when pending; hides after mark done |
-| Morning plan gate (hosts) | SoftLand on + bible/plan incomplete → `morning_*` modes | SoftLand decide + overlays | SoftLand `get_mode` | Backend only | Non-allow sites blocked until bible + Confirm (or auto if planning off) |
+| Morning plan gate (hosts) | Bible still blocks non-allow hosts while SoftLand is on. A skipped plan does not. | SoftLand decide + overlays | SoftLand `get_mode` | Backend only | No `morning_plan` block; extension does not redirect for plan |
 | Confirm plan → SoftLand + Arm | Bible + (≥1 non-free min if planning on) | `ConfirmPlanButton` / `MorningPlanOverlay` | `day.confirm_plan` | **Live** | Empty plan → `plan_required` when planning on; Arm off until Confirm/auto |
-| Planning on/off | Skip Confirm phase | Settings → More → Planning | `softland.patch_goals` `planning_enabled` | **Live** | Off: no plan overlay; day opens after Bible |
+| Planning on/off | Confirm stays optional | Settings → More → Planning | `softland.patch_goals` `planning_enabled` | **Live** | Off or ignored: no auto Arm, no plan block |
 | Plan follow (active block) | SoftLand follow only when confirmed today | — | `ApplyActivePlanToSoftland` / tick | Backend only | Mode tracks current block after Confirm |
 | No plan carry-forward | Import / roll → `carry_disabled` | Calendar/Plan (ops rejected) | `plan.import_from_date` / `roll_forward` | **Live** (enforced) | Cannot import yesterday into today |
 | Work session | Allow apps/sites → Start / End | `HomeAllowBlockRail.tsx` | `session.set` | **Live** | Start any day; Allow anytime; Block·Arm needs free day |

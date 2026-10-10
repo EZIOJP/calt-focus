@@ -742,7 +742,7 @@ function blockKindForUrl(url, gateCache, title) {
   var next = browser.morning_next || morning.next || "open";
   var mode = String(browser.mode || "free").toLowerCase();
   if (next === "bible" || mode === "bible") return "morning_bible";
-  if (next === "plan" || mode === "planning") return "morning_plan";
+  // Ignored planning is a lazy day — do not label or lock the tab as morning_plan.
   if (gateCache && gateCache.incubation && gateCache.incubation.active) return "incubation";
   if (browser.incubation_active) return "incubation";
   var host = hostnameFromUrl(url);
@@ -767,9 +767,6 @@ function redirectTargetUrl(gateCache, lockedPageUrl) {
   var mode = browser.mode || "free";
   if (next === "bible" || mode === "bible") {
     return browser.bible_url || morning.bible_url || CALT_BIBLE_URL;
-  }
-  if (next === "plan" || mode === "planning") {
-    return browser.plan_url || morning.plan_url || CALT_PRODUCTIVITY_URL;
   }
   if (browser.redirect_url) return browser.redirect_url;
   return lockedPageUrl;

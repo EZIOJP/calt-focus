@@ -751,11 +751,7 @@ async function softLandBlockedTab(tabId, spaUrl) {
   } catch (e) {
     /* ignore */
   }
-  var morningSoft =
-    next === "bible" ||
-    next === "plan" ||
-    mode === "bible" ||
-    mode === "planning";
+  var morningSoft = next === "bible" || mode === "bible";
   // Study/armed: use spaUrl when it is locked.html (?host= for temp-allow UI).
   var target = lockedPageUrl();
   if (morningSoft && spaUrl && String(spaUrl).indexOf("locked.html") < 0) {

@@ -158,7 +158,7 @@ Shared tokens today: `porn`, `watch_list`, `incubation`.
 | `block_extra` | maps to `watch_site_block` in voice |
 | `not_listed` / study catch-all | extension uses `study_block` / `softland_block` |
 | `free_window` / `reward_day` / `allow_list` | allow paths (no lock page) |
-| `morning_bible` / `morning_plan` | Gate interstitial / Focus morning overlay |
+| `morning_bible` | Gate interstitial / Focus morning overlay. `morning_plan` is no longer emitted. |
 
 **Do not drive user-facing Blocker copy from live `reason` strings** until native
 and any HTTP-fallback vocab are fully aligned; prefer the static wording in
@@ -174,7 +174,7 @@ exact host **or** any subdomain (`docs.google.com` matches `*.docs.google.com`).
 | # | Rule | Verdict | `reason` |
 |---|------|---------|----------|
 | 1 | `site_rules.allow_extra`, or `localhost` / `127.0.0.1` | **Allow** | `allow_list` |
-| 2 | SoftLand on and Bible or Confirm **not done for local today** (and not emergency) | **Block** | `morning_bible` / `morning_plan` |
+| 2 | SoftLand on and Bible **not done for local today** (and not emergency). A skipped plan does not block. | **Block** | `morning_bible` |
 | 3 | Looks like porn, and the mode's `block_porn` is on | **Block** | `porn` |
 | 4 | `site_rules.block_extra` | **Block** | `block_extra` |
 | 5 | Mode is `free` and not incubating | **Allow** | `reward_day` / `free_window` / `free_mode` |
@@ -330,11 +330,13 @@ Morning (Focus shell, offline SoftLand + Arm):
 ```text
 New calendar day (DayLoopTick)
   → clear sticky bible/plan/goal flags; clear stale free_until / goal_free_granted_date
-  → SoftLand get_mode: non-allow hosts → morning_bible / morning_plan
-  → Focus MorningBibleOverlay until bible_done_for_date == today
-  → Confirm plan → SoftLand ON + Arm ON
-  → Seed kill list (games/social presets + cursor.exe) if empty / missing cursor
-  → Sites + cursor blocked until productive minutes ≥ daily_focus
+  → DayLoopTick does not auto-confirm, does not turn SoftLand on, and does not Arm
+  → SoftLand get_mode: non-allow hosts → morning_bible only (skipped plan is not a block)
+  → Focus MorningBibleOverlay until bible_done_for_date == today, if SoftLand is already on
+  → User confirms a plan → SoftLand ON + Arm ON
+  → That confirm seeds the kill list (games/social presets + cursor.exe) if empty / missing cursor
+  → If the user never confirms, the day stays open (lazy day): no default kill list, no morning_plan
+  → After an explicit confirm: sites + cursor blocked until productive minutes ≥ daily_focus
   → DayLoopMaybeGrantGoalFree → free_until EOD; drop cursor.exe from kills (games/social stay)
 ```
 

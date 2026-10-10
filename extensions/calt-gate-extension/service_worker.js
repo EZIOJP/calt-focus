@@ -880,7 +880,7 @@ function blockKindForUrl(url, gateCache, title) {
   var mode = String(browser.mode || "free").toLowerCase();
   // Native uses short reason tokens on locked.html ?why=
   if (next === "bible" || mode === "bible") return "morning_bible";
-  if (next === "plan" || mode === "planning") return "morning_plan";
+  // Ignored planning is a lazy day — do not label or lock the tab as morning_plan.
   if (gateCache && gateCache.incubation && gateCache.incubation.active) return "incubation";
   if (browser.incubation_active) return "incubation";
   var host = hostnameFromUrl(url);
@@ -905,9 +905,6 @@ function redirectTargetUrl(gateCache, lockedPageUrl) {
   var mode = browser.mode || "free";
   if (next === "bible" || mode === "bible") {
     return browser.bible_url || morning.bible_url || CALT_BIBLE_URL;
-  }
-  if (next === "plan" || mode === "planning") {
-    return browser.plan_url || morning.plan_url || CALT_PRODUCTIVITY_URL;
   }
   if (browser.redirect_url) return browser.redirect_url;
   return lockedPageUrl;
@@ -1669,8 +1666,7 @@ async function softLandBlockedTab(tabId, spaUrl, meta) {
   } catch (e) {
     /* ignore */
   }
-  var morningSoft =
-    next === "bible" || next === "plan" || mode === "bible" || mode === "planning";
+  var morningSoft = next === "bible" || mode === "bible";
   var target = lockedPageUrl();
   if (morningSoft && spaUrl && String(spaUrl).indexOf("locked.html") < 0) {
     target = spaUrl;
@@ -1773,6 +1769,7 @@ async function maybeRedirectTab(tabId, url, title) {
   var native = await softlandNativeGetMode(url);
   if (native && native.ok !== false && native.action) {
     if (native.action === "allow" || native.action === "none") return false;
+    if (native.reason === "morning_plan" || native.mode === "planning") return false;
     if (native.action === "block" && native.enforce !== false) {
       var kindN = native.reason || "blocked";
       reportGateAlert(kindN, url.slice(0, 120));

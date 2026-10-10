@@ -280,7 +280,7 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 | Clear range days — Plan → Range | FE loops `plan.clear_day` | Clears blocks for selected days | Plan |
 | Knob rows (morning gate, etc.) | Read-only distraction gate / defaults | Often “—” in Focus | Display |
 
-When **Require Confirm plan** is off (default): Bible still runs; Confirm-plan overlay is hidden; after Bible, DayLoop auto-confirms plan and couples SoftLand+Arm. SoftLand decide treats plan as satisfied. Prefer Home **work sessions** as the daily focus loop; Plan/routines stay optional.
+When **Require Confirm plan** is off (default): Bible still runs if SoftLand is already on; the plan phase does not auto-confirm and does not turn SoftLand or Arm on. Ignoring the plan is a lazy day. SoftLand and Arm couple only when the user confirms (`day.confirm_plan`). Prefer Home **work sessions** as the daily focus loop; Plan/routines stay optional.
 
 ### 7.3b LLM host — `FocusLlmHostPanel`
 
