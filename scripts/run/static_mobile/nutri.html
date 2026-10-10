@@ -152,7 +152,7 @@
 <body>
   <p class="brand">CALT · NutriNode</p>
   <h1>Log a meal</h1>
-  <p class="sub">Webcam / photo → recognize → set grams → add. Same day totals as Focus.</p>
+  <p class="sub">Take a photo, recognize the plate, set grams, and add it to today.</p>
 
   <div class="banner" id="secureBanner"></div>
 
@@ -228,7 +228,8 @@
 
   <footer>
     This page: <code id="selfUrl"></code><br />
-    Windows webcam needs HTTPS or localhost — use <code>https://127.0.0.1:8766/n</code>
+    Served by CALT Focus. Phone <em>Take photo</em> works here.
+    On this PC, live webcam is <code>http://127.0.0.1:8765/n</code>
   </footer>
 
   <div id="toastHost" aria-live="polite"></div>
@@ -358,14 +359,10 @@
         b.classList.remove("on");
         return;
       }
-      // http://LAN — Chrome blocks webcam getUserMedia
-      const httpsLocal = "https://127.0.0.1:8766/n";
-      const httpsHere = "https://" + location.hostname + ":8766/n";
       b.innerHTML =
-        "<strong>Webcam blocked on plain HTTP.</strong><br>" +
-        "On this Windows PC open: <a href=\"" + httpsLocal + "\">" + httpsLocal + "</a><br>" +
-        "Or LAN HTTPS: <a href=\"" + httpsHere + "\">" + httpsHere + "</a> " +
-        "(Chrome → Advanced → Proceed). Phone <em>Take photo</em> still works on HTTP.";
+        "<strong>Live webcam needs a secure page.</strong><br>" +
+        "Phone <em>Take photo</em> works on this page.<br>" +
+        "On the Windows PC open <a href=\"http://127.0.0.1:8765/n\">http://127.0.0.1:8765/n</a> and use Start webcam.";
       b.classList.add("on");
     }
 
@@ -433,7 +430,7 @@
         const data = await api("/api/nutrition/today");
         renderToday(data);
         $("dot").classList.add("on");
-        $("hubLabel").textContent = "hub online · " + (data.date || "today");
+        $("hubLabel").textContent = "Focus online · " + (data.date || "today");
       } catch (e) {
         $("dot").classList.remove("on");
         $("hubLabel").textContent = "hub offline";

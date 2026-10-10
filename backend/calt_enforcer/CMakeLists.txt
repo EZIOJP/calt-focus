@@ -32,6 +32,8 @@ add_executable(calt_enforcer
   src/life_content.cpp
   src/device_block.cpp
   src/tracker_agent.cpp
+  src/wearable_json.cpp
+  src/wearable_store.cpp
   ${SQLITE_DIR}/sqlite3.c
 )
 target_include_directories(calt_enforcer PRIVATE src ${SQLITE_DIR})

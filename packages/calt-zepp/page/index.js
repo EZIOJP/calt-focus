@@ -66,10 +66,26 @@ function fmtSyncError(err, result) {
   }
   if (d.includes('413')) return 'Dump too large · retry Send (resumes chunk)'
   if (d.includes('network') || d.includes('-2') || (d.includes('fail') && d.includes('fetch'))) {
-    return 'Phone cannot reach PC · same Wi-Fi, hub :8765 or API :8000'
+    return 'Cannot reach PC · same Wi-Fi, CALT Focus open on :8765'
   }
   const short = raw.replace(/\s+/g, ' ').trim()
   return (short || 'Send failed · swipe to log').slice(0, 96)
+}
+
+function pcReceivedLine() {
+  let at = ''
+  try {
+    at = localStorage.getItem('calt_last_received_at') || ''
+  } catch (_) {}
+  if (!at) return 'PC received: never'
+  return `PC received ${String(at).replace('T', ' ').slice(0, 19)}`
+}
+
+function rememberPcReceived(iso) {
+  if (!iso) return
+  try {
+    localStorage.setItem('calt_last_received_at', String(iso))
+  } catch (_) {}
 }
 
 function persistProgress(text) {
@@ -429,10 +445,11 @@ Page({
             self.autoW.setProperty(prop.TEXT, autoStatusLine())
           } catch (_) {}
         }
+        const stamp = self._pcReceivedAt ? pcReceivedLine() : 'PC received: never'
         self.setStatus(
           gaps.length
-            ? `${fromAuto ? 'Auto · ' : ''}Sent ${days.length}d · ${gaps.length}d never captured`
-            : `${fromAuto ? 'Auto · ' : ''}Done · filled thru ${today}`,
+            ? `${fromAuto ? 'Auto · ' : ''}Sent ${days.length}d · ${gaps.length}d never captured · ${stamp}`
+            : `${fromAuto ? 'Auto · ' : ''}Done · ${stamp}`,
           gaps.length ? COLOR_BUSY : COLOR_OK,
         )
         persistError('')
@@ -495,6 +512,12 @@ Page({
             const result = sidePayload(res)
             cacheSyncResult(result)
             saveWatchLog(result, dayHealth)
+            const stamped =
+              (result.serverEcho && result.serverEcho.last_received_at) || result.receivedAt || ''
+            if (stamped) {
+              rememberPcReceived(stamped)
+              self._pcReceivedAt = stamped
+            }
             if (!result.healthOk) {
               saveChunkResume(day, partIndex)
               self._syncing = false

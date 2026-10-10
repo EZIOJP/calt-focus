@@ -70,7 +70,7 @@ AppSettingsPage({
             },
           },
           [
-            'Rich health dump → Focus hub :8765. Dump & Send on the watch, or enable Auto sync (every 3h) in watch Settings. Phone + PC on same Wi‑Fi. Sensors do not invent history.',
+            'Rich health dump → CALT Focus on the PC LAN (:8765). The enforcer stores it. Dump & Send on the watch, or Auto sync every 3h. Phone and PC on the same Wi-Fi. Sensors do not invent history.',
           ],
         ),
 
@@ -79,14 +79,9 @@ AppSettingsPage({
           ['Connection'],
         ),
         TextInput({
-          label: 'Base URL (tracker hub :8765)',
+          label: 'PC address (CALT Focus :8765)',
           value: get('base_url', 'http://192.168.0.110:8765'),
           onChange: (val) => storage.setItem('base_url', String(val || '').trim()),
-        }),
-        TextInput({
-          label: 'API URL optional (:8000 — blank = auto)',
-          value: get('api_url', ''),
-          onChange: (val) => storage.setItem('api_url', String(val || '').trim()),
         }),
         Text(
           {
@@ -101,9 +96,8 @@ AppSettingsPage({
             },
           },
           [
-            'Use your PC LAN IP — localhost will NOT work from the phone. ' +
-              'Hub preferred; if tracker is down, Sync auto-tries http://<same-IP>:8000. ' +
-              'Verify: phone browser → /health on :8765 or :8000.',
+            'Use the PC LAN address. CALT Focus listens on :8765 and the enforcer stores the dump. ' +
+              'localhost will not work. Check http://<PC-LAN-IP>:8765/health in the phone browser.',
           ],
         ),
         TextInput({
@@ -139,6 +133,7 @@ AppSettingsPage({
           [
             `Host: ${host || '—'}\n` +
               `When: ${get('last_sync_at', '—')}\n` +
+              `PC received: ${get('last_received_at', '') || 'never'}\n` +
               `OK: ${get('last_sync_ok', '') === '' ? 'none' : lastOk ? 'yes' : 'no'}\n` +
               `Life Tracker write: ${wroteLife ? 'yes' : 'no'}\n` +
               `Steps: ${get('last_steps', '—')} · Sleep min: ${get('last_sleep_min', '—')}\n` +

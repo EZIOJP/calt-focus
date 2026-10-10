@@ -27,11 +27,15 @@ add_executable(calt_focus WIN32
   src/paths.cpp
   src/status_badge.cpp
   src/enforcer_cmd.cpp
+  src/wearable_listen.cpp
+  src/nutrition_host.cpp
+  ../calt_enforcer/src/wearable_json.cpp
 )
 
 target_include_directories(calt_focus PRIVATE
   src
   ${WEBVIEW2_INCLUDE}
+  ${CMAKE_CURRENT_SOURCE_DIR}/../calt_enforcer/src
 )
 
 target_compile_definitions(calt_focus PRIVATE
@@ -56,6 +60,7 @@ target_link_libraries(calt_focus PRIVATE
   shlwapi
   version
   ws2_32
+  winhttp
   dwmapi
 )
 

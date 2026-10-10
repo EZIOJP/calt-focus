@@ -5,12 +5,12 @@
     "appId": 1088801,
     "appType": "app",
     "version": {
-      "code": 20,
-      "name": "4.3.0"
+      "code": 23,
+      "name": "4.3.3"
     },
     "icon": "icon.png",
     "vender": "calt",
-    "description": "CALT Sync 4.3 — dump/send + optional auto every 3h"
+    "description": "CALT Sync 4.3.3 — dump/send to the Focus enforcer on the LAN"
   },
   "permissions": [
     "data:os.device.info",

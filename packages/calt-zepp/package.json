@@ -1,8 +1,8 @@
 {
   "name": "calt-zepp",
-  "version": "4.3.0",
+  "version": "4.3.3",
   "private": true,
-  "description": "CALT Sync 4.3 — dump/send + auto every 3h",
+  "description": "CALT Sync 4.3.3 — dump/send to the Focus enforcer on the LAN",
   "scripts": {
     "preview": "zeus preview",
     "dev": "zeus dev",

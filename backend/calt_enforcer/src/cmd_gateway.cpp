@@ -8,6 +8,7 @@
 #include "policy_db.h"
 #include "productivity_store.h"
 #include "softland_publish.h"
+#include "wearable_store.h"
 
 #include <windows.h>
 #include <sddl.h>
@@ -1365,6 +1366,16 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     if (!err.empty()) return err;
     if (extraOut && !mirror.empty()) *extraOut = ",\"app_limits\":" + mirror;
     return "";
+  }
+
+  // Watch dumps arrive as files from the Focus listener (the pipe itself is 64KB).
+  // Not gated by free-day / morning plan — a lazy day still keeps steps and sleep.
+  if (op == "wearable.status") {
+    WearableStatusExtra(behaviorDir, extraOut);
+    return "";
+  }
+  if (op == "wearable.ingest") {
+    return WearableIngest(behaviorDir, payload, extraOut);
   }
   return "unknown_op";
 }

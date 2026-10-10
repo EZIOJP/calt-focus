@@ -3,20 +3,22 @@
 ## Path (primary)
 
 ```text
-T-Rex CALT Sync  --BLE-->  Phone Zepp side service  --HTTP-->  Focus hub :8765
+T-Rex CALT Sync  --BLE-->  Phone Zepp side service  --HTTP-->  CALT Focus :8765
                                                                     │
                                                                     ▼
-                                         wearable_*.json + life_days/ + Health UI
+                              calt_enforcer stores wearable_*.json + life_days/
 ```
 
-Same dump/send logic as Study. No Google Fit middleware required.
+The watch cannot open the enforcer pipe. Focus accepts the phone POST (`/api/wearables/zepp`) and the enforcer writes the dump. `last_received_at` is the enforcer clock (UTC) when the file is stored. It stays null until a dump actually arrives.
+
+Do not start the old Python hub. If something else already holds port 8765, Focus leaves it alone and says so from the tray — those dumps and photos never reach the enforcer.
 
 ## Setup
 
-1. PC: `scripts\run\start_wearables_hub.bat`
-2. Sideload Focus SoT watch app: [`packages/calt-zepp`](../packages/calt-zepp) **4.3+** (`sideload.bat` in that folder)
-3. Phone Zepp → CALT Sync settings → Base URL `http://<PC-LAN-IP>:8765`, token `calt-local-wearables`
-4. Watch: **Dump & Send** once to verify
+1. PC: open **CALT Focus** (it listens on `:8765`). Firewall once: `scripts\run\open_firewall_hub_8765.bat` as Administrator.
+2. Sideload [`packages/calt-zepp`](../packages/calt-zepp) **4.3.3** (`sideload.bat` in that folder).
+3. Phone Zepp → CALT Sync settings → Base URL `http://<PC-LAN-IP>:8765`, token `calt-local-wearables`.
+4. Watch: **Dump & Send** once. Open `http://<PC-LAN-IP>:8765/health`. `last_received_at` is null until that dump lands. The watch home line reads **PC received: never** until the stamp comes back.
 5. Watch Settings → **Auto sync: ON** (interval default **3h**, cycle 1 / 3 / 6 / 12)
 
 Watch package lives in this repo (`packages/calt-zepp`). Do not sideload from the Study sibling for Focus.
@@ -31,33 +33,34 @@ Auto uses a persistent watch alarm that wakes the dump page and runs Dump & Send
 
 ### NutriNode photo AI
 
-Same process as the wearables hub. Set one of:
+CALT Focus serves the phone page and the meal APIs on the same listener. Set one of:
 
-- env `GEMINI_API_KEY` or `LLM_CLOUD_API_KEY` before starting the hub
+- env `GEMINI_API_KEY`, `LLM_CLOUD_API_KEY`, or `LLM_API_KEY` for the Focus process
 - `data/productivity/behavior/nutrition/nutrition_llm.json` → `{"gemini_api_key":"..."}` (do not commit)
-- sibling Study `.env` with `LLM_CLOUD_API_KEY` (auto-read for local)
 
-Flow: Photo suggest → pick detected food → edit weight (g) → Add → Send.
+Optional model override: `NUTRITION_VISION_MODEL` (default `gemini-2.0-flash`).
 
-## Phone / Windows Chrome NutriNode
+Flow: open `/n` → Take photo → pick detected food → edit weight (g) → Add to today.
 
-Hub binds `0.0.0.0`:
+## Phone camera
 
-| Port | Use |
-|------|-----|
-| `8765` HTTP | Amazfit sync + phone **Take photo** (file capture) |
-| `8766` HTTPS | **Webcam** in Windows/phone Chrome (`getUserMedia`) |
+Focus binds `0.0.0.0:8765` and serves the NutriNode page itself.
 
-Chrome blocks the live webcam on plain `http://LAN-IP`. Use HTTPS (self-signed; Advanced → Proceed once) or `http://127.0.0.1:8765/n` on the PC.
+| URL | Use |
+|-----|-----|
+| `http://<PC-LAN-IP>:8765/n` | Phone **Take photo** (camera file picker). Same port as watch dumps. |
+| `http://127.0.0.1:8765/n` | Windows Chrome **Start webcam** (localhost is a secure page). |
+| `GET/POST /api/nutrition/*` | Today, meals, delete, photo recognize. No wearable token. |
 
-1. Once: `scripts\run\open_firewall_hub_8765.bat` **as Administrator** (opens 8765 + 8766)
-2. Keep hub running (`start_wearables_hub.bat`)
-3. **Windows Chrome:** `https://127.0.0.1:8766/n` → **Start webcam** → Capture
-4. **Phone:** `http://<PC-LAN-IP>:8765/n` → **Take photo**, or HTTPS `:8766/n` for live camera
-5. Optional: Add to Home screen
+Chrome blocks a live webcam on plain `http://LAN-IP`. The phone camera button still works there.
 
-SoftLand/Arm stay on the desktop enforcer; this LAN surface is NutriNode (+ wearables ingest).
+1. Once: `scripts\run\open_firewall_hub_8765.bat` **as Administrator** (opens 8765).
+2. Open **CALT Focus**. Do not start the old Python hub — it would take `:8765`.
+3. **Phone:** `http://<PC-LAN-IP>:8765/n` → **Take photo**. Optional: Add to Home screen.
+4. **This PC:** `http://127.0.0.1:8765/n` → **Start webcam** → Capture.
+
+Meals land in `behavior/nutrition/days/` and `behavior/nutrition_today.json`. Photo recognize calls Gemini from Focus (`winhttp`). SoftLand/Arm stay on the desktop enforcer.
 
 ## Optional
 
-Google Fit / Health Connect phone sync still accepted by the hub (`source: google_fit`) if you want a backup path.
+Google Fit / Health Connect shaped dumps (`source: google_fit`) are stored by the same enforcer ingest.
