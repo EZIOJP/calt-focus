@@ -1,6 +1,6 @@
 {
   "name": "calt-zepp",
-  "version": "4.3.0",
+  "version": "4.3.1",
   "private": true,
   "description": "CALT Sync 4.3 — dump/send + auto every 3h",
   "scripts": {

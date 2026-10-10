@@ -43,7 +43,7 @@ TODAY_MIRROR = BEHAVIOR / "wearable_day.json"
 LIFE_TODAY = BEHAVIOR / "life_today.json"
 PLAN_BLOCKS = BEHAVIOR / "plan_blocks.json"
 
-_HUB_VERSION = "1.0.0-focus"
+_HUB_VERSION = "1.1.0-focus"
 _WATCH_SOURCES = frozenset(
     {
         "mini_program",
@@ -210,7 +210,8 @@ def _day_summary(day: str, payload: dict[str, Any], sync: dict[str, Any]) -> dic
     return {
         "local_date": day,
         "source": payload.get("source") or sync.get("last_source"),
-        "synced_at": sync.get("last_ingest_at") or sync.get("updated_at"),
+        "synced_at": sync.get("last_received_at") or sync.get("last_ingest_at") or sync.get("updated_at"),
+        "last_received_at": sync.get("last_received_at") or sync.get("last_ingest_at"),
         "sleep_hours": hours,
         "sleep_score": _as_int(sleep.get("score")),
         "sleep_deep_min": deep,
@@ -255,10 +256,12 @@ def _patch_sync_from_day(sync: dict[str, Any], day: str, payload: dict[str, Any]
     summary = _day_summary(day, payload, sync)
     source = str(payload.get("source") or "").strip().lower()
     is_watch = source in _WATCH_SOURCES
+    received_at = _now_iso()
     sync.update(
         {
-            "updated_at": _now_iso(),
-            "last_ingest_at": _now_iso(),
+            "updated_at": received_at,
+            "last_ingest_at": received_at,
+            "last_received_at": received_at,
             "last_event": "ingest",
             "last_source": source or "unknown",
             "last_is_watch": is_watch,
@@ -430,6 +433,23 @@ def _plans(horizon_hours: int = 24) -> list[dict[str, Any]]:
     return out[:40]
 
 
+def receipt(sync: dict[str, Any] | None = None) -> dict[str, Any]:
+    """One timestamp the app can show. Null until a POST actually lands."""
+    sync = _read_json(SYNC_PATH) if sync is None else sync
+    at = sync.get("last_received_at") or sync.get("last_ingest_at") or None
+    if at == "":
+        at = None
+    source = str(sync.get("last_source") or "")
+    watch = bool(at) and (bool(sync.get("last_is_watch")) or source in _WATCH_SOURCES)
+    return {
+        "last_received_at": at,
+        "received": bool(at),
+        "watch_received": watch and source not in ("web_test", ""),
+        "last_source": source or None,
+        "last_captured_at": sync.get("last_captured_at"),
+    }
+
+
 def build_status() -> dict[str, Any]:
     sync = _read_json(SYNC_PATH)
     day = str(sync.get("last_local_date") or _today_local())
@@ -462,6 +482,7 @@ def build_status() -> dict[str, Any]:
         "reachable": True,
         "service": "calt.focus.wearables_hub",
         "version": _HUB_VERSION,
+        **receipt(sync),
         "last_sync": sync or None,
         "wearable_day": wd,
         "categories": cats,
@@ -523,12 +544,14 @@ def ingest(body: dict[str, Any]) -> dict[str, Any]:
         return {
             "ok": True,
             "duplicate": duplicate,
+            "wrote_life_tracker": True,
             "local_date": day,
             "source": merged.get("source"),
             "sleep": {"sleep_hours": hours, "score": summary.get("sleep_score")},
             "wearable_day": summary,
             "life": life,
             "last_sync": sync,
+            **receipt(sync),
         }
 
 
@@ -625,6 +648,7 @@ class Handler(BaseHTTPRequestHandler):
                     "lan_ips": ips,
                     "phone_nutri": phone_urls,
                     "camera_nutri": camera_urls,
+                    **receipt(),
                     "hint": (
                         "Windows Chrome webcam → https://127.0.0.1:8766/n "
                         "(accept cert once). Amazfit still uses http://:8765"
@@ -652,13 +676,15 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
             if path.endswith("/health") or path == "/api/wearables/zepp/health":
+                sync = _read_json(SYNC_PATH)
                 self._json(
                     200,
                     {
                         "ok": True,
                         "service": "wearables.zepp",
                         "hub": "focus",
-                        "last_sync": _read_json(SYNC_PATH),
+                        **receipt(sync),
+                        "last_sync": sync,
                     },
                 )
                 return

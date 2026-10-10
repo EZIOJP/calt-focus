@@ -139,6 +139,7 @@ AppSettingsPage({
           [
             `Host: ${host || '—'}\n` +
               `When: ${get('last_sync_at', '—')}\n` +
+              `PC received: ${get('last_received_at', '') || 'never'}\n` +
               `OK: ${get('last_sync_ok', '') === '' ? 'none' : lastOk ? 'yes' : 'no'}\n` +
               `Life Tracker write: ${wroteLife ? 'yes' : 'no'}\n` +
               `Steps: ${get('last_steps', '—')} · Sleep min: ${get('last_sleep_min', '—')}\n` +
