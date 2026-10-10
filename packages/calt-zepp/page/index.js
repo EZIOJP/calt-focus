@@ -72,6 +72,22 @@ function fmtSyncError(err, result) {
   return (short || 'Send failed · swipe to log').slice(0, 96)
 }
 
+function pcReceivedLine() {
+  let at = ''
+  try {
+    at = localStorage.getItem('calt_last_received_at') || ''
+  } catch (_) {}
+  if (!at) return 'PC received: never'
+  return `PC received ${String(at).replace('T', ' ').slice(0, 19)}`
+}
+
+function rememberPcReceived(iso) {
+  if (!iso) return
+  try {
+    localStorage.setItem('calt_last_received_at', String(iso))
+  } catch (_) {}
+}
+
 function persistProgress(text) {
   try {
     localStorage.setItem('calt_last_progress', text || '')
@@ -224,7 +240,7 @@ Page({
       text_size: Math.round(width * 0.028),
       align_h: align.CENTER_H,
       text_style: text_style.WRAP,
-      text: 'Dump then Send',
+      text: pcReceivedLine(),
     })
 
     this.autoW = createWidget(widget.TEXT, {
@@ -429,10 +445,11 @@ Page({
             self.autoW.setProperty(prop.TEXT, autoStatusLine())
           } catch (_) {}
         }
+        const stamp = self._pcReceivedAt ? pcReceivedLine() : 'PC received: never'
         self.setStatus(
           gaps.length
-            ? `${fromAuto ? 'Auto · ' : ''}Sent ${days.length}d · ${gaps.length}d never captured`
-            : `${fromAuto ? 'Auto · ' : ''}Done · filled thru ${today}`,
+            ? `${fromAuto ? 'Auto · ' : ''}Sent ${days.length}d · ${gaps.length}d never captured · ${stamp}`
+            : `${fromAuto ? 'Auto · ' : ''}Done · ${stamp}`,
           gaps.length ? COLOR_BUSY : COLOR_OK,
         )
         persistError('')
@@ -495,6 +512,12 @@ Page({
             const result = sidePayload(res)
             cacheSyncResult(result)
             saveWatchLog(result, dayHealth)
+            const stamped =
+              (result.serverEcho && result.serverEcho.last_received_at) || result.receivedAt || ''
+            if (stamped) {
+              rememberPcReceived(stamped)
+              self._pcReceivedAt = stamped
+            }
             if (!result.healthOk) {
               saveChunkResume(day, partIndex)
               self._syncing = false
