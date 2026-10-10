@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#14110e" />
+  <title>CALT Coach</title>
+  <style>
+    :root {
+      --bg: #100e0c; --panel: #1c1814; --line: #3a3128;
+      --text: #f4efe8; --muted: #b4a394; --accent: #e0a15a; --work: #d7c4a3;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      background:
+        radial-gradient(90% 50% at 0% 0%, #3a2a18 0%, transparent 55%),
+        var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    body { max-width: 640px; margin: 0 auto; padding: 16px 16px calc(18px + var(--safe-b)); }
+    .brand { margin: 0; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); font-size: 0.72rem; }
+    h1 { margin: 4px 0 6px; font-size: 1.7rem; }
+    .sub { margin: 0 0 12px; color: var(--muted); line-height: 1.4; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+    .summary { margin: 0; line-height: 1.4; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 8px; font-size: 0.75rem; color: var(--work); }
+    .thread { display: grid; gap: 8px; min-height: 180px; }
+    .bubble { border-radius: 12px; padding: 10px 12px; line-height: 1.4; white-space: pre-wrap; }
+    .bubble.user { background: #2a241c; margin-left: 18%; }
+    .bubble.coach { background: #241c14; border: 1px solid #5a4630; }
+    .meta { display: block; margin-top: 6px; color: var(--accent); font-size: 0.78rem; }
+    form { display: grid; gap: 8px; }
+    textarea {
+      width: 100%; min-height: 84px; resize: vertical;
+      background: #0c0a08; color: var(--text); border: 1px solid var(--line);
+      border-radius: 12px; padding: 12px; font: inherit;
+    }
+    button {
+      border: 0; border-radius: 12px; padding: 12px; font-weight: 700; font-size: 1rem;
+      background: var(--accent); color: #1a1208; cursor: pointer;
+    }
+    button:disabled { opacity: 0.55; cursor: wait; }
+    .err { color: #ffb4a8; margin: 8px 0 0; }
+  </style>
+</head>
+<body>
+  <p class="brand">CALT · Coach</p>
+  <h1>Talk it through</h1>
+  <p class="sub">The coach sees your day, pushes the next piece of work, and can bend a situation. App Arm and device blocks stay where they are.</p>
+  <section class="card">
+    <p class="summary" id="summary">Reading the day…</p>
+    <div class="chips" id="chips"></div>
+  </section>
+  <section class="card">
+    <div class="thread" id="thread"></div>
+    <form id="form">
+      <textarea id="box" placeholder="What's going on, and what do you need?" maxlength="2000"></textarea>
+      <button id="send" type="submit">Send</button>
+      <p class="err" id="err" hidden></p>
+    </form>
+  </section>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const history = [];
+
+    function chip(text) {
+      const el = document.createElement("span");
+      el.className = "chip";
+      el.textContent = text;
+      $("chips").appendChild(el);
+    }
+
+    function paintSituation(data) {
+      $("summary").textContent = data.summary || "No day picture yet.";
+      $("chips").replaceChildren();
+      if (data.site_block) chip("Site block on");
+      if (data.armed === true) chip("Apps armed");
+      if (data.armed === false) chip("Apps not armed");
+      if (data.incubation_until) chip("Study until " + data.incubation_until);
+      else if (data.free_until) chip("Free until " + data.free_until);
+      if (data.reward_day) chip("Reward day");
+      if (data.enforcer_ok !== false) {
+        chip((data.plan_confirmed ? "Plan set" : "Plan open") + " · " + (data.tracked_minutes || 0) + "/" + (data.planned_minutes || 0) + " min");
+      }
+      if (Array.isArray(data.tasks) && data.tasks.length) chip(data.tasks.slice(0, 3).join(" · "));
+    }
+
+    function addBubble(role, text, meta) {
+      const el = document.createElement("div");
+      el.className = "bubble " + role;
+      el.textContent = text;
+      if (meta) {
+        const small = document.createElement("span");
+        small.className = "meta";
+        small.textContent = meta;
+        el.appendChild(small);
+      }
+      $("thread").appendChild(el);
+      el.scrollIntoView({ block: "nearest" });
+    }
+
+    function overrideLine(data) {
+      if (!data || data.override === "hold" || !data.override) return "";
+      const label = data.override === "work" ? "Back to work" : "Situation eased";
+      if (data.applied) {
+        const mins = data.minutes ? data.minutes + " min" : "";
+        return label + (mins ? " · " + mins : "") + (data.until ? " · until " + data.until : "");
+      }
+      if (data.error === "assistant_rate_limited") return "Rules stayed. This hour already used its situation changes.";
+      if (data.error === "enforcer_unreachable") return "The day did not update. The words still stand.";
+      return "Rules stayed. " + (data.error || "The override did not land.");
+    }
+
+    async function loadSituation() {
+      try {
+        const res = await fetch("/api/assistant/situation");
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Cannot read the day");
+        paintSituation(data);
+      } catch (e) {
+        $("summary").textContent = e.message || "Cannot read the day";
+      }
+    }
+
+    $("form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const message = $("box").value.trim();
+      if (!message) return;
+      $("err").hidden = true;
+      $("send").disabled = true;
+      addBubble("user", message);
+      $("box").value = "";
+      try {
+        const res = await fetch("/api/assistant/talk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message, history }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Coach is not loaded");
+        history.push({ role: "user", text: message });
+        history.push({ role: "coach", text: data.say || "" });
+        while (history.length > 6) history.shift();
+        addBubble("coach", data.say || "", overrideLine(data));
+        if (data.situation) paintSituation(data.situation);
+      } catch (e) {
+        $("err").hidden = false;
+        $("err").textContent = e.message || "Send failed";
+      } finally {
+        $("send").disabled = false;
+        $("box").focus();
+      }
+    });
+
+    loadSituation();
+  </script>
+</body>
+</html>

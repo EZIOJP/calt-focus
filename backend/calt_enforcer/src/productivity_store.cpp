@@ -923,6 +923,22 @@ int ProductivityIncubationStartsSinceIso(const std::string& sinceIso) {
                    &sinceIso, nullptr);
 }
 
+int ProductivityLedgerCountSince(const char* kind, const std::string& sinceIso) {
+  if (!kind || !kind[0] || !gDb) return 0;
+  sqlite3_stmt* st = nullptr;
+  if (sqlite3_prepare_v2(gDb,
+                         "SELECT COUNT(*) FROM productivity_ledger WHERE kind = ? AND ts >= ?;",
+                         -1, &st, nullptr) != SQLITE_OK) {
+    return 0;
+  }
+  sqlite3_bind_text(st, 1, kind, -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(st, 2, sinceIso.c_str(), -1, SQLITE_TRANSIENT);
+  int n = 0;
+  if (sqlite3_step(st) == SQLITE_ROW) n = sqlite3_column_int(st, 0);
+  sqlite3_finalize(st);
+  return n;
+}
+
 void ProductivityImportLegacyUnlockHistory(const std::wstring& dataDir) {
   if (!gDb) return;
   // Import only into empty tables — re-running must not resurrect rows the

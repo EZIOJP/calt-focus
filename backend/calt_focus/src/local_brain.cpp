@@ -5,9 +5,11 @@
 #include <windows.h>
 #include <winhttp.h>
 
+#include <algorithm>
 #include <cwchar>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -343,7 +345,7 @@ BrainSnap LocalBrainStatus() {
 }
 
 bool LocalBrainComplete(const std::string& system, const std::string& user, int maxTokens, std::string* text,
-                        std::string* err) {
+                        std::string* err, const char* jsonSchema, double temperature) {
   if (text) text->clear();
   if (err) err->clear();
   int port = 0;
@@ -357,6 +359,8 @@ bool LocalBrainComplete(const std::string& system, const std::string& user, int 
   }
   if (maxTokens < 16) maxTokens = 16;
   if (maxTokens > 768) maxTokens = 768;
+  if (temperature < 0) temperature = 0;
+  if (temperature > 1.5) temperature = 1.5;
   Wj req;
   req.type = Wj::kObj;
   Wj msgs;
@@ -373,12 +377,48 @@ bool LocalBrainComplete(const std::string& system, const std::string& user, int 
   msgs.arr.push_back(std::move(usr));
   WjSet(req, "model", WjStr("qwen2.5-1.5b-instruct"));
   WjSet(req, "messages", std::move(msgs));
-  WjSet(req, "temperature", WjNum(0.2, 1));
+  WjSet(req, "temperature", WjNum(temperature, 1));
   WjSet(req, "max_tokens", WjInt(maxTokens));
+  if (jsonSchema && jsonSchema[0]) {
+    Wj schema;
+    std::string serr;
+    if (WjParse(jsonSchema, &schema, &serr) && schema.type == Wj::kObj) {
+      Wj inner;
+      inner.type = Wj::kObj;
+      WjSet(inner, "name", WjStr("coach"));
+      WjSet(inner, "strict", WjBool(true));
+      WjSet(inner, "schema", std::move(schema));
+      Wj fmt;
+      fmt.type = Wj::kObj;
+      WjSet(fmt, "type", WjStr("json_schema"));
+      WjSet(fmt, "json_schema", std::move(inner));
+      WjSet(req, "response_format", std::move(fmt));
+    }
+  }
   int status = 0;
   std::string raw;
-  if (!HttpExchange(L"POST", port, L"/v1/chat/completions", WjStringify(req), 90000, &status, &raw) ||
-      status != 200) {
+  const bool posted =
+      HttpExchange(L"POST", port, L"/v1/chat/completions", WjStringify(req), 90000, &status, &raw);
+  if (!posted) {
+    if (err) *err = "Local brain request failed";
+    return false;
+  }
+  if (status != 200 && WjGet(req, "response_format")) {
+    Wj plain = req;
+    // Older llama-server builds reject response_format. Ask once more as free text.
+    plain.obj.erase(std::remove_if(plain.obj.begin(), plain.obj.end(),
+                                    [](const std::pair<std::string, Wj>& kv) {
+                                      return kv.first == "response_format";
+                                    }),
+                    plain.obj.end());
+    status = 0;
+    raw.clear();
+    if (!HttpExchange(L"POST", port, L"/v1/chat/completions", WjStringify(plain), 90000, &status, &raw)) {
+      if (err) *err = "Local brain request failed";
+      return false;
+    }
+  }
+  if (status != 200) {
     if (err) *err = "Local brain request failed";
     return false;
   }

@@ -1,6 +1,5 @@
 #include "nutrition_host.h"
 
-#include "local_brain.h"
 #include "wearable_json.h"
 
 #include <windows.h>
@@ -159,43 +158,12 @@ struct PerG {
   const char* source;
 };
 
-bool SanePerG(double kcal, double p, double c, double f, double fiber) {
-  return kcal > 0 && kcal <= 9 && p >= 0 && p <= 1 && c >= 0 && c <= 1 && f >= 0 && f <= 1 && fiber >= 0 &&
-         fiber <= 1 && (p + c + f) <= 1.25;
-}
-
 const Macro* FindFood(const std::string& name);
-double ChildNum(const Wj& obj, const char* key);
 
 PerG EstimatePerG(const std::string& name) {
   const Macro* food = FindFood(name);
-  if (std::string(food->name) != "unknown") {
-    return {food->kcal, food->p, food->c, food->f, food->fiber, "local"};
-  }
-  const Macro* unknown = food;
-  std::string text;
-  std::string err;
-  const char* system =
-      "You estimate edible-portion nutrition per gram. "
-      "Reply with JSON only, no markdown. Keys: kcal_per_g, protein_per_g, carbs_per_g, fat_per_g, fiber_per_g. "
-      "kcal_per_g is kilocalories per gram, typically 0.2 to 6. "
-      "The others are grams of nutrient per gram of food, from 0 to 1.";
-  if (LocalBrainComplete(system, "Food: " + name, 180, &text, &err)) {
-    const size_t a = text.find('{');
-    const size_t b = text.rfind('}');
-    Wj doc;
-    std::string perr;
-    if (a != std::string::npos && b != std::string::npos && b >= a &&
-        WjParse(text.substr(a, b - a + 1), &doc, &perr) && doc.type == Wj::kObj) {
-      const double kcal = ChildNum(doc, "kcal_per_g");
-      const double p = ChildNum(doc, "protein_per_g");
-      const double c = ChildNum(doc, "carbs_per_g");
-      const double f = ChildNum(doc, "fat_per_g");
-      const double fiber = ChildNum(doc, "fiber_per_g");
-      if (SanePerG(kcal, p, c, f, fiber)) return {kcal, p, c, f, fiber, "qwen"};
-    }
-  }
-  return {unknown->kcal, unknown->p, unknown->c, unknown->f, unknown->fiber, "fallback"};
+  const bool known = std::string(food->name) != "unknown";
+  return {food->kcal, food->p, food->c, food->f, food->fiber, known ? "local" : "fallback"};
 }
 
 const Macro* FindFood(const std::string& name) {
@@ -453,7 +421,7 @@ NutriReply AddMeals(const std::wstring& nutri, const std::string& body) {
     WjSet(row, "fat_g", WjNum(Round1(weight * food.f), 1));
     WjSet(row, "fiber_g", WjNum(Round1(weight * food.fiber), 1));
     WjSet(row, "macros_source", WjStr(food.source));
-    WjSet(row, "confidence", WjNum(std::string(food.source) == "qwen" ? 0.4 : known ? 0.5 : 0.2, 1));
+    WjSet(row, "confidence", WjNum(known ? 0.5 : 0.2, 1));
     WjSet(row, "source", WjStr("nutrinode"));
     ApplyMealMeta(&row, meta);
     Wj ev;

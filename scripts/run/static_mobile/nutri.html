@@ -229,8 +229,7 @@
   <footer>
     This page: <code id="selfUrl"></code><br />
     Served by CALT Focus. Phone <em>Take photo</em> works here.
-    On this PC, live webcam is <code>http://127.0.0.1:8765/n</code><br />
-    Unknown foods use the on-PC Qwen brain when it is loaded. Plate photos still use Gemini.
+    On this PC, live webcam is <code>http://127.0.0.1:8765/n</code>
   </footer>
 
   <div id="toastHost" aria-live="polite"></div>
@@ -431,13 +430,7 @@
         const data = await api("/api/nutrition/today");
         renderToday(data);
         $("dot").classList.add("on");
-        let brain = "";
-        try {
-          const res = await fetch("/api/brain/status");
-          const snap = await res.json();
-          if (res.ok && snap.ready) brain = " · Qwen";
-        } catch (err) { /* brain is optional */ }
-        $("hubLabel").textContent = "Focus online" + brain + " · " + (data.date || "today");
+        $("hubLabel").textContent = "Focus online · " + (data.date || "today");
       } catch (e) {
         $("dot").classList.remove("on");
         $("hubLabel").textContent = "hub offline";
