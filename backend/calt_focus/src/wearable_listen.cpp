@@ -4,6 +4,8 @@
 #include "wearable_listen.h"
 
 #include "enforcer_cmd.h"
+#include "nutrition_host.h"
+#include "paths.h"
 
 #include <windows.h>
 
@@ -14,7 +16,7 @@
 
 namespace {
 
-constexpr int kMaxBody = 8 * 1024 * 1024;
+constexpr int kMaxBody = 10 * 1024 * 1024;
 
 SOCKET gListen = INVALID_SOCKET;
 HANDLE gThread = nullptr;
@@ -45,7 +47,7 @@ void SendRaw(SOCKET s, int code, const std::string& body, bool json) {
   std::string hdr = "HTTP/1.1 " + std::to_string(code) + " " + reason +
                     "\r\nAccess-Control-Allow-Origin: *\r\n"
                     "Access-Control-Allow-Headers: Authorization, Content-Type, X-CALT-Wearable-Key\r\n"
-                    "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+                    "Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\n"
                     "Connection: close\r\n";
   if (json) {
     hdr += "Content-Type: application/json; charset=utf-8\r\nContent-Length: " +
@@ -58,6 +60,60 @@ void SendRaw(SOCKET s, int code, const std::string& body, bool json) {
 }
 
 void SendJson(SOCKET s, int code, const std::string& body) { SendRaw(s, code, body, true); }
+
+void SendTyped(SOCKET s, int code, const char* contentType, const std::string& body) {
+  const char* reason = code == 200 ? "OK" : "Not Found";
+  std::string hdr = std::string("HTTP/1.1 ") + std::to_string(code) + " " + reason +
+                    "\r\nContent-Type: " + contentType +
+                    "\r\nContent-Length: " + std::to_string(body.size()) +
+                    "\r\nAccess-Control-Allow-Origin: *\r\n"
+                    "Access-Control-Allow-Headers: Authorization, Content-Type, X-CALT-Wearable-Key\r\n"
+                    "Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\n"
+                    "Cache-Control: no-cache\r\nConnection: close\r\n\r\n";
+  hdr += body;
+  SendAll(s, hdr.data(), (int)hdr.size());
+}
+
+bool ReadFileMax(const std::wstring& path, std::string* out, size_t maxBytes) {
+  out->clear();
+  HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+                         FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) return false;
+  LARGE_INTEGER sz{};
+  if (!GetFileSizeEx(h, &sz) || sz.QuadPart <= 0 || (unsigned long long)sz.QuadPart > maxBytes) {
+    CloseHandle(h);
+    return false;
+  }
+  out->resize((size_t)sz.QuadPart);
+  DWORD read = 0;
+  BOOL ok = ReadFile(h, out->data(), (DWORD)out->size(), &read, nullptr);
+  CloseHandle(h);
+  return ok && read == out->size();
+}
+
+bool ServeNutriPage(SOCKET s, const std::string& path) {
+  const std::wstring root = RepoRoot() + L"\\scripts\\run\\static_mobile";
+  std::wstring file;
+  const char* type = "text/html; charset=utf-8";
+  if (path == "/n" || path == "/nutri" || path == "/nutrition/app" || path == "/mobile") {
+    file = root + L"\\nutri.html";
+  } else if (path == "/n/manifest.webmanifest") {
+    file = root + L"\\manifest.webmanifest";
+    type = "application/manifest+json";
+  } else if (path == "/n/icon.svg") {
+    file = root + L"\\icon.svg";
+    type = "image/svg+xml";
+  } else {
+    return false;
+  }
+  std::string body;
+  if (!ReadFileMax(file, &body, 2 * 1024 * 1024)) {
+    SendJson(s, 404, "{\"ok\":false,\"detail\":\"nutri page missing\"}");
+    return true;
+  }
+  SendTyped(s, 200, type, body);
+  return true;
+}
 
 std::string Lower(std::string s) {
   for (char& c : s) c = (char)std::tolower((unsigned char)c);
@@ -255,7 +311,8 @@ std::string HealthJson(bool enforcerOk, const std::string& received, bool haveRe
          "\"store\":\"calt_enforcer\",\"port\":" + std::to_string(gPort) +
          ",\"enforcer_ok\":" + (enforcerOk ? "true" : "false") + ",\"last_received_at\":" + at +
          ",\"received\":" + (haveReceived ? "true" : "false") +
-         ",\"watch_received\":" + (watch ? "true" : "false") + "}";
+         ",\"watch_received\":" + (watch ? "true" : "false") +
+         ",\"nutri\":\"/n\",\"nutrition\":\"/api/nutrition\"}";
 }
 
 void LoadReceipt(std::string* received, bool* have, bool* watch, bool* enforcerOk) {
@@ -325,7 +382,7 @@ std::string NormalizePath(std::string path) {
 }
 
 void HandleClient(SOCKET s) {
-  DWORD ms = 15000;
+  DWORD ms = 60000;
   setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char*)&ms, sizeof(ms));
   setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (char*)&ms, sizeof(ms));
   std::string buf;
@@ -348,6 +405,33 @@ void HandleClient(SOCKET s) {
 
   if (method == "OPTIONS") {
     SendRaw(s, 204, "", false);
+    return;
+  }
+
+  if (method == "GET" && ServeNutriPage(s, path)) return;
+
+  if (path == "/api/nutrition" || path.rfind("/api/nutrition/", 0) == 0) {
+    std::string body;
+    if (method == "POST") {
+      std::string lenText = HeaderValue(head, "content-length");
+      if (lenText.empty()) {
+        SendJson(s, 411, "{\"ok\":false,\"error\":\"length_required\"}");
+        return;
+      }
+      long long len = std::atoll(lenText.c_str());
+      const long long cap = path == "/api/nutrition/analyze-photo" ? kMaxBody : 200000;
+      if (len < 2 || len > cap) {
+        SendJson(s, 413, "{\"ok\":false,\"error\":\"too_large\"}");
+        return;
+      }
+      if (!RecvBody(s, &buf, hdrEnd, (size_t)len)) {
+        SendJson(s, 400, "{\"ok\":false,\"error\":\"body\"}");
+        return;
+      }
+      body = buf.substr(hdrEnd + 4, (size_t)len);
+    }
+    NutriReply reply = NutriHandle(gBehavior, method, path, body);
+    SendJson(s, reply.code, reply.json);
     return;
   }
 

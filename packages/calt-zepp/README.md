@@ -22,7 +22,7 @@ Chunks (5): Sleep · Activity · Heart · Series · Extras — resume-safe, idem
 
 ## PC setup
 
-1. Open **CALT Focus**. It listens on `:8765` for the whole LAN. Quit the Python hub first if that process already holds the port.
+1. Open **CALT Focus**. It listens on `:8765` for the whole LAN, including the NutriNode phone page at `/n`. Do not start the old Python hub — that process takes the same port.
 2. Phone Zepp → **CALT Sync** settings:
    - **PC address:** `http://<PC-LAN-IP>:8765`
    - **Ingest token:** `calt-local-wearables`

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Focus wearables ingest hub — Amazfit / CALT Sync (:8765).
+Old Python wearables / NutriNode server.
 
-When CALT Focus is running it owns :8765 and stores dumps in calt_enforcer.
-Quit Focus before starting this process if you need NutriNode on the same port.
+CALT Focus now owns :8765: watch ingest, the phone camera page (`/n`),
+and `/api/nutrition/*`. Do not start this process while Focus is open —
+it binds the same port and the phone never reaches the C++ listener.
 Watch RTOS cannot open the enforcer pipe — BLE → phone JS → HTTP on the Focus app.
 
 Also accepts google_fit / health_connect shaped bodies (see wearables_coerce.py).

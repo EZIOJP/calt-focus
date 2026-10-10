@@ -338,7 +338,7 @@ Shown **only outside** Focus desktop shell. Fake SoftLand clock via Study `:8000
 
 ### 7.5 Watch / Health — `WearablesSyncPanel` + sidebar **Health**
 
-**Primary:** Amazfit **CALT Sync 4.3.2** Dump & Send (or Auto every 3h) → CALT Focus `:8765` → `calt_enforcer` → Life Tracker mirrors (`life_today.json`). The Python hub is only for NutriNode, and only when Focus is not holding `:8765`.
+**Primary:** Amazfit **CALT Sync 4.3.3** Dump & Send (or Auto every 3h) → CALT Focus `:8765` → `calt_enforcer` → Life Tracker mirrors (`life_today.json`). The same Focus listener serves NutriNode.
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
@@ -351,13 +351,11 @@ See [`docs/WEARABLES.md`](WEARABLES.md).
 
 ### 7.5b NutriNode — sidebar **NutriNode** (`/nutrition`)
 
-Meal search/log + daily macros via Focus hub `:8765` (`/api/nutrition/*`). Stores `behavior/nutrition_today.json`.
+Daily macros via CALT Focus `:8765` (`/api/nutrition/today`, `/meals`, `/analyze-photo`). Stores `behavior/nutrition/days/YYYY-MM-DD.json` and `behavior/nutrition_today.json`.
 
-**Photo suggest:** camera/file → hub `POST /api/nutrition/analyze-photo` (Gemini vision) → suggested names + optional weight hint → user sets grams → Add → Send. Needs `GEMINI_API_KEY` or `LLM_CLOUD_API_KEY` in the hub process env, or `data/productivity/behavior/nutrition/nutrition_llm.json` (`{"gemini_api_key":"..."}`), or sibling Study `.env`. Pipeline CSV/ESP32 stay Study-only.
+**Phone camera:** Focus serves `http://<PC-LAN-IP>:8765/n`. **Take photo** posts the JPEG to `POST /api/nutrition/analyze-photo` (Gemini vision) → suggested names + weight hint → user sets grams → Add. Needs `GEMINI_API_KEY`, `LLM_CLOUD_API_KEY`, or `LLM_API_KEY` on the Focus process, or `data/productivity/behavior/nutrition/nutrition_llm.json` (`{"gemini_api_key":"..."}`). Firewall once: `scripts/run/open_firewall_hub_8765.bat` as Admin. On this PC, live webcam is `http://127.0.0.1:8765/n`.
 
-**Phone Chrome:** same hub on LAN → `http://<PC-LAN-IP>:8765/n` (Add to Home screen). Firewall once: `scripts/run/open_firewall_hub_8765.bat` as Admin. Windows webcam: `https://127.0.0.1:8766/n`.
-
-Each meal stores local clock (`Asia/Kolkata`), weekday, capture path (webcam/gallery/manual), client, AI recognize ms, and suggested names. Append-only timeline: `behavior/nutrition/nutrition_events.jsonl` · `GET /api/nutrition/events`.
+Each meal stores local clock, weekday, capture path (phone camera / gallery / webcam / manual), client, AI recognize ms, and suggested names. Append-only timeline: `behavior/nutrition/nutrition_events.jsonl` · `GET /api/nutrition/events`. IFCT food search and the old Python `:8766` webcam certificate are not part of this listener.
 
 ### 7.6 Plan reminders — `PlannerRemindersPanel`
 
