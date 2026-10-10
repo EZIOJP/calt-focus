@@ -40,7 +40,7 @@ CALT Focus serves the phone page and the meal APIs on the same listener. Set one
 
 Optional model override: `NUTRITION_VISION_MODEL` (default `gemini-2.0-flash`).
 
-Flow: open `/n` → Take photo → pick detected food → edit weight (g) → Add to today.
+Flow: open `/n` → Take photo → pick detected food → edit weight (g) → Add to today. Photo recognize uses Gemini. Meal macros use the built-in table. The local Qwen model is the coach at `/assistant`, not NutriNode. See [`LOCAL_BRAIN.md`](LOCAL_BRAIN.md).
 
 ## Phone camera
 

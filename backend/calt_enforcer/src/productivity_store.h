@@ -117,6 +117,9 @@ bool ProductivityInsertDayEvent(const std::string& localDate, const std::string&
 /** Incubation starts recorded in the ledger at or after `sinceIso` (rate limit). */
 int ProductivityIncubationStartsSinceIso(const std::string& sinceIso);
 
+/** Ledger rows of `kind` with ts >= sinceIso. */
+int ProductivityLedgerCountSince(const char* kind, const std::string& sinceIso);
+
 /** One-time import of data/bible/reward_days_*.json + day_passes_*.json. */
 void ProductivityImportLegacyUnlockHistory(const std::wstring& dataDir);
 

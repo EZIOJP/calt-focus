@@ -29,6 +29,9 @@ add_executable(calt_focus WIN32
   src/enforcer_cmd.cpp
   src/wearable_listen.cpp
   src/nutrition_host.cpp
+  src/local_brain.cpp
+  src/assistant_host.cpp
+  src/speech_host.cpp
   ../calt_enforcer/src/wearable_json.cpp
 )
 

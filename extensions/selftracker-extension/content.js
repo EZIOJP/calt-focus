@@ -506,7 +506,7 @@
           '<div id="__calt_jarvis_grip" style="all:initial;display:block;padding:8px 12px 2px;' +
           "font:10px/1 Segoe UI,system-ui,sans-serif;letter-spacing:.06em;" +
           "text-transform:uppercase;color:#94a3b8;cursor:grab;pointer-events:none;" +
-          'user-select:none;">⠿ Jarvis · drag me</div>' +
+          'user-select:none;">⠿ Qwen · drag me</div>' +
           '<div id="__calt_jarvis_body" style="all:initial;display:block;padding:4px 12px 12px;' +
           "font:13px/1.45 Segoe UI,system-ui,sans-serif;color:#e2e8f0;" +
           'pointer-events:none;user-select:none;min-height:1.4em;"></div>';
@@ -521,7 +521,7 @@
         clearInterval(jarvisTypeTimer);
         jarvisTypeTimer = null;
       }
-      var prefix = "Jarvis: ";
+      var prefix = "Qwen: ";
       var words = String(fullText || "")
         .trim()
         .split(/\s+/)

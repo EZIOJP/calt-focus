@@ -624,6 +624,52 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     // and a work session instead.
     return "spend_retired";
   }
+  if (op == "assistant.override") {
+    // Situation only. Arm, the site-block master switch, and device hosts stay put.
+    std::string kind;
+    if (!JsonGetString(payload, "kind", &kind)) return "bad_payload";
+    int minutes = 0;
+    JsonGetInt(payload, "minutes", &minutes);
+    std::string reason;
+    JsonGetString(payload, "reason", &reason);
+    std::string clean;
+    clean.reserve(reason.size());
+    for (unsigned char c : reason) {
+      if (c < 32) continue;
+      clean.push_back((char)c);
+      if (clean.size() >= 160) break;
+    }
+    if (clean.empty()) clean = "situation";
+    if (kind == "hold") {
+      if (extraOut) *extraOut = ",\"assistant_override\":\"hold\"";
+      return "";
+    }
+    if (ProductivityLedgerCountSince("assistant_override", AddMinutesLocalIso(-60)) >= 4)
+      return "assistant_rate_limited";
+    std::string until;
+    if (kind == "work") {
+      if (minutes < 10) minutes = 25;
+      if (minutes > 45) minutes = 45;
+      until = AddMinutesLocalIso(minutes);
+      s.incubation_until = until;
+    } else if (kind == "ease") {
+      if (minutes < 5) minutes = 15;
+      if (minutes > 25) minutes = 25;
+      until = AddMinutesLocalIso(minutes);
+      s.incubation_until.clear();
+      s.free_until = until;
+    } else {
+      return "bad_payload";
+    }
+    std::string err = SaveAndPublish(s, behaviorDir);
+    if (!err.empty()) return err;
+    ProductivityLedgerAdd("assistant_override", minutes * 60, kind + " " + clean, "assistant");
+    if (extraOut) {
+      *extraOut = ",\"assistant_override\":\"" + kind + "\",\"assistant_minutes\":" +
+                  std::to_string(minutes) + ",\"assistant_until\":\"" + until + "\"";
+    }
+    return "";
+  }
   if (op == "softland.patch_site_rules") {
     std::string section;
     if (!JsonGetRaw(s.document_json, "site_rules", &section)) return "policy_key_missing";

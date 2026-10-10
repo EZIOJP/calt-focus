@@ -3,7 +3,10 @@
 
 #include "wearable_listen.h"
 
+#include "assistant_host.h"
 #include "enforcer_cmd.h"
+#include "local_brain.h"
+#include "speech_host.h"
 #include "nutrition_host.h"
 #include "paths.h"
 
@@ -97,6 +100,8 @@ bool ServeNutriPage(SOCKET s, const std::string& path) {
   const char* type = "text/html; charset=utf-8";
   if (path == "/n" || path == "/nutri" || path == "/nutrition/app" || path == "/mobile") {
     file = root + L"\\nutri.html";
+  } else if (path == "/assistant" || path == "/coach") {
+    file = root + L"\\assistant.html";
   } else if (path == "/n/manifest.webmanifest") {
     file = root + L"\\manifest.webmanifest";
     type = "application/manifest+json";
@@ -108,7 +113,7 @@ bool ServeNutriPage(SOCKET s, const std::string& path) {
   }
   std::string body;
   if (!ReadFileMax(file, &body, 2 * 1024 * 1024)) {
-    SendJson(s, 404, "{\"ok\":false,\"detail\":\"nutri page missing\"}");
+    SendJson(s, 404, "{\"ok\":false,\"detail\":\"page missing\"}");
     return true;
   }
   SendTyped(s, 200, type, body);
@@ -312,7 +317,9 @@ std::string HealthJson(bool enforcerOk, const std::string& received, bool haveRe
          ",\"enforcer_ok\":" + (enforcerOk ? "true" : "false") + ",\"last_received_at\":" + at +
          ",\"received\":" + (haveReceived ? "true" : "false") +
          ",\"watch_received\":" + (watch ? "true" : "false") +
-         ",\"nutri\":\"/n\",\"nutrition\":\"/api/nutrition\"}";
+         ",\"nutri\":\"/n\",\"nutrition\":\"/api/nutrition\",\"brain_ready\":" +
+         (LocalBrainStatus().ready ? "true" : "false") +
+         ",\"speech_ready\":" + (SpeechStatus().ready ? "true" : "false") + "}";
 }
 
 void LoadReceipt(std::string* received, bool* have, bool* watch, bool* enforcerOk) {
@@ -409,6 +416,80 @@ void HandleClient(SOCKET s) {
   }
 
   if (method == "GET" && ServeNutriPage(s, path)) return;
+
+  if (path == "/api/assistant" || path.rfind("/api/assistant/", 0) == 0) {
+    std::string body;
+    if (method == "POST") {
+      std::string lenText = HeaderValue(head, "content-length");
+      if (lenText.empty()) {
+        SendJson(s, 411, "{\"ok\":false,\"error\":\"length_required\"}");
+        return;
+      }
+      long long len = std::atoll(lenText.c_str());
+      if (len < 2 || len > 200000) {
+        SendJson(s, 413, "{\"ok\":false,\"error\":\"too_large\"}");
+        return;
+      }
+      if (!RecvBody(s, &buf, hdrEnd, (size_t)len)) {
+        SendJson(s, 400, "{\"ok\":false,\"error\":\"body\"}");
+        return;
+      }
+      body = buf.substr(hdrEnd + 4, (size_t)len);
+    }
+    AssistantReply reply = AssistantHandle(gBehavior, method, path, body);
+    SendJson(s, reply.code, reply.json);
+    return;
+  }
+
+  if (path == "/api/speech" || path.rfind("/api/speech/", 0) == 0 || path == "/api/tts" ||
+      path.rfind("/api/tts/", 0) == 0) {
+    std::string body;
+    if (method == "POST") {
+      std::string lenText = HeaderValue(head, "content-length");
+      if (lenText.empty()) {
+        SendJson(s, 411, "{\"ok\":false,\"error\":\"length_required\"}");
+        return;
+      }
+      long long len = std::atoll(lenText.c_str());
+      if (len < 2 || len > 32000) {
+        SendJson(s, 413, "{\"ok\":false,\"error\":\"too_large\"}");
+        return;
+      }
+      if (!RecvBody(s, &buf, hdrEnd, (size_t)len)) {
+        SendJson(s, 400, "{\"ok\":false,\"error\":\"body\"}");
+        return;
+      }
+      body = buf.substr(hdrEnd + 4, (size_t)len);
+    }
+    SpeechReply reply = SpeechHandle(method, path, body);
+    if (reply.contentType.find("json") != std::string::npos) SendJson(s, reply.code, reply.body);
+    else SendTyped(s, reply.code, reply.contentType.c_str(), reply.body);
+    return;
+  }
+
+  if (path == "/api/brain" || path.rfind("/api/brain/", 0) == 0) {
+    std::string body;
+    if (method == "POST") {
+      std::string lenText = HeaderValue(head, "content-length");
+      if (lenText.empty()) {
+        SendJson(s, 411, "{\"ok\":false,\"error\":\"length_required\"}");
+        return;
+      }
+      long long len = std::atoll(lenText.c_str());
+      if (len < 2 || len > 200000) {
+        SendJson(s, 413, "{\"ok\":false,\"error\":\"too_large\"}");
+        return;
+      }
+      if (!RecvBody(s, &buf, hdrEnd, (size_t)len)) {
+        SendJson(s, 400, "{\"ok\":false,\"error\":\"body\"}");
+        return;
+      }
+      body = buf.substr(hdrEnd + 4, (size_t)len);
+    }
+    BrainReply reply = LocalBrainHandle(method, path, body);
+    SendJson(s, reply.code, reply.json);
+    return;
+  }
 
   if (path == "/api/nutrition" || path.rfind("/api/nutrition/", 0) == 0) {
     std::string body;

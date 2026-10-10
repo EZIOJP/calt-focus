@@ -87,6 +87,197 @@ class CtrlHandler : public ICoreWebView2CreateCoreWebView2ControllerCompletedHan
   std::atomic<ULONG> ref_{1};
 };
 
+class ScriptHandler : public ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler {
+ public:
+  explicit ScriptHandler(std::function<void(HRESULT)> cb) : cb_(std::move(cb)) {}
+
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
+    if (!ppv) return E_POINTER;
+    if (riid == IID_IUnknown ||
+        riid == IID_ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler) {
+      *ppv = static_cast<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler*>(this);
+      AddRef();
+      return S_OK;
+    }
+    *ppv = nullptr;
+    return E_NOINTERFACE;
+  }
+  ULONG STDMETHODCALLTYPE AddRef() override { return ++ref_; }
+  ULONG STDMETHODCALLTYPE Release() override {
+    const ULONG n = --ref_;
+    if (n == 0) delete this;
+    return n;
+  }
+  HRESULT STDMETHODCALLTYPE Invoke(HRESULT errorCode, LPCWSTR) override {
+    cb_(errorCode);
+    return S_OK;
+  }
+
+ private:
+  std::function<void(HRESULT)> cb_;
+  std::atomic<ULONG> ref_{1};
+};
+
+// Home card still says Jarvis in the Study bundle. This renames that chrome to Qwen
+// and plays speechSynthesis through Piper on :8765, falling back to the Edge voice.
+const wchar_t kQwenSpeechJs[] =
+    LR"QWEN((function(){
+if(window.__caltQwenSpeech)return;
+window.__caltQwenSpeech=1;
+var audio=null, gen=0, tail=Promise.resolve();
+function rename(root){
+  if(!root)return;
+  var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  var n;
+  while((n=w.nextNode())){
+    var p=n.parentNode, tag=p&&p.tagName;
+    if(!n.nodeValue||n.nodeValue.indexOf("Jarvis")<0)continue;
+    if(tag==="SCRIPT"||tag==="STYLE"||tag==="TEXTAREA")continue;
+    if(n.nodeValue.length>800)continue;
+    n.nodeValue=n.nodeValue.replace(/Jarvis/g,"Qwen");
+  }
+}
+var scheduled=false;
+function collapseHourLabels(){
+  var blocks=document.querySelectorAll(".hour-seg-block");
+  if(blocks.length<2)return;
+  var items=[];
+  for(var i=0;i<blocks.length;i++){
+    var el=blocks[i];
+    var r=el.getBoundingClientRect();
+    if(r.width<8||r.height<4)continue;
+    var text=(el.innerText||"").replace(/\s+/g," ").trim();
+    items.push({el:el,top:r.top,left:r.left,height:r.height,text:text});
+  }
+  items.sort(function(a,b){return a.top-b.top||a.left-b.left;});
+  var prev=null;
+  for(var j=0;j<items.length;j++){
+    var it=items[j];
+    if(prev&&it.text&&prev.text===it.text){
+      var dy=it.top-prev.top;
+      var row=Math.max(it.height,prev.height,8);
+      if(dy>row*0.45&&dy<row*1.8&&Math.abs(it.left-prev.left)<24){
+        var spans=it.el.querySelectorAll("span");
+        for(var s=0;s<spans.length;s++){if(spans[s].textContent)spans[s].textContent="";}
+        for(var c=0;c<it.el.childNodes.length;c++){
+          var n=it.el.childNodes[c];
+          if(n.nodeType===3&&n.nodeValue&&n.nodeValue.trim())n.nodeValue="";
+        }
+        if(!it.el.getAttribute("aria-label"))it.el.setAttribute("aria-label",it.text);
+        it.el.style.top="0";
+        it.el.style.height="100%";
+        it.el.style.borderTopLeftRadius="0";
+        it.el.style.borderTopRightRadius="0";
+        prev.el.style.borderBottomLeftRadius="0";
+        prev.el.style.borderBottomRightRadius="0";
+        if(prev.el.style.top!=="0")prev.el.style.height="calc(100% - 2px)";
+        prev={el:it.el,top:it.top,left:it.left,height:it.height,text:prev.text};
+        continue;
+      }
+    }
+    if(it.text)prev=it;
+  }
+}
+function schedule(){
+  if(scheduled||!document.body)return;
+  scheduled=true;
+  requestAnimationFrame(function(){scheduled=false;rename(document.body);collapseHourLabels();});
+}
+function retitle(){
+  var inputs=document.querySelectorAll("input[type=text]");
+  for(var i=0;i<inputs.length;i++){
+    var ph=inputs[i].getAttribute("placeholder")||"";
+    if(ph.indexOf("Command or hold mic")<0 && ph.indexOf("Talk to Qwen")<0) continue;
+    inputs[i].setAttribute("placeholder","Talk to Qwen - add a task, plan an hour, brief me");
+  }
+}
+function arm(){
+  schedule();
+  retitle();
+  new MutationObserver(function(){schedule();retitle();}).observe(document.body,{subtree:true,childList:true,characterData:true});
+}
+if(document.body)arm(); else document.addEventListener("DOMContentLoaded",arm);
+function showSay(root, say){
+  if(!root) return;
+  var paras=root.querySelectorAll("p");
+  var line=null;
+  for(var i=0;i<paras.length;i++){
+    var t=(paras[i].textContent||"").trim();
+    if(t==="Qwen"||t==="Jarvis") continue;
+    line=paras[i];
+    break;
+  }
+  if(line) line.textContent=say;
+}
+function qwenTalk(message, root){
+  fetch("http://127.0.0.1:8765/api/assistant/talk",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:message})})
+    .then(function(res){return res.json();})
+    .then(function(data){
+      var say=(data&&data.say)||(data&&data.detail)||"Qwen did not answer.";
+      var extra=data&&data.actions&&data.actions[0]&&data.actions[0].detail;
+      if(extra && say.indexOf(extra)<0) say=say+" "+extra;
+      showSay(root, say);
+      if(window.speechSynthesis) window.speechSynthesis.speak({text:say.slice(0,480)});
+    }).catch(function(){});
+}
+function weapon(line){
+  var s=String(line||"").toLowerCase().replace(/^\//,"").trim();
+  return /^(softland|sl|pass|daypass|speak|voice|stop|report|whatsapp|wa)\b/.test(s);
+}
+document.addEventListener("submit",function(ev){
+  var form=ev.target;
+  if(!form||!form.querySelector) return;
+  var input=form.querySelector("input[placeholder*='Talk to Qwen'], input[placeholder*='Command or hold mic']");
+  if(!input) return;
+  var message=(input.value||"").trim();
+  if(!message||weapon(message)) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  var proto=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,"value");
+  if(proto&&proto.set) proto.set.call(input,"");
+  else input.value="";
+  input.dispatchEvent(new Event("input",{bubbles:true}));
+  qwenTalk(message, form.closest("section")||form.parentElement);
+},true);
+document.addEventListener("click",function(ev){
+  var b=ev.target&&ev.target.closest?ev.target.closest("button"):null;
+  if(!b) return;
+  if((b.textContent||"").replace(/\s+/g," ").trim()!=="Brief") return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  qwenTalk("Brief my day. Name the next task and whether the plan is set.", b.closest("section")||b.parentElement);
+},true);
+var synth=window.speechSynthesis;
+if(!synth||synth.__caltPiped)return;
+var nativeSpeak=synth.speak.bind(synth);
+var nativeCancel=synth.cancel.bind(synth);
+synth.cancel=function(){gen++; if(audio){try{audio.pause();}catch(e){} audio=null;} tail=Promise.resolve(); try{nativeCancel();}catch(e){}};
+synth.speak=function(utter){
+  var text=utter&&utter.text?String(utter.text):"";
+  if(!text)return nativeSpeak(utter);
+  var voice="qwen";
+  try{
+    var prefs=JSON.parse(localStorage.getItem("calt:focus-jarvis:v1")||"{}");
+    if(prefs.voiceMode==="normal")voice="normal";
+    if(prefs.speak===false)return;
+  }catch(e){}
+  var ticket=gen;
+  tail=tail.then(function(){
+    if(ticket!==gen)return;
+    return fetch("http://127.0.0.1:8765/api/speech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:text.slice(0,480),voice:voice})})
+      .then(function(res){if(!res.ok)throw new Error("tts");return res.blob();})
+      .then(function(blob){
+        if(ticket!==gen)return;
+        var url=URL.createObjectURL(blob);
+        audio=new Audio(url);
+        audio.onended=function(){URL.revokeObjectURL(url);};
+        return audio.play();
+      }).catch(function(){ if(ticket===gen) nativeSpeak(utter); });
+  }).catch(function(){});
+};
+synth.__caltPiped=1;
+})();)QWEN";
+
 using CreateEnvFn = HRESULT(STDMETHODCALLTYPE*)(
     PCWSTR browserExecutableFolder, PCWSTR userDataFolder,
     ICoreWebView2EnvironmentOptions* environmentOptions,
@@ -433,9 +624,16 @@ void WebViewHost::OnController(HRESULT hr, ICoreWebView2Controller* controller) 
     msg->Release();
   }
   ready_ = true;
-  if (on_ready_) {
-    on_ready_(true);
+  ReadyFn finish = on_ready_;
+  auto* script = new ScriptHandler([finish](HRESULT) {
+    if (finish) finish(true);
+  });
+  if (FAILED(webview_->AddScriptToExecuteOnDocumentCreated(kQwenSpeechJs, script))) {
+    script->Release();
+    if (finish) finish(true);
+    return;
   }
+  script->Release();
 }
 
 bool WebViewHost::MapStaticSite(const std::wstring& folderAbsolute) {

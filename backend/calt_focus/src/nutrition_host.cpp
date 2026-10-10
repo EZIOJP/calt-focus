@@ -153,6 +153,19 @@ void AppendEvent(const std::wstring& path, const std::string& line) {
   CloseHandle(h);
 }
 
+struct PerG {
+  double kcal, p, c, f, fiber;
+  const char* source;
+};
+
+const Macro* FindFood(const std::string& name);
+
+PerG EstimatePerG(const std::string& name) {
+  const Macro* food = FindFood(name);
+  const bool known = std::string(food->name) != "unknown";
+  return {food->kcal, food->p, food->c, food->f, food->fiber, known ? "local" : "fallback"};
+}
+
 const Macro* FindFood(const std::string& name) {
   const std::string key = Lower(name);
   const Macro* unknown = &kFoods[0];
@@ -390,8 +403,8 @@ NutriReply AddMeals(const std::wstring& nutri, const std::string& body) {
     if (weight <= 0) weight = 100;
     double servings = ChildNum(it, "servings");
     if (servings <= 0) servings = 1;
-    const Macro* food = FindFood(name);
-    const bool known = std::string(food->name) != "unknown";
+    const PerG food = EstimatePerG(name);
+    const bool known = std::string(food.source) != "fallback";
     Wj meta;
     meta.type = Wj::kObj;
     AbsorbMeta(&meta, WjGet(req, "meta"));
@@ -402,12 +415,12 @@ NutriReply AddMeals(const std::wstring& nutri, const std::string& body) {
     WjSet(row, "weight_g", WjNum(Round1(weight), 1));
     WjSet(row, "servings", WjNum(Round1(servings), 1));
     WjSet(row, "meal_type", WjStr(mealType));
-    WjSet(row, "total_kcal", WjNum(Round1(weight * food->kcal), 1));
-    WjSet(row, "protein_g", WjNum(Round1(weight * food->p), 1));
-    WjSet(row, "carbs_g", WjNum(Round1(weight * food->c), 1));
-    WjSet(row, "fat_g", WjNum(Round1(weight * food->f), 1));
-    WjSet(row, "fiber_g", WjNum(Round1(weight * food->fiber), 1));
-    WjSet(row, "macros_source", WjStr(known ? "local" : "fallback"));
+    WjSet(row, "total_kcal", WjNum(Round1(weight * food.kcal), 1));
+    WjSet(row, "protein_g", WjNum(Round1(weight * food.p), 1));
+    WjSet(row, "carbs_g", WjNum(Round1(weight * food.c), 1));
+    WjSet(row, "fat_g", WjNum(Round1(weight * food.f), 1));
+    WjSet(row, "fiber_g", WjNum(Round1(weight * food.fiber), 1));
+    WjSet(row, "macros_source", WjStr(food.source));
     WjSet(row, "confidence", WjNum(known ? 0.5 : 0.2, 1));
     WjSet(row, "source", WjStr("nutrinode"));
     ApplyMealMeta(&row, meta);
@@ -417,8 +430,8 @@ NutriReply AddMeals(const std::wstring& nutri, const std::string& body) {
     WjSet(ev, "food_item", WjStr(name));
     WjSet(ev, "weight_g", WjNum(Round1(weight), 1));
     WjSet(ev, "meal_type", WjStr(mealType));
-    WjSet(ev, "total_kcal", WjNum(Round1(weight * food->kcal), 1));
-    WjSet(ev, "macros_source", WjStr(known ? "local" : "fallback"));
+    WjSet(ev, "total_kcal", WjNum(Round1(weight * food.kcal), 1));
+    WjSet(ev, "macros_source", WjStr(food.source));
     WjSet(ev, "capture", WjStr(ChildStr(row, "capture")));
     WjSet(ev, "client", WjStr(ChildStr(row, "client")));
     if (const Wj* timings = WjGet(row, "timings")) WjSet(ev, "timings", *timings);
@@ -703,6 +716,32 @@ NutriReply Events(const std::wstring& nutri) {
 
 }  // namespace
 
+NutriReply EstimateRoute(const std::string& body) {
+  Wj req;
+  std::string err;
+  if (!WjParse(body, &req, &err) || req.type != Wj::kObj) {
+    return Reply(400, "{\"ok\":false,\"detail\":\"invalid JSON\"}");
+  }
+  std::string name = ChildStr(req, "food_name");
+  if (name.empty()) name = ChildStr(req, "food_item");
+  if (name.empty()) return Reply(400, "{\"ok\":false,\"detail\":\"food_name required\"}");
+  double weight = ChildNum(req, "weight_g");
+  if (weight <= 0) weight = 100;
+  const PerG food = EstimatePerG(name);
+  Wj out;
+  out.type = Wj::kObj;
+  WjSet(out, "ok", WjBool(true));
+  WjSet(out, "food_name", WjStr(name));
+  WjSet(out, "weight_g", WjNum(Round1(weight), 1));
+  WjSet(out, "total_kcal", WjNum(Round1(weight * food.kcal), 1));
+  WjSet(out, "protein_g", WjNum(Round1(weight * food.p), 1));
+  WjSet(out, "carbs_g", WjNum(Round1(weight * food.c), 1));
+  WjSet(out, "fat_g", WjNum(Round1(weight * food.f), 1));
+  WjSet(out, "fiber_g", WjNum(Round1(weight * food.fiber), 1));
+  WjSet(out, "macros_source", WjStr(food.source));
+  return Reply(200, WjStringify(out));
+}
+
 NutriReply NutriHandle(const std::wstring& behaviorDir, const std::string& method,
                        const std::string& path, const std::string& body) {
   const std::wstring nutri = Join(behaviorDir, L"nutrition");
@@ -711,6 +750,7 @@ NutriReply NutriHandle(const std::wstring& behaviorDir, const std::string& metho
   if (method == "GET" && (p == "/api/nutrition/today" || p == "/api/nutrition")) return Today(nutri);
   if (method == "GET" && p == "/api/nutrition/events") return Events(nutri);
   if (method == "POST" && p == "/api/nutrition/meals") return AddMeals(nutri, body);
+  if (method == "POST" && p == "/api/nutrition/foods/estimate") return EstimateRoute(body);
   if (method == "POST" && p == "/api/nutrition/analyze-photo") return AnalyzePhoto(nutri, body);
   const std::string meals = "/api/nutrition/meals/";
   if (method == "DELETE" && p.compare(0, meals.size(), meals) == 0) {
