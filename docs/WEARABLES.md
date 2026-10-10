@@ -42,6 +42,8 @@ Optional model override: `NUTRITION_VISION_MODEL` (default `gemini-2.0-flash`).
 
 Flow: open `/n` → Take photo → pick detected food → edit weight (g) → Add to today.
 
+Foods missing from the built-in table are estimated by the local Qwen brain when it is loaded. See [`LOCAL_BRAIN.md`](LOCAL_BRAIN.md). Plate photos stay on Gemini — Qwen2.5-1.5B reads text only.
+
 ## Phone camera
 
 Focus binds `0.0.0.0:8765` and serves the NutriNode page itself.

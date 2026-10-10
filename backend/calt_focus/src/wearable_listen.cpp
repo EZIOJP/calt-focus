@@ -4,6 +4,7 @@
 #include "wearable_listen.h"
 
 #include "enforcer_cmd.h"
+#include "local_brain.h"
 #include "nutrition_host.h"
 #include "paths.h"
 
@@ -312,7 +313,8 @@ std::string HealthJson(bool enforcerOk, const std::string& received, bool haveRe
          ",\"enforcer_ok\":" + (enforcerOk ? "true" : "false") + ",\"last_received_at\":" + at +
          ",\"received\":" + (haveReceived ? "true" : "false") +
          ",\"watch_received\":" + (watch ? "true" : "false") +
-         ",\"nutri\":\"/n\",\"nutrition\":\"/api/nutrition\"}";
+         ",\"nutri\":\"/n\",\"nutrition\":\"/api/nutrition\",\"brain_ready\":" +
+         (LocalBrainStatus().ready ? "true" : "false") + "}";
 }
 
 void LoadReceipt(std::string* received, bool* have, bool* watch, bool* enforcerOk) {
@@ -409,6 +411,30 @@ void HandleClient(SOCKET s) {
   }
 
   if (method == "GET" && ServeNutriPage(s, path)) return;
+
+  if (path == "/api/brain" || path.rfind("/api/brain/", 0) == 0) {
+    std::string body;
+    if (method == "POST") {
+      std::string lenText = HeaderValue(head, "content-length");
+      if (lenText.empty()) {
+        SendJson(s, 411, "{\"ok\":false,\"error\":\"length_required\"}");
+        return;
+      }
+      long long len = std::atoll(lenText.c_str());
+      if (len < 2 || len > 200000) {
+        SendJson(s, 413, "{\"ok\":false,\"error\":\"too_large\"}");
+        return;
+      }
+      if (!RecvBody(s, &buf, hdrEnd, (size_t)len)) {
+        SendJson(s, 400, "{\"ok\":false,\"error\":\"body\"}");
+        return;
+      }
+      body = buf.substr(hdrEnd + 4, (size_t)len);
+    }
+    BrainReply reply = LocalBrainHandle(method, path, body);
+    SendJson(s, reply.code, reply.json);
+    return;
+  }
 
   if (path == "/api/nutrition" || path.rfind("/api/nutrition/", 0) == 0) {
     std::string body;

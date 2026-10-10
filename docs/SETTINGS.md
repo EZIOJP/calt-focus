@@ -357,6 +357,8 @@ Daily macros via CALT Focus `:8765` (`/api/nutrition/today`, `/meals`, `/analyze
 
 Each meal stores local clock, weekday, capture path (phone camera / gallery / webcam / manual), client, AI recognize ms, and suggested names. Append-only timeline: `behavior/nutrition/nutrition_events.jsonl` · `GET /api/nutrition/events`. IFCT food search and the old Python `:8766` webcam certificate are not part of this listener.
 
+**Local brain:** Qwen2.5-1.5B-Instruct Q4_K_M through llama.cpp, loopback only. `scripts/run/fetch_local_brain.bat`, then Focus. Status: `GET /api/brain/status`. Unknown foods use `POST /api/nutrition/foods/estimate`. Short text: `POST /api/brain/chat`. Context default 4096 so the process stays near 2 GB. See [`LOCAL_BRAIN.md`](LOCAL_BRAIN.md).
+
 ### 7.6 Plan reminders — `PlannerRemindersPanel`
 
 | Control | Persist | Class |

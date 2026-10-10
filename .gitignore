@@ -22,6 +22,12 @@ __pycache__/
 *.pyc
 installer_payload/
 
+# Local GGUF brain (downloaded, not source)
+data/models/*.gguf
+data/models/*.log
+tools/llama/*
+!tools/llama/.gitkeep
+
 # Runtime / WebView profile (not source)
 data/productivity/behavior/calt_focus_webview/
 data/productivity/behavior/*.lock
