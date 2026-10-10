@@ -5,6 +5,7 @@
 
 #include "paths.h"
 #include "status_badge.h"
+#include "wearable_listen.h"
 
 #include <dwmapi.h>
 #include <objbase.h>
@@ -112,10 +113,19 @@ int FocusApp::Run(HINSTANCE instance) {
   tray_->SetOnRestartEnforcer([this]() { RestartEnforcer(); });
   tray_->SetOnQuit([this]() { Quit(); });
 
+  // Phone CALT Sync POSTs here. The enforcer stores the dump; this process only accepts HTTP.
+  EnsureEnforcer();
+  const bool watchPort = WearableListenStart(DataBehaviorDir());
   if (tray_ && tray_->IsAdded()) {
-    tray_->ShowBalloon(
-        L"CALT Focus",
-        L"Running in the system tray. Win11: click ^ near the clock if the icon is hidden.");
+    if (!watchPort) {
+      tray_->ShowBalloon(
+          L"CALT Focus",
+          L"The watch ingest port is already in use, so dumps are not reaching the enforcer. Quit the Python wearables hub and open Focus again.");
+    } else {
+      tray_->ShowBalloon(
+          L"CALT Focus",
+          L"Running in the system tray. Win11: click ^ near the clock if the icon is hidden.");
+    }
   }
 
   webview_ = std::make_unique<WebViewHost>();
@@ -1092,6 +1102,7 @@ void FocusApp::Quit() {
     }
     return;
   }
+  WearableListenStop();
   if (tray_) {
     tray_->Destroy();
   }

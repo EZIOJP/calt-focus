@@ -2,7 +2,8 @@
 setlocal EnableExtensions
 cd /d "%~dp0..\.."
 title CALT Focus wearables hub :8765
-echo Starting Focus hub :8765 HTTP + :8766 HTTPS ^(camera^)...
+echo Starting Python hub :8765 HTTP + :8766 HTTPS ^(camera^)...
+echo Quit CALT Focus first — while Focus is open it owns :8765 for watch dumps.
 echo.
 echo   Windows Chrome webcam:   https://127.0.0.1:8766/n
 echo   Phone Chrome NutriNode:  http://^<PC-LAN-IP^>:8765/n

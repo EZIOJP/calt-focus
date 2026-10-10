@@ -27,6 +27,7 @@ add_executable(calt_focus WIN32
   src/paths.cpp
   src/status_badge.cpp
   src/enforcer_cmd.cpp
+  src/wearable_listen.cpp
 )
 
 target_include_directories(calt_focus PRIVATE

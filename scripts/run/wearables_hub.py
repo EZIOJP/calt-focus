@@ -2,8 +2,9 @@
 """
 Focus wearables ingest hub — Amazfit / CALT Sync (:8765).
 
-Permanent sidecar (design lock): phone Zepp mini-program POSTs here.
-Watch RTOS C++ cannot talk to calt_enforcer C++ — BLE → phone JS → HTTP only.
+When CALT Focus is running it owns :8765 and stores dumps in calt_enforcer.
+Quit Focus before starting this process if you need NutriNode on the same port.
+Watch RTOS cannot open the enforcer pipe — BLE → phone JS → HTTP on the Focus app.
 
 Also accepts google_fit / health_connect shaped bodies (see wearables_coerce.py).
 

@@ -5,7 +5,7 @@ import { MessageBuilder } from '../shared/message-side'
 
 const messageBuilder = new MessageBuilder()
 const MAX_LOG = 20
-const APP_VER = '4.3.0'
+const APP_VER = '4.3.2'
 
 function settingsGet(key, fallback = '') {
   try {
@@ -151,6 +151,7 @@ function appendLog(entry) {
   logs = logs.slice(0, MAX_LOG)
   settingsSet('sync_log_json', JSON.stringify(logs))
   settingsSet('last_sync_at', entry.at || '')
+  if (entry.received_at) settingsSet('last_received_at', entry.received_at)
   settingsSet('last_sync_ok', entry.ok ? '1' : '0')
   settingsSet('last_sync_summary', entry.summary || '')
   settingsSet('last_sync_errors', (entry.errors || []).join(' | '))
@@ -511,12 +512,18 @@ async function syncAll(health, opts) {
     .filter(Boolean)
     .join(' · ')
 
+  const receivedAt = (serverEcho && serverEcho.last_received_at) || ''
+  if (receivedAt) settingsSet('last_received_at', receivedAt)
+
   const summary = healthOk
-    ? `${chunkLabel || 'OK'}${duplicate ? ' (replay)' : ''} →${usedHost}/${usedLabel}`
+    ? `${chunkLabel || 'OK'}${duplicate ? ' (replay)' : ''} →${usedHost} @ ${
+        receivedAt ? receivedAt.slice(11, 19) : 'no-stamp'
+      }`
     : `FAIL ${usedHost} · ${softErrors[0] || 'error'}`
 
   const logs = appendLog({
     at,
+    received_at: receivedAt,
     ok: healthOk,
     summary,
     errors: softErrors,
@@ -558,11 +565,13 @@ async function syncAll(health, opts) {
       : null,
     standHours: health && health.stand ? health.stand.hours : null,
     batteryPct: health && health.battery ? health.battery.pct : null,
+    receivedAt: (serverEcho && serverEcho.last_received_at) || '',
     serverEcho: serverEcho
       ? {
           ok: serverEcho.ok,
           wrote_life_tracker: serverEcho.wrote_life_tracker,
           local_date: serverEcho.local_date,
+          last_received_at: serverEcho.last_received_at || '',
           applied: serverEcho.applied || null,
           duplicate: serverEcho.duplicate,
           categories: serverEcho.categories || null,
@@ -640,6 +649,7 @@ AppSideService({
             host: norm.host,
             url_issues: norm.issues,
             last_sync_at: settingsGet('last_sync_at', ''),
+            last_received_at: settingsGet('last_received_at', ''),
             last_sync_summary: settingsGet('last_sync_summary', ''),
             last_diag: settingsGet('last_diag', ''),
             last_ping_ok: settingsGet('last_ping_ok', ''),

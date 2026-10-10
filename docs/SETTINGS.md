@@ -338,11 +338,11 @@ Shown **only outside** Focus desktop shell. Fake SoftLand clock via Study `:8000
 
 ### 7.5 Watch / Health — `WearablesSyncPanel` + sidebar **Health**
 
-**Primary:** Amazfit **CALT Sync 4.3** Dump & Send (or Auto every 3h) → Focus hub `:8765` → Life Tracker (`/life`).
+**Primary:** Amazfit **CALT Sync 4.3.2** Dump & Send (or Auto every 3h) → CALT Focus `:8765` → `calt_enforcer` → Life Tracker mirrors (`life_today.json`). The Python hub is only for NutriNode, and only when Focus is not holding `:8765`.
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
-| Hub URL | `localStorage` `calt:wearables:hubUrl` | `scripts/run/wearables_hub.py` | Local |
+| Hub URL | `localStorage` `calt:wearables:hubUrl` | CALT Focus `:8765` → enforcer `wearable.ingest` | Local |
 | Ingest token | `localStorage` `calt:wearables:token` | Bearer / `X-CALT-Wearable-Key` | Local |
 | Auto sync | Watch `localStorage` + `@zos/alarm` | Dump & Send on wake | Watch |
 | Life / Health UI | — | `GET /api/life/daily/*` + mirrors | Hub read |
