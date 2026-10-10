@@ -82,8 +82,8 @@ New day
 | Settings SoftLand lists | allow/watch/block + enable | `SoftLandSiteRulesPanel`, Settings | `softland.patch_*` / `set_enabled` | **Live** | Lists need free day; UNLOCK to turn SoftLand off |
 | Settings Arm | armed, exes, lock | `FocusControlPanel` / Apps | `arm.set` | **Live** | Free-day gated |
 | Device lock (hosts) | DEVICE LOCK confirm | `DeviceBlockPanel.tsx` | `device_block.*` | **Live** | Separate from SoftLand; free-day gated |
-| LLM host / Jarvis | OpenRouter / 9Router Suggest + brief | `FocusLlmHostPanel`, `FocusJarvisPanel` | localStorage + `/v1/chat` | **Live** | Settings → More; Home AI chip |
-| Jarvis commands | In-app command box (status, report, softland…) | `focusCommands` + Jarvis panel | enforcer / mirrors | **Live** | Home Jarvis card; type `help` |
+| LLM host / Qwen | OpenRouter / 9Router Suggest + brief | `FocusLlmHostPanel`, `FocusJarvisPanel` | localStorage + `/v1/chat` | **Live** | Settings → More; Home AI chip |
+| Qwen commands | In-app command box (status, report, softland…) | `focusCommands` + Qwen card | enforcer / mirrors | **Live** | Home Qwen card; type `help` |
 | WhatsApp daily report | Numbers + send time → wa.me report | `FocusWhatsAppReportPanel` | localStorage + mirrors | **Live** | Settings → More; tap Send in WhatsApp |
 | Quit / watchdog | Quit refused while SoftLand or Arm on | Tray + Settings → More → Quit | `calt_focus` Quit + `focus_watchdog` | **Live** (UI) + Backend | SoftLand/Arm block Quit; helper shows why |
 

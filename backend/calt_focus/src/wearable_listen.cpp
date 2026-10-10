@@ -6,6 +6,7 @@
 #include "assistant_host.h"
 #include "enforcer_cmd.h"
 #include "local_brain.h"
+#include "speech_host.h"
 #include "nutrition_host.h"
 #include "paths.h"
 
@@ -317,7 +318,8 @@ std::string HealthJson(bool enforcerOk, const std::string& received, bool haveRe
          ",\"received\":" + (haveReceived ? "true" : "false") +
          ",\"watch_received\":" + (watch ? "true" : "false") +
          ",\"nutri\":\"/n\",\"nutrition\":\"/api/nutrition\",\"brain_ready\":" +
-         (LocalBrainStatus().ready ? "true" : "false") + "}";
+         (LocalBrainStatus().ready ? "true" : "false") +
+         ",\"speech_ready\":" + (SpeechStatus().ready ? "true" : "false") + "}";
 }
 
 void LoadReceipt(std::string* received, bool* have, bool* watch, bool* enforcerOk) {
@@ -436,6 +438,32 @@ void HandleClient(SOCKET s) {
     }
     AssistantReply reply = AssistantHandle(gBehavior, method, path, body);
     SendJson(s, reply.code, reply.json);
+    return;
+  }
+
+  if (path == "/api/speech" || path.rfind("/api/speech/", 0) == 0 || path == "/api/tts" ||
+      path.rfind("/api/tts/", 0) == 0) {
+    std::string body;
+    if (method == "POST") {
+      std::string lenText = HeaderValue(head, "content-length");
+      if (lenText.empty()) {
+        SendJson(s, 411, "{\"ok\":false,\"error\":\"length_required\"}");
+        return;
+      }
+      long long len = std::atoll(lenText.c_str());
+      if (len < 2 || len > 32000) {
+        SendJson(s, 413, "{\"ok\":false,\"error\":\"too_large\"}");
+        return;
+      }
+      if (!RecvBody(s, &buf, hdrEnd, (size_t)len)) {
+        SendJson(s, 400, "{\"ok\":false,\"error\":\"body\"}");
+        return;
+      }
+      body = buf.substr(hdrEnd + 4, (size_t)len);
+    }
+    SpeechReply reply = SpeechHandle(method, path, body);
+    if (reply.contentType.find("json") != std::string::npos) SendJson(s, reply.code, reply.body);
+    else SendTyped(s, reply.code, reply.contentType.c_str(), reply.body);
     return;
   }
 

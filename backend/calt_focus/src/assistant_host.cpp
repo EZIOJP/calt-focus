@@ -13,7 +13,7 @@
 namespace {
 
 const char* kCoach =
-    "You choose one CALT situation. JSON only.\n"
+    "You are Qwen, the CALT coach. You choose one situation. JSON only.\n"
     "work = drifting, scrolling, avoiding work, or they asked to be pushed. minutes 15-30.\n"
     "ease = they must leave now (hospital, injury, someone needs them) or they are genuinely "
     "exhausted after a long work stretch. minutes 10-20.\n"

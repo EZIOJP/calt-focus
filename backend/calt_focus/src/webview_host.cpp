@@ -87,6 +87,98 @@ class CtrlHandler : public ICoreWebView2CreateCoreWebView2ControllerCompletedHan
   std::atomic<ULONG> ref_{1};
 };
 
+class ScriptHandler : public ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler {
+ public:
+  explicit ScriptHandler(std::function<void(HRESULT)> cb) : cb_(std::move(cb)) {}
+
+  HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override {
+    if (!ppv) return E_POINTER;
+    if (riid == IID_IUnknown ||
+        riid == IID_ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler) {
+      *ppv = static_cast<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler*>(this);
+      AddRef();
+      return S_OK;
+    }
+    *ppv = nullptr;
+    return E_NOINTERFACE;
+  }
+  ULONG STDMETHODCALLTYPE AddRef() override { return ++ref_; }
+  ULONG STDMETHODCALLTYPE Release() override {
+    const ULONG n = --ref_;
+    if (n == 0) delete this;
+    return n;
+  }
+  HRESULT STDMETHODCALLTYPE Invoke(HRESULT errorCode, LPCWSTR) override {
+    cb_(errorCode);
+    return S_OK;
+  }
+
+ private:
+  std::function<void(HRESULT)> cb_;
+  std::atomic<ULONG> ref_{1};
+};
+
+// Home card still says Jarvis in the Study bundle. This renames that chrome to Qwen
+// and plays speechSynthesis through Piper on :8765, falling back to the Edge voice.
+const wchar_t kQwenSpeechJs[] =
+    LR"QWEN((function(){
+if(window.__caltQwenSpeech)return;
+window.__caltQwenSpeech=1;
+var audio=null, gen=0, tail=Promise.resolve();
+function rename(root){
+  if(!root)return;
+  var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  var n;
+  while((n=w.nextNode())){
+    var p=n.parentNode, tag=p&&p.tagName;
+    if(!n.nodeValue||n.nodeValue.indexOf("Jarvis")<0)continue;
+    if(tag==="SCRIPT"||tag==="STYLE"||tag==="TEXTAREA")continue;
+    if(n.nodeValue.length>800)continue;
+    n.nodeValue=n.nodeValue.replace(/Jarvis/g,"Qwen");
+  }
+}
+var scheduled=false;
+function schedule(){
+  if(scheduled||!document.body)return;
+  scheduled=true;
+  requestAnimationFrame(function(){scheduled=false;rename(document.body);});
+}
+function arm(){
+  schedule();
+  new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true,characterData:true});
+}
+if(document.body)arm(); else document.addEventListener("DOMContentLoaded",arm);
+var synth=window.speechSynthesis;
+if(!synth||synth.__caltPiped)return;
+var nativeSpeak=synth.speak.bind(synth);
+var nativeCancel=synth.cancel.bind(synth);
+synth.cancel=function(){gen++; if(audio){try{audio.pause();}catch(e){} audio=null;} tail=Promise.resolve(); try{nativeCancel();}catch(e){}};
+synth.speak=function(utter){
+  var text=utter&&utter.text?String(utter.text):"";
+  if(!text)return nativeSpeak(utter);
+  var voice="qwen";
+  try{
+    var prefs=JSON.parse(localStorage.getItem("calt:focus-jarvis:v1")||"{}");
+    if(prefs.voiceMode==="normal")voice="normal";
+    if(prefs.speak===false)return;
+  }catch(e){}
+  var ticket=gen;
+  tail=tail.then(function(){
+    if(ticket!==gen)return;
+    return fetch("http://127.0.0.1:8765/api/speech",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:text.slice(0,480),voice:voice})})
+      .then(function(res){if(!res.ok)throw new Error("tts");return res.blob();})
+      .then(function(blob){
+        if(ticket!==gen)return;
+        var url=URL.createObjectURL(blob);
+        audio=new Audio(url);
+        audio.onended=function(){URL.revokeObjectURL(url);};
+        return audio.play();
+      }).catch(function(){ if(ticket===gen) nativeSpeak(utter); });
+  }).catch(function(){});
+};
+synth.__caltPiped=1;
+})();)QWEN";
+
 using CreateEnvFn = HRESULT(STDMETHODCALLTYPE*)(
     PCWSTR browserExecutableFolder, PCWSTR userDataFolder,
     ICoreWebView2EnvironmentOptions* environmentOptions,
@@ -433,9 +525,16 @@ void WebViewHost::OnController(HRESULT hr, ICoreWebView2Controller* controller) 
     msg->Release();
   }
   ready_ = true;
-  if (on_ready_) {
-    on_ready_(true);
+  ReadyFn finish = on_ready_;
+  auto* script = new ScriptHandler([finish](HRESULT) {
+    if (finish) finish(true);
+  });
+  if (FAILED(webview_->AddScriptToExecuteOnDocumentCreated(kQwenSpeechJs, script))) {
+    script->Release();
+    if (finish) finish(true);
+    return;
   }
+  script->Release();
 }
 
 bool WebViewHost::MapStaticSite(const std::wstring& folderAbsolute) {

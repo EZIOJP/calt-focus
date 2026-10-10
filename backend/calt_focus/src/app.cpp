@@ -5,6 +5,7 @@
 
 #include "local_brain.h"
 #include "paths.h"
+#include "speech_host.h"
 #include "status_badge.h"
 #include "wearable_listen.h"
 
@@ -117,6 +118,7 @@ int FocusApp::Run(HINSTANCE instance) {
   // Phone CALT Sync POSTs here. The enforcer stores the dump; this process only accepts HTTP.
   EnsureEnforcer();
   LocalBrainStart(RepoRoot());
+  SpeechPrepare(RepoRoot());
   const bool watchPort = WearableListenStart(DataBehaviorDir());
   if (tray_ && tray_->IsAdded()) {
     if (!watchPort) {

@@ -103,6 +103,29 @@
       el.scrollIntoView({ block: "nearest" });
     }
 
+    let speechAudio = null;
+    function speakLine(text) {
+      if (!text) return;
+      if (speechAudio) {
+        speechAudio.pause();
+        speechAudio = null;
+      }
+      fetch("/api/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text.slice(0, 480), voice: "qwen" }),
+      }).then((res) => {
+        if (!res.ok) return null;
+        return res.blob();
+      }).then((blob) => {
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        speechAudio = new Audio(url);
+        speechAudio.onended = () => URL.revokeObjectURL(url);
+        return speechAudio.play();
+      }).catch(() => {});
+    }
+
     function overrideLine(data) {
       if (!data || data.override === "hold" || !data.override) return "";
       const label = data.override === "work" ? "Back to work" : "Situation eased";
@@ -147,6 +170,7 @@
         while (history.length > 6) history.shift();
         addBubble("coach", data.say || "", overrideLine(data));
         if (data.situation) paintSituation(data.situation);
+        speakLine(data.say || "");
       } catch (e) {
         $("err").hidden = false;
         $("err").textContent = e.message || "Send failed";

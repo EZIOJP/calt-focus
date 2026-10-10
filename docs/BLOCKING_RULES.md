@@ -200,7 +200,7 @@ uses a related but not identical set. Reconcile when comparing logs:
 | `softland_policy_missing` / `_corrupt` | fail-closed |
 
 Voice `KIND_ALIASES` in `backend/behavior/voice_agent/block_dialogues.py` maps
-these native tokens into dialogue pools so Jarvis does not fall through on
+these native tokens into dialogue pools so Qwen does not fall through on
 unknown reasons.
 
 Consequences worth saying out loud, because they surprise people:

@@ -20,6 +20,10 @@ Arm, the site-block on/off switch, and device hosts do not move. Four situation 
 
 The model answers in a fixed JSON shape. A short check sits in front of that answer: asking for YouTube or to turn the blocks off stays `hold`, and a hospital, injury, collapse, or a long exhausted stretch becomes `ease` even if the small model hesitates. Asking to be pushed stays `work`.
 
+## Voice
+
+The Home card is Qwen. Spoken lines use **Piper** (`scripts\run\fetch_piper.bat`), not the browser voice. Qwen’s voice is `en_GB-alan-medium`. Normal is `en_US-lessac-medium`. `POST /api/speech` with `{text, voice}` returns a wav. The Edge voice is only the fallback when Piper is not installed.
+
 ## Load
 
 1. `scripts\run\fetch_local_brain.bat`

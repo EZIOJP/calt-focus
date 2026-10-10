@@ -286,26 +286,28 @@ When **Require Confirm plan** is off (default): Bible still runs; Confirm-plan o
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
-| Use LLM for session Suggest + Jarvis | `localStorage` `calt:focus-llm-host:v1` | Hosted `/v1/chat/completions` (9Router / OpenRouter / custom) | Local |
+| Use LLM for session Suggest + Qwen | `localStorage` `calt:focus-llm-host:v1` | Hosted `/v1/chat/completions` (9Router / OpenRouter / custom) | Local |
 | Preset 9Router / OpenRouter / Custom | same | Default base URLs | Local |
 | Base URL, model, Bearer (OpenRouter `sk-or-…`) | same | Keys stay in this browser / on the host you run | Local |
 | OpenRouter attribution | `HTTP-Referer` + `X-OpenRouter-Title` (+ legacy `X-Title`) | Optional rankings headers | Local |
 | Test host | GET `{base}/models` | Ping only (OpenRouter needs Bearer) | Diagnostic |
 
-**Indication:** `FocusAiStatusChip` in Settings LiveStatusStrip, Home mode header, Suggest rail, and LLM/Jarvis panels (OpenRouter / 9Router / off + optional ping).
+**Indication:** `FocusAiStatusChip` in Settings LiveStatusStrip, Home mode header, Suggest rail, and LLM/Qwen panels (OpenRouter / 9Router / off + optional ping).
 
-Work session **Suggest** (Home allow/block rail) and **Jarvis** briefs call that host; on failure Suggest uses heuristics and Jarvis uses a canned line. See `services/llm_host/README.md`.
+Work session **Suggest** (Home allow/block rail) and **Qwen** briefs call that host; on failure Suggest uses heuristics and Qwen uses a canned line. See `services/llm_host/README.md`.
 
-### 7.3c Jarvis — `FocusJarvisPanel`
+### 7.3c Qwen — `FocusJarvisPanel`
 
-Study voice_agent spirit (`jarvis` | `normal`). Default **Jarvis** picks Microsoft Ryan / en-GB (Study `en-GB-RyanNeural`); **Normal** picks Jenny / en-US. Speaks via WebView2 `speechSynthesis` (Edge neural voices when installed) — no Study `:8000` / edge-tts process.
+The Home card and Settings panel show **Qwen**. The Study bundle still has the old Jarvis strings; Focus rewrites those labels when the page loads and keeps the same `localStorage` key so existing prefs stay.
+
+Speech is **Piper** (C++ / ONNX, no Python): `en_GB-alan-medium` for the Qwen voice and `en_US-lessac-medium` for Normal. Focus runs `piper.exe` and the page plays the wav from `POST /api/speech`. If the voice files are missing, the card falls back to the Edge `speechSynthesis` voice. No Study `:8000` / edge-tts process.
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
-| Enable Jarvis | `localStorage` `calt:focus-jarvis:v1` | Home card + brief | Local |
-| Speak aloud | same | Web `speechSynthesis` | Local |
-| Voice model jarvis \| normal | same (`voiceMode`) | Auto voice + rate/pitch presets | Local |
-| Pinned voice | same (`voiceURI`) | Optional `speechSynthesis` voice | Local |
+| Enable Qwen | `localStorage` `calt:focus-jarvis:v1` | Home card + brief | Local |
+| Speak aloud | same | Piper `POST /api/speech`, else Web `speechSynthesis` | Local |
+| Voice model qwen \| normal | same (`voiceMode` `jarvis` \| `normal`) | Alan (Qwen) or Lessac (Normal) | Local |
+| Pinned voice | same (`voiceURI`) | Used only by the Edge fallback | Local |
 | Rate / pitch | same | Utterance tuning | Local |
 | Test voice / Stop | — | Speak sample / cancel | Local |
 | Auto morning brief | same | Once/day on Home | Local |
@@ -315,7 +317,9 @@ Study voice_agent spirit (`jarvis` | `normal`). Default **Jarvis** picks Microso
 
 Study voice_agent used **faster-whisper** (Python) when installed, else SpeechRecognition. Focus uses **Web Speech** in WebView2 (no Python STT process).
 
-Commands: `help`, `brief`, `status`, `report`, `speak on|off`, `voice jarvis|normal`, `session end`, `softland on`, `softland off UNLOCK`, `pass`. SoftLand off still requires typed `UNLOCK` (server-enforced).
+Load the voices with `scripts\run\fetch_piper.bat`. `GET /api/speech/status` is ready when both Piper and a voice onnx are on disk. `CALT_TTS_DISABLE=1` skips speech. `CALT_PIPER`, `CALT_TTS_VOICE_QWEN`, and `CALT_TTS_VOICE_NORMAL` override the paths.
+
+Commands: `help`, `brief`, `status`, `report`, `speak on|off`, `voice jarvis|normal`, `session end`, `softland on`, `softland off UNLOCK`, `pass`. SoftLand off still requires typed `UNLOCK` (server-enforced). `voice jarvis` selects the Qwen Piper voice.
 
 Home also shows day-loop **Goals · todos** (`day.task_*`) plus Plan **side todos** (`productivity:goals:v1` `extraGoals`).
 

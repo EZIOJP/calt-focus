@@ -130,7 +130,7 @@ function load() {
       const jl = document.getElementById("jarvisLine");
       if (jl) {
         const t = (result.lastJarvisLine || "").trim();
-        jl.textContent = t ? "Jarvis: " + t : "";
+        jl.textContent = t ? "Qwen: " + t : "";
       }
 
       if (live) {
