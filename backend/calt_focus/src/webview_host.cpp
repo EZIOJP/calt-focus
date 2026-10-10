@@ -143,11 +143,70 @@ function schedule(){
   scheduled=true;
   requestAnimationFrame(function(){scheduled=false;rename(document.body);});
 }
+function retitle(){
+  var inputs=document.querySelectorAll("input[type=text]");
+  for(var i=0;i<inputs.length;i++){
+    var ph=inputs[i].getAttribute("placeholder")||"";
+    if(ph.indexOf("Command or hold mic")<0 && ph.indexOf("Talk to Qwen")<0) continue;
+    inputs[i].setAttribute("placeholder","Talk to Qwen - add a task, plan an hour, brief me");
+  }
+}
 function arm(){
   schedule();
-  new MutationObserver(schedule).observe(document.body,{subtree:true,childList:true,characterData:true});
+  retitle();
+  new MutationObserver(function(){schedule();retitle();}).observe(document.body,{subtree:true,childList:true,characterData:true});
 }
 if(document.body)arm(); else document.addEventListener("DOMContentLoaded",arm);
+function showSay(root, say){
+  if(!root) return;
+  var paras=root.querySelectorAll("p");
+  var line=null;
+  for(var i=0;i<paras.length;i++){
+    var t=(paras[i].textContent||"").trim();
+    if(t==="Qwen"||t==="Jarvis") continue;
+    line=paras[i];
+    break;
+  }
+  if(line) line.textContent=say;
+}
+function qwenTalk(message, root){
+  fetch("http://127.0.0.1:8765/api/assistant/talk",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:message})})
+    .then(function(res){return res.json();})
+    .then(function(data){
+      var say=(data&&data.say)||(data&&data.detail)||"Qwen did not answer.";
+      var extra=data&&data.actions&&data.actions[0]&&data.actions[0].detail;
+      if(extra && say.indexOf(extra)<0) say=say+" "+extra;
+      showSay(root, say);
+      if(window.speechSynthesis) window.speechSynthesis.speak({text:say.slice(0,480)});
+    }).catch(function(){});
+}
+function weapon(line){
+  var s=String(line||"").toLowerCase().replace(/^\//,"").trim();
+  return /^(softland|sl|pass|daypass|speak|voice|stop|report|whatsapp|wa)\b/.test(s);
+}
+document.addEventListener("submit",function(ev){
+  var form=ev.target;
+  if(!form||!form.querySelector) return;
+  var input=form.querySelector("input[placeholder*='Talk to Qwen'], input[placeholder*='Command or hold mic']");
+  if(!input) return;
+  var message=(input.value||"").trim();
+  if(!message||weapon(message)) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  var proto=Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,"value");
+  if(proto&&proto.set) proto.set.call(input,"");
+  else input.value="";
+  input.dispatchEvent(new Event("input",{bubbles:true}));
+  qwenTalk(message, form.closest("section")||form.parentElement);
+},true);
+document.addEventListener("click",function(ev){
+  var b=ev.target&&ev.target.closest?ev.target.closest("button"):null;
+  if(!b) return;
+  if((b.textContent||"").replace(/\s+/g," ").trim()!=="Brief") return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  qwenTalk("Brief my day. Name the next task and whether the plan is set.", b.closest("section")||b.parentElement);
+},true);
 var synth=window.speechSynthesis;
 if(!synth||synth.__caltPiped)return;
 var nativeSpeak=synth.speak.bind(synth);

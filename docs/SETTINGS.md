@@ -319,6 +319,8 @@ Study voice_agent used **faster-whisper** (Python) when installed, else SpeechRe
 
 Load the voices with `scripts\run\fetch_piper.bat`. `GET /api/speech/status` is ready when both Piper and a voice onnx are on disk. `CALT_TTS_DISABLE=1` skips speech. `CALT_PIPER`, `CALT_TTS_VOICE_QWEN`, and `CALT_TTS_VOICE_NORMAL` override the paths.
 
+Typed talk and **Brief** on the Home card go to local Qwen (`POST /api/assistant/talk`). It can add or finish a task, plan a block (`plan <name> for <minutes>`), confirm the plan, journal a line, start or end a work session, and apply routines. It does not turn Arm off, turn SoftLand off, or grant a day pass — those stay the typed commands below.
+
 Commands: `help`, `brief`, `status`, `report`, `speak on|off`, `voice jarvis|normal`, `session end`, `softland on`, `softland off UNLOCK`, `pass`. SoftLand off still requires typed `UNLOCK` (server-enforced). `voice jarvis` selects the Qwen Piper voice.
 
 Home also shows day-loop **Goals · todos** (`day.task_*`) plus Plan **side todos** (`productivity:goals:v1` `extraGoals`).

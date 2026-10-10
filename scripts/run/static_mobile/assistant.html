@@ -50,7 +50,7 @@
 <body>
   <p class="brand">CALT · Coach</p>
   <h1>Talk it through</h1>
-  <p class="sub">The coach sees your day, pushes the next piece of work, and can bend a situation. App Arm and device blocks stay where they are.</p>
+  <p class="sub">Qwen talks through the day. Ask it to add a task, plan a block, confirm the plan, write a journal line, or start a session. App Arm, SoftLand, and day passes stay in your hands.</p>
   <section class="card">
     <p class="summary" id="summary">Reading the day…</p>
     <div class="chips" id="chips"></div>
@@ -168,7 +168,9 @@
         history.push({ role: "user", text: message });
         history.push({ role: "coach", text: data.say || "" });
         while (history.length > 6) history.shift();
-        addBubble("coach", data.say || "", overrideLine(data));
+        const act = data.actions && data.actions[0] && data.actions[0].detail;
+        const meta = [act, overrideLine(data)].filter(Boolean).join(" · ");
+        addBubble("coach", data.say || "", meta);
         if (data.situation) paintSituation(data.situation);
         speakLine(data.say || "");
       } catch (e) {

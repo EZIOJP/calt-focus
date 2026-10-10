@@ -24,6 +24,8 @@ The model answers in a fixed JSON shape. A short check sits in front of that ans
 
 The Home card is Qwen. Spoken lines use **Piper** (`scripts\run\fetch_piper.bat`), not the browser voice. Qwen’s voice is `en_GB-alan-medium`. Normal is `en_US-lessac-medium`. `POST /api/speech` with `{text, voice}` returns a wav. The Edge voice is only the fallback when Piper is not installed.
 
+Typed lines on the Home card and **Brief** go to `POST /api/assistant/talk`. Qwen can add a task, mark one done, put a block on today’s plan, confirm the plan, write a journal line, start or end a work session, and apply routines. `help` lists those. Arm, turning SoftLand off, device blocks, and a day pass stay typed commands for you (`softland off UNLOCK`, `pass`).
+
 ## Load
 
 1. `scripts\run\fetch_local_brain.bat`
