@@ -623,13 +623,15 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     JsonBoolNear(goalsObj, "plan_confirmed", &plan_confirmed);
     JsonStringNear(goalsObj, "bible_done_for_date", &bible_date);
     JsonStringNear(goalsObj, "plan_confirmed_for_date", &plan_date);
-    // Absent key → planning on (legacy). Explicit false skips Confirm-plan gate.
+    // Absent key → planning off (session-first). A missing plan is not a host lock.
     if (!JsonBoolNear(goalsObj, "planning_enabled", &planning_enabled)) planning_enabled = false;
   }
   const bool bible_today = bible_done && bible_date == now.ymd;
-  const bool plan_today =
-      !planning_enabled || (plan_confirmed && plan_date == now.ymd);
-  const bool morning_pending = !bible_today || !plan_today;
+  // Ignored planning must not blanket-block. Bible still does, when SoftLand is on.
+  (void)planning_enabled;
+  (void)plan_confirmed;
+  (void)plan_date;
+  const bool morning_pending = !bible_today;
 
   bool incubating = IsoStillActive(incubation_until, now.unix);
   bool free_win = IsoStillActive(free_until, now.unix);
@@ -674,7 +676,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     r.until = incubation_until;
     r.reason = "incubation";
   } else if (morning_pending) {
-    r.reason = !bible_today ? "morning_bible" : "morning_plan";
+    r.reason = "morning_bible";
   } else if (emergency) {
     r.reason = "emergency_winddown";
     r.until = emergency_until;
@@ -712,12 +714,12 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     return r;
   }
 
-  // Morning ritual: SoftLand on + Bible/Confirm not done today → block every non-allow host.
+  // Bible still blocks non-allow hosts while SoftLand is on. A skipped plan does not.
   if (morning_pending && !emergency) {
     r.ok = true;
     r.action = "block";
     r.enforce = true;
-    r.reason = !bible_today ? "morning_bible" : "morning_plan";
+    r.reason = "morning_bible";
     r.matched = host;
     r.interstitial = true;
     return r;
@@ -783,7 +785,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
       r.action = "block";
       r.enforce = true;
       if (morning_pending)
-        r.reason = !bible_today ? "morning_bible" : "morning_plan";
+        r.reason = "morning_bible";
       else if (!incubating)
         r.reason = "watch_list";
       r.matched = host;
@@ -927,8 +929,10 @@ std::string SoftlandGateSnapshotJson() {
     if (!JsonBoolNear(goals, "planning_enabled", &planning_enabled)) planning_enabled = false;
   }
   const bool bible_today = bible_done && bible_date == now.ymd;
-  const bool plan_today =
-      !planning_enabled || (plan_confirmed && plan_date == now.ymd);
+  const bool plan_confirmed_today = plan_confirmed && plan_date == now.ymd;
+  // Gate consumers treat "plan not required" as done. Never publish next=plan:
+  // the extension redirects and blocks on that token.
+  const bool plan_today = !planning_enabled || plan_confirmed_today;
 
   // Live productive minutes from enforcer day_rollup.json (same folder as policy).
   int productive_minutes = 0;
@@ -965,10 +969,7 @@ std::string SoftlandGateSnapshotJson() {
   }
 
   std::string morning_next = "open";
-  if (!bible_today)
-    morning_next = "bible";
-  else if (!plan_today)
-    morning_next = "plan";
+  if (!bible_today) morning_next = "bible";
 
   std::string label = ModeLabelUpper(mode);
   bool block_watch = enabled && !free_mode && flags.block_watch_sites;

@@ -807,28 +807,9 @@ bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath) {
       }
     }
 
-    const bool planningOn = PlanningPhaseEnabled(s.document_json);
-    // Planning phase off: after Bible, auto-confirm plan + couple SoftLand/Arm (no Confirm overlay).
-    if (!planningOn && !planToday && bibleToday) {
-      int focus = DailyFocusMinutesFromDoc(s.document_json);
-      if (RewriteGoalsObject(s, true, true, false, focus, today, today)) {
-        s.softland_enabled = true;
-        bool armed = false;
-        ArmHardBlock(behaviorDir, &armed);
-        (void)armed;
-        changed = true;
-        planToday = true;
-      }
-    }
-
-    // Legitimate morning gate: SoftLand ON (sites → morning_bible/plan), Arm OFF until Confirm.
-    if (planningOn && !planToday) {
-      if (!s.softland_enabled) {
-        s.softland_enabled = true;
-        changed = true;
-      }
-      DisarmHardBlock(behaviorDir);
-    }
+    // A skipped plan is a lazy day. Do not invent plan_confirmed, do not turn
+    // SoftLand on, and do not Arm (that seed list is what blocks apps when the
+    // user never planned). Explicit day.confirm_plan still couples both.
   }
 
   std::string emergency;

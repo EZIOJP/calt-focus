@@ -727,8 +727,7 @@ async function softLandBlockedTab(tabId, spaUrl, meta) {
   } catch (e) {
     /* ignore */
   }
-  var morningSoft =
-    next === "bible" || next === "plan" || mode === "bible" || mode === "planning";
+  var morningSoft = next === "bible" || mode === "bible";
   var target = lockedPageUrl();
   if (morningSoft && spaUrl && String(spaUrl).indexOf("locked.html") < 0) {
     target = spaUrl;
@@ -831,6 +830,7 @@ async function maybeRedirectTab(tabId, url, title) {
   var native = await softlandNativeGetMode(url);
   if (native && native.ok !== false && native.action) {
     if (native.action === "allow" || native.action === "none") return false;
+    if (native.reason === "morning_plan" || native.mode === "planning") return false;
     if (native.action === "block" && native.enforce !== false) {
       var kindN = native.reason || "blocked";
       reportGateAlert(kindN, url.slice(0, 120));

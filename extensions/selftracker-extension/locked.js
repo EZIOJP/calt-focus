@@ -135,8 +135,9 @@ function applyGate(g, fromCache) {
     body.textContent =
       "Finish today’s Bible chapter, then confirm your plan. Only this tab is locked; other tabs are untouched.";
   } else if (next === "plan") {
-    title.textContent = "Morning — Confirm plan";
-    body.textContent = "Review goals and confirm today’s plan. Pick a shortcut below — opens in this tab.";
+    title.textContent = "Plan is optional";
+    body.textContent =
+      "Skipping today’s plan does not block the web. Go back — a lazy day stays open until you confirm a plan yourself.";
   } else {
     title.textContent = "Distraction site blocked";
     const modeLc = String(browser.mode_label || browser.mode || "").toLowerCase();
