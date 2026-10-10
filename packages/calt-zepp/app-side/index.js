@@ -5,7 +5,7 @@ import { MessageBuilder } from '../shared/message-side'
 
 const messageBuilder = new MessageBuilder()
 const MAX_LOG = 20
-const APP_VER = '4.3.2'
+const APP_VER = '4.3.3'
 
 function settingsGet(key, fallback = '') {
   try {
@@ -68,40 +68,19 @@ function networkHint(detail, host) {
     return [
       `Phone cannot reach ${host || 'PC'}.`,
       '1) Same Wi‑Fi as PC',
-      '2) Base URL = http://<PC-LAN-IP>:8765 (hub) or :8000 (API)',
-      '3) Desktop tracker OR run.bat API up',
-      '4) Open http://<IP>:8765/health or :8000/health in phone browser',
+      '2) Base URL = http://<PC-LAN-IP>:8765',
+      '3) CALT Focus open — it is the only receiver',
+      '4) Phone browser: http://<IP>:8765/health',
     ].join(' ')
   }
   return ''
 }
 
-/** Hub :8765 first, then same-host FastAPI :8000 (or explicit api_url). */
+/** Only the C++ listener in CALT Focus. No Study :8000 fallback. */
 function candidateBases() {
-  const seen = {}
-  const out = []
-  const push = (norm, label) => {
-    if (!norm || !norm.ok || !norm.base) return
-    if (seen[norm.base]) return
-    seen[norm.base] = true
-    out.push({ ...norm, label: label || 'hub' })
-  }
-
-  push(resolveBase(), 'hub')
-
-  const apiRaw = String(settingsGet('api_url', '')).trim()
-  if (apiRaw) {
-    push(normalizeBaseUrl(apiRaw), 'api')
-  } else {
-    const hub = resolveBase()
-    if (hub.ok && hub.host) {
-      const hostOnly = String(hub.host).replace(/:\d+$/, '')
-      if (hostOnly && !/localhost|127\.0\.0\.1/i.test(hostOnly)) {
-        push(normalizeBaseUrl(`http://${hostOnly}:8000`), 'api')
-      }
-    }
-  }
-  return out
+  const norm = resolveBase()
+  if (!norm || !norm.ok || !norm.base) return []
+  return [{ ...norm, label: 'enforcer' }]
 }
 
 async function postWithFallback(path, opts) {

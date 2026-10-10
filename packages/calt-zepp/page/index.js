@@ -66,7 +66,7 @@ function fmtSyncError(err, result) {
   }
   if (d.includes('413')) return 'Dump too large · retry Send (resumes chunk)'
   if (d.includes('network') || d.includes('-2') || (d.includes('fail') && d.includes('fetch'))) {
-    return 'Phone cannot reach PC · same Wi-Fi, hub :8765 or API :8000'
+    return 'Cannot reach PC · same Wi-Fi, CALT Focus open on :8765'
   }
   const short = raw.replace(/\s+/g, ' ').trim()
   return (short || 'Send failed · swipe to log').slice(0, 96)

@@ -5,12 +5,12 @@
     "appId": 1088801,
     "appType": "app",
     "version": {
-      "code": 22,
-      "name": "4.3.2"
+      "code": 23,
+      "name": "4.3.3"
     },
     "icon": "icon.png",
     "vender": "calt",
-    "description": "CALT Sync 4.3.2 — dump/send into the Focus enforcer, with PC receipt time"
+    "description": "CALT Sync 4.3.3 — dump/send to the Focus enforcer on the LAN"
   },
   "permissions": [
     "data:os.device.info",
