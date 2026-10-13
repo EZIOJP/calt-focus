@@ -34,6 +34,7 @@ class SessionTracker {
                      ULONGLONG endMs);
   void CloseCurrent(ULONGLONG endMs);
   void Begin(const std::wstring& exe, const std::wstring& title, DWORD pid, ULONGLONG nowMs);
+  void PublishFgLive();
   static ULONGLONG WallClockMs();
   static ULONGLONG IdleMs();
   static std::wstring GroupKey(const std::wstring& exe, const std::wstring& title);

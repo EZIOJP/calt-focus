@@ -2,6 +2,8 @@
 
 **SoT UI:** React SPA → `dist-focus/` (Study `src/` build). **HTML shell deleted** (`a6b90b2`, 4 Oct 2026). Do not use `frontend/shell`.
 
+**Offline Math→ML:** `frontend/jp-roadmap/` (multi-file zip layout) → WebView `https://calt-learn.app/` (tray **Open Math → ML**). No CDN/Firebase; SoftLand always-allows `calt-learn.app`. Progress SoT: `productivity.db` (`productivity_roadmap_state` + `productivity_roadmap_attempts`) via enforcer `roadmap.*`; mirror `behavior/jp_roadmap.json`. Check: `python scripts/run/check_roadmap_db.py`.
+
 **Counts (React, 9 Oct 2026):** Live **18** · Partial **1** · Backend only **4** · Stub **0**
 
 Partials left: Plan LLM “propose week” (Study `:8000` — intentionally disabled in Focus; use routines / calendar / work sessions).
@@ -15,19 +17,17 @@ Ship FE: `npm run build:focus` (builds Study + syncs `dist-focus/`). Tray → Re
 ```text
 New day
   → SoftLand host gate ON, Arm OFF
-  → Bible pending → DayGateStrip (Plan/Calendar still editable; SoftLand blocks hosts)
-  → If planning_enabled:
-        Confirm couples SoftLand + Arm (strip CTA → Plan / Home Confirm)
-     Else:
-        DayLoop auto-confirms after Bible (no Confirm phase)
+  → Bible pending → Focus stays on /bible (morning; afternoon from 12:00; evening from 17:00)
+  → Planning is required: Confirm (≥1 planned minute) couples SoftLand + Arm
+        Until Confirm, Focus stays on the plan. An empty confirm is reopened.
   → SoftLand site/schedule/mode editable after morning clear (or free day)
   → Arm / kill-list still need free day or day pass
   → Prefer Home work session (Allow + Start) for focus blocks
 ```
 
-**Locks:** SoftLand ON ≠ Arm. Confirm (or auto-confirm when planning off) is the couple point. **No plan carry-forward** (`carry_disabled`).
+**Locks:** SoftLand ON ≠ Arm. Confirm is the couple point. Planning cannot be turned off. **No plan carry-forward** (`carry_disabled`).
 
-**Session-first (current default):** `goals.planning_enabled` defaults **false** (FE + msg-host + enforcer agree). Work sessions and routines/plan edits are **not** free-day gated and are **not** trapped behind full-screen morning modals.
+**Day open:** morning Bible, then a finished plan, then the day runs normally. Afternoon Bible is required from 12:00 and evening Bible from 17:00; until that slot is marked, Focus stays on `/bible` and non-allow sites stay blocked. Routine and plan edits stay open until Confirm, and on a free day or day pass. After Confirm they return `free_day_required`.
 
 ---
 
@@ -55,14 +55,14 @@ New day
 | Flow | Steps | React surface | Gateway / engine | Status | How to verify |
 |------|-------|---------------|------------------|--------|---------------|
 | New day reset | Clears sticky bible/plan/goal + stale `free_until` | — | `DayLoopTick` | Backend only | After midnight: flags not sticky from yesterday |
-| Morning bible gate | Until `bible_done_for_date == today` | `MorningBibleOverlay.tsx` | `bible.devotion.done` | **Live** | Overlay when pending; hides after mark done |
-| Morning plan gate (hosts) | SoftLand on + bible/plan incomplete → `morning_*` modes | SoftLand decide + overlays | SoftLand `get_mode` | Backend only | Non-allow sites blocked until bible + Confirm (or auto if planning off) |
-| Confirm plan → SoftLand + Arm | Bible + (≥1 non-free min if planning on) | `ConfirmPlanButton` / `MorningPlanOverlay` | `day.confirm_plan` | **Live** | Empty plan → `plan_required` when planning on; Arm off until Confirm/auto |
-| Planning on/off | Skip Confirm phase | Settings → More → Planning | `softland.patch_goals` `planning_enabled` | **Live** | Off: no plan overlay; day opens after Bible |
+| Morning bible gate | Morning always; afternoon from 12:00; evening from 17:00 | `MorningBibleOverlay.tsx` | `bible.devotion.done` | **Live** | Shell stays on `/bible` until the due slot is marked |
+| Morning plan gate (hosts) | SoftLand on + due bible or plan incomplete | SoftLand decide + overlays | SoftLand `get_mode` | Backend only | Non-allow sites blocked until due Bible + Confirm |
+| Confirm plan → SoftLand + Arm | Due Bible + ≥1 non-free min | `ConfirmPlanButton` / `MorningPlanOverlay` | `day.confirm_plan` | **Live** | Empty plan → `plan_required`; Arm off until Confirm |
+| Planning | Always on | Settings → Planning | `planning_enabled` forced true | **Live** | Checkbox stays checked |
 | Plan follow (active block) | SoftLand follow only when confirmed today | — | `ApplyActivePlanToSoftland` / tick | Backend only | Mode tracks current block after Confirm |
 | No plan carry-forward | Import / roll → `carry_disabled` | Calendar/Plan (ops rejected) | `plan.import_from_date` / `roll_forward` | **Live** (enforced) | Cannot import yesterday into today |
 | Work session | Allow apps/sites → Start / End | `HomeAllowBlockRail.tsx` | `session.set` | **Live** | Start any day; Allow anytime; Block·Arm needs free day |
-| Goal free (productive min) | Tracked ≥ daily_focus → `free_until` EOD; drop study-temp kills | Home progress line + FREE badge | `DayLoopMaybeGrantGoalFree` | **Live** | After goal: SoftLand free; games/social Arm stay |
+| Goal free (productive min) | Tracked ≥ daily_focus → `free_until` EOD; drop study-temp kills; pause Arm | Home progress line + FREE badge | `DayLoopMaybeGrantGoalFree` | **Live** | After goal: sites open except porn; games and kill-list apps can run |
 | Dual-gate close free (1h) | Tasks done + ≥50% planned non-free → +60m once | Home **Check unlock** / `DayLoopLanding` | `day.evaluate_close` | **Live** | Grants once per day when gates met |
 | Reward / day pass | Bible required; clears study-temp kills | Settings → Unlock (`ProductivityPolicyPanel`) | `reward.claim` / `day.grant_pass` | **Live** | Without bible → `bible_required` |
 | Bedtime | `set_bedtime` → `bedtime_active` → overlay | `DayRhythmPanel` + `BedtimeOverlay` | `softland.set_bedtime` | **Live** | Bedtime suppresses morning overlays |
@@ -82,9 +82,9 @@ New day
 | Settings SoftLand lists | allow/watch/block + enable | `SoftLandSiteRulesPanel`, Settings | `softland.patch_*` / `set_enabled` | **Live** | Lists need free day; UNLOCK to turn SoftLand off |
 | Settings Arm | armed, exes, lock | `FocusControlPanel` / Apps | `arm.set` | **Live** | Free-day gated |
 | Device lock (hosts) | DEVICE LOCK confirm | `DeviceBlockPanel.tsx` | `device_block.*` | **Live** | Separate from SoftLand; free-day gated |
-| LLM host / Jarvis | OpenRouter / 9Router Suggest + brief | `FocusLlmHostPanel`, `FocusJarvisPanel` | localStorage + `/v1/chat` | **Live** | Settings → More; Home AI chip |
+| LLM host / Jarvis | Local Qwen (Ollama) Suggest + free chat | `FocusLlmHostPanel`, `FocusJarvisPanel` | localStorage + `/v1/chat` | **Live** | Settings → More; Home AI chip |
 | Jarvis commands | In-app command box (status, report, softland…) | `focusCommands` + Jarvis panel | enforcer / mirrors | **Live** | Home Jarvis card; type `help` |
-| WhatsApp daily report | Numbers + send time → wa.me report | `FocusWhatsAppReportPanel` | localStorage + mirrors | **Live** | Settings → More; tap Send in WhatsApp |
+| Email daily report | Fixed inbox + send time → mailto report | `FocusEmailReportPanel` | localStorage + mirrors | **Live** | Settings → More; tap Send in mail app |
 | Quit / watchdog | Quit refused while SoftLand or Arm on | Tray + Settings → More → Quit | `calt_focus` Quit + `focus_watchdog` | **Live** (UI) + Backend | SoftLand/Arm block Quit; helper shows why |
 
 ---

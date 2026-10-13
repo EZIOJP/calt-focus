@@ -31,6 +31,7 @@ class TrayIcon {
   void SetOnSettings(Callback cb) { on_settings_ = std::move(cb); }
   void SetOnCalendar(Callback cb) { on_calendar_ = std::move(cb); }
   void SetOnPlan(Callback cb) { on_plan_ = std::move(cb); }
+  void SetOnRoadmap(Callback cb) { on_roadmap_ = std::move(cb); }
   void SetOnProductivity(Callback cb) { on_prod_ = std::move(cb); }
   void SetOnReloadUi(Callback cb) { on_reload_ui_ = std::move(cb); }
   void SetOnUpdateUi(Callback cb) { on_update_ui_ = std::move(cb); }
@@ -50,6 +51,7 @@ class TrayIcon {
   static constexpr UINT ID_SETTINGS = 4007;
   static constexpr UINT ID_CALENDAR = 4008;
   static constexpr UINT ID_PLAN = 4009;
+  static constexpr UINT ID_ROADMAP = 4015;
   static constexpr UINT ID_PROD = 4002;
   static constexpr UINT ID_RELOAD_UI = 4010;
   static constexpr UINT ID_UPDATE_UI = 4011;
@@ -72,6 +74,7 @@ class TrayIcon {
   Callback on_settings_;
   Callback on_calendar_;
   Callback on_plan_;
+  Callback on_roadmap_;
   Callback on_prod_;
   Callback on_reload_ui_;
   Callback on_update_ui_;

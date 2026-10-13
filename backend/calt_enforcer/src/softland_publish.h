@@ -17,5 +17,5 @@ bool PublishDayStatusMirror(const std::wstring& behaviorDir);
 /** Planner ±14d blocks + routines → plan_blocks.json. */
 bool PublishPlanBlocksMirror(const std::wstring& behaviorDir);
 
-/** Batch: day_loop + day_status + journal + bible + plan mirrors for Focus reads. */
+/** Batch: day_loop + day_status + journal + bible + plan + life mirrors for Focus reads. */
 void PublishFocusReadMirrors(const std::wstring& behaviorDir);

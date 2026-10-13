@@ -101,6 +101,9 @@ int ProductivityPassesUsedThisWeek();
 bool ProductivityPassGrantedToday();
 bool ProductivityInsertPass(const std::string& localDate, const std::string& weekStart);
 
+/** Reward day claimed today, or a day pass spent today. Goal-met free windows do not count. */
+bool ProductivityFreeDayOpen();
+
 /** `kind` is "qualified" or "used". */
 int ProductivityRewardCount(const char* kind);
 int ProductivityRewardGranted();
@@ -153,7 +156,12 @@ std::string ProductivityRoutineListJson(int userId = 1);
 bool ProductivityRoutineUpsert(const std::string& payloadJson, int userId,
                                std::string* outRoutineJson);
 
-bool ProductivityRoutineDelete(long long id, int userId = 1);
+/**
+ * Delete routine template. Also removes today's applied plan blocks that match
+ * the routine's title + category (instances from routine.apply).
+ * outBlocksCleared may be null.
+ */
+bool ProductivityRoutineDelete(long long id, int userId = 1, int* outBlocksCleared = nullptr);
 
 /** Phase restore: start / complete / roll-forward / apply routines. */
 bool ProductivityPlanStart(long long id, int userId, std::string* outBlockJson);

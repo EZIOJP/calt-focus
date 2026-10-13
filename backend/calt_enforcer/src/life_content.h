@@ -32,6 +32,9 @@ bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
                            const std::wstring& bibleDataDir, const std::wstring& behaviorDir,
                            std::string* outJson);
 
+/** Afternoon opens at 12:00, evening at 17:00. Morning is always open. */
+bool LifeBibleDevotionSlotOpen(const std::string& slot);
+
 bool LifeBibleDevotionNotes(int userId, const std::string& slot, const std::string& notes,
                             const std::wstring& bibleDataDir, std::string* outJson);
 

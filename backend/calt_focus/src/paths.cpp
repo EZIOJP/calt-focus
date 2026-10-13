@@ -268,6 +268,24 @@ std::wstring BibleUrl() {
   return L"http://127.0.0.1:5173/bible";
 }
 
+std::wstring JpRoadmapDir() {
+  return Join(RepoRoot(), L"frontend\\jp-roadmap");
+}
+
+std::wstring RoadmapUrl() {
+  if (const wchar_t* env = _wgetenv(L"CALT_ROADMAP_URL")) {
+    if (env[0]) {
+      return env;
+    }
+  }
+  const std::wstring index = Join(JpRoadmapDir(), L"index.html");
+  const DWORD a = GetFileAttributesW(index.c_str());
+  if (a != INVALID_FILE_ATTRIBUTES && !(a & FILE_ATTRIBUTE_DIRECTORY)) {
+    return L"https://calt-learn.app/index.html";
+  }
+  return L"";
+}
+
 std::wstring WebViewUserDataDir() {
   const std::wstring dir = Join(DataBehaviorDir(), L"calt_focus_webview");
   CreateDirectoryW(DataBehaviorDir().c_str(), nullptr);

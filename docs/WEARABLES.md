@@ -9,11 +9,11 @@ T-Rex CALT Sync  --BLE-->  Phone Zepp side service  --HTTP-->  Focus hub :8765
                                          wearable_*.json + life_days/ + Health UI
 ```
 
-Same dump/send logic as Study. No Google Fit middleware required.
+CALT Sync is the only health ingest. The hub refuses Google Fit, Health Connect, and bridge exports.
 
 ## Setup
 
-1. PC: `scripts\run\start_wearables_hub.bat`
+1. PC: `scripts\run\start_calt_sync_host.bat` — a small C++ receiver on `:8765`. It sits idle until the watch uploads, then writes the mirrors. It is not inside the enforcer.
 2. Sideload Focus SoT watch app: [`packages/calt-zepp`](../packages/calt-zepp) **4.3+** (`sideload.bat` in that folder)
 3. Phone Zepp → CALT Sync settings → Base URL `http://<PC-LAN-IP>:8765`, token `calt-local-wearables`
 4. Watch: **Dump & Send** once to verify
@@ -51,13 +51,9 @@ Hub binds `0.0.0.0`:
 Chrome blocks the live webcam on plain `http://LAN-IP`. Use HTTPS (self-signed; Advanced → Proceed once) or `http://127.0.0.1:8765/n` on the PC.
 
 1. Once: `scripts\run\open_firewall_hub_8765.bat` **as Administrator** (opens 8765 + 8766)
-2. Keep hub running (`start_wearables_hub.bat`)
+2. For watch upload, keep `start_calt_sync_host.bat` running (not the enforcer). NutriNode photos still use `start_wearables_hub.bat`, which wants the same port, so run one of them.
 3. **Windows Chrome:** `https://127.0.0.1:8766/n` → **Start webcam** → Capture
 4. **Phone:** `http://<PC-LAN-IP>:8765/n` → **Take photo**, or HTTPS `:8766/n` for live camera
 5. Optional: Add to Home screen
 
-SoftLand/Arm stay on the desktop enforcer; this LAN surface is NutriNode (+ wearables ingest).
-
-## Optional
-
-Google Fit / Health Connect phone sync still accepted by the hub (`source: google_fit`) if you want a backup path.
+SoftLand/Arm stay on the desktop enforcer. This LAN surface is NutriNode plus CALT Sync ingest.

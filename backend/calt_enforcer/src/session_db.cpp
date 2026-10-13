@@ -5,6 +5,7 @@
 #include <windows.h>
 
 #include <cstdio>
+#include <cstring>
 #include <string>
 
 namespace {
@@ -192,7 +193,52 @@ void SessionTracker::Begin(const std::wstring& exe, const std::wstring& title, D
   idle_ = false;
 }
 
+void SessionTracker::PublishFgLive() {
+  size_t slash = dbPath_.find_last_of(L"\\/");
+  std::wstring behavior =
+      (slash == std::wstring::npos ? std::wstring(L".") : dbPath_.substr(0, slash)) + L"\\behavior";
+  CreateDirectoryW(behavior.c_str(), nullptr);
+  bool active = !idle_ && !curExe_.empty() && startedMs_ > 0;
+  std::string exe = Narrow(curExe_);
+  // Basename is usually lowercased already; still allow A–Z so mixed-case never blanks live FG.
+  bool safe = active;
+  if (safe) {
+    for (char c : exe) {
+      bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                c == '.' || c == '_' || c == '-';
+      if (!ok) {
+        safe = false;
+        break;
+      }
+    }
+  }
+  char body[192];
+  snprintf(body, sizeof(body),
+           "{\"exe\":\"%s\",\"started_unix_ms\":%llu,\"updated_unix_ms\":%llu,\"idle\":%s}",
+           safe ? exe.c_str() : "", safe ? (unsigned long long)startedMs_ : 0ULL,
+           (unsigned long long)WallClockMs(), safe ? "false" : "true");
+  const std::wstring dest = behavior + L"\\fg_live.json";
+  const std::wstring tmp = dest + L".tmp";
+  FILE* f = nullptr;
+#if defined(_MSC_VER)
+  _wfopen_s(&f, tmp.c_str(), L"wb");
+#else
+  f = _wfopen(tmp.c_str(), L"wb");
+#endif
+  if (!f) return;
+  fwrite(body, 1, strlen(body), f);
+  fclose(f);
+  if (!MoveFileExW(tmp.c_str(), dest.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    DeleteFileW(tmp.c_str());
+  }
+}
+
 void SessionTracker::Tick() {
+  struct PublishOnExit {
+    SessionTracker* self;
+    ~PublishOnExit() { self->PublishFgLive(); }
+  } publish{this};
+
   ULONGLONG now = WallClockMs();
 
   // Sleep / hibernate: wall clock jumped — close at last known tick (Python sleep_gap).
@@ -251,6 +297,6 @@ void SessionTracker::Tick() {
 }
 
 void SessionTracker::Flush() {
-  if (curExe_.empty() || startedMs_ == 0) return;
-  CloseCurrent(WallClockMs());
+  if (!curExe_.empty() && startedMs_ != 0) CloseCurrent(WallClockMs());
+  PublishFgLive();
 }

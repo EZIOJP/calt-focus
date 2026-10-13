@@ -1,5 +1,9 @@
 #include "win_service.h"
+#include "app_limits.h"
 #include "cmd_gateway.h"
+#include "gate_watch.h"
+#include "work_session.h"
+#include "roadmap_store.h"
 #include "day_loop.h"
 #include "day_rollup.h"
 #include "focus_watchdog.h"
@@ -31,6 +35,7 @@ std::wstring gLockPath;
 
 std::string gLastKillLine;
 std::string gLastKillExe;
+std::string gLastKillReason;
 FocusWatchState gFocusWatch;
 
 std::string NarrowExe(const std::wstring& w) {
@@ -68,6 +73,7 @@ void PublishStatus(const std::wstring& dbPath, const std::wstring& lockPath,
   st.pid = GetCurrentProcessId();
   st.last_kill = gLastKillLine;
   st.last_kill_exe = gLastKillExe;
+  st.last_kill_reason = gLastKillReason;
   st.lock_present = LockFilePresent(lockPath);
   st.service_running = true;
   st.armed = snap.armed;
@@ -87,7 +93,11 @@ void TickKills(const std::wstring& dbPath, EnforcerSnapshot& snapOut) {
   std::string err;
   if (LoadEnforcerSnapshot(dbPath, snap, err)) {
     snapOut = snap;
-    if (snap.armed && (snap.locked || snap.incubation)) {
+    // Reward day, day pass, or study goal met: pause Arm so games and apps can open.
+    // Porn stays blocked in SoftLand. Emergency wind-down and incubation keep kills.
+    const bool pauseArm = ProductivityFreeDayOpen() || DayLoopStudyFreeOpen();
+    const bool willKill = !pauseArm && snap.armed && (snap.locked || snap.incubation);
+    if (willKill) {
       std::vector<std::wstring> targets = snap.exes;
       if (snap.anti_tamper && (snap.locked || snap.incubation)) {
         auto extra = AntiTamperExeList();
@@ -103,6 +113,7 @@ void TickKills(const std::wstring& dbPath, EnforcerSnapshot& snapOut) {
                  (unsigned long)kr.last_pid);
         gLastKillLine = std::string(line) + NarrowExe(kr.last_exe);
         gLastKillExe = NarrowExe(kr.last_exe);
+        gLastKillReason = "arm";
       }
     }
   } else {
@@ -113,6 +124,15 @@ void TickKills(const std::wstring& dbPath, EnforcerSnapshot& snapOut) {
 }  // namespace
 
 int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, volatile bool* stop) {
+  // Single owner: two interactive enforcers both Tick() and double-write sessions.
+  HANDLE ownerMu = CreateMutexW(nullptr, FALSE, L"Local\\CALT_EnforcerSingleOwner");
+  if (!ownerMu) return 1;
+  DWORD wait = WaitForSingleObject(ownerMu, 0);
+  if (wait != WAIT_OBJECT_0 && wait != WAIT_ABANDONED) {
+    CloseHandle(ownerMu);
+    return 2;  // another enforcer already owns tracking
+  }
+
   ClaimOwnerLock(lockPath);
   // LocalSystem (Session 0) cannot see interactive FG — spawn user-session agent.
   const bool useTrackerAgent = TrackerNeedsUserSessionAgent();
@@ -135,6 +155,7 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
   ProductivityStoreOpen(dbPath);
   ProductivityMigrateAndImport(softlandPath);
   DayLoopEnsureSchema();
+  RoadmapEnsureTables();
   std::wstring dataDir = behaviorDir;
   {
     // One-time Bible JSON → SQLite unlock history (idempotent if tables already filled).
@@ -165,6 +186,48 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
       }
     } else {
       sessions.Tick();
+    }
+    {
+      WorkSessionTickResult session = TickWorkSession(behaviorDir);
+      if (session.killed > 0 && !session.last_exe.empty()) {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        char line[256];
+        snprintf(line, sizeof(line), "%04u-%02u-%02u %02u:%02u:%02u kill pid=%lu exe=", st.wYear,
+                 st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+                 (unsigned long)session.last_pid);
+        gLastKillLine = std::string(line) + NarrowExe(session.last_exe) + " reason=session";
+        gLastKillExe = NarrowExe(session.last_exe);
+        gLastKillReason = "session";
+      }
+    }
+    {
+      AppLimitTickResult limits = TickAppTimeLimits(dbPath, behaviorDir);
+      if (limits.killed > 0 && !limits.last_exe.empty()) {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        char line[256];
+        snprintf(line, sizeof(line), "%04u-%02u-%02u %02u:%02u:%02u kill pid=%lu exe=", st.wYear,
+                 st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+                 (unsigned long)limits.last_pid);
+        gLastKillLine = std::string(line) + NarrowExe(limits.last_exe) + " reason=time_up";
+        gLastKillExe = NarrowExe(limits.last_exe);
+        gLastKillReason = "time_up";
+      }
+    }
+    {
+      GateWatchTickResult gate = TickGateWatch(behaviorDir);
+      if (gate.killed > 0 && !gate.last_exe.empty()) {
+        SYSTEMTIME st;
+        GetLocalTime(&st);
+        char line[256];
+        snprintf(line, sizeof(line), "%04u-%02u-%02u %02u:%02u:%02u kill pid=%lu exe=", st.wYear,
+                 st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+                 (unsigned long)gate.last_pid);
+        gLastKillLine = std::string(line) + NarrowExe(gate.last_exe) + " reason=gate_dead";
+        gLastKillExe = NarrowExe(gate.last_exe);
+        gLastKillReason = "gate_dead";
+      }
     }
 
     bool softland = false;
@@ -207,6 +270,8 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
     sessions.Flush();
   }
   ReleaseOwnerLock(lockPath);
+  ReleaseMutex(ownerMu);
+  CloseHandle(ownerMu);
   return 0;
 }
 

@@ -104,6 +104,7 @@ int FocusApp::Run(HINSTANCE instance) {
   tray_->SetOnSettings([this]() { OpenSettings(); });
   tray_->SetOnCalendar([this]() { OpenCalendar(); });
   tray_->SetOnPlan([this]() { OpenPlan(); });
+  tray_->SetOnRoadmap([this]() { OpenRoadmap(); });
   tray_->SetOnProductivity([this]() { OpenCalendar(); });
   tray_->SetOnReloadUi([this]() { ReloadUi(); });
   tray_->SetOnUpdateUi([this]() { UpdateUi(); });
@@ -274,6 +275,10 @@ LRESULT FocusApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     PushStatusTick();
     return 0;
   }
+  if (msg == WebViewHost::WM_ENFORCER_CMD_RESULT) {
+    WebViewHost::DeliverEnforcerCmdResult(lParam);
+    return 0;
+  }
   if (msg == WM_FOCUS_SHELL) {
     switch (wParam) {
       case SHELL_RELOAD_UI:
@@ -370,7 +375,41 @@ bool FocusApp::BibleDoneTodayFromMirror() const {
   GetLocalTime(&st);
   char today[16];
   sprintf_s(today, "%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
-  const std::string needle = std::string("\"bible_done_for_date\":\"") + today + "\"";
+  const int minutes = st.wHour * 60 + st.wMinute;
+  auto dated = [&](const char* key) {
+    return body.find(std::string("\"") + key + "\":\"" + today + "\"") != std::string::npos;
+  };
+  if (!dated("bible_done_for_date")) return false;
+  if (minutes >= 12 * 60 && !dated("bible_afternoon_for_date")) return false;
+  if (minutes >= 17 * 60 && !dated("bible_evening_for_date")) return false;
+  return true;
+}
+
+bool FocusApp::PlanConfirmedTodayFromMirror() const {
+  const std::wstring path = SoftlandPolicyPath();
+  HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) return false;
+  LARGE_INTEGER sz{};
+  if (!GetFileSizeEx(h, &sz) || sz.QuadPart <= 0 || sz.QuadPart > 2 * 1024 * 1024) {
+    CloseHandle(h);
+    return false;
+  }
+  std::string body(static_cast<size_t>(sz.QuadPart), '\0');
+  DWORD n = 0;
+  const BOOL ok = ReadFile(h, body.data(), static_cast<DWORD>(body.size()), &n, nullptr);
+  CloseHandle(h);
+  if (!ok || n == 0) return false;
+  body.resize(n);
+  if (body.find("\"plan_confirmed\":true") == std::string::npos &&
+      body.find("\"plan_confirmed\": true") == std::string::npos) {
+    return false;
+  }
+  SYSTEMTIME st{};
+  GetLocalTime(&st);
+  char today[16];
+  sprintf_s(today, "%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
+  const std::string needle = std::string("\"plan_confirmed_for_date\":\"") + today + "\"";
   return body.find(needle) != std::string::npos;
 }
 
@@ -378,15 +417,43 @@ void FocusApp::OpenBible() {
   NavigateShell(BibleUrl());
 }
 
+void FocusApp::OpenRoadmap() {
+  EnsurePrebuiltUiReady();
+  const std::wstring url = RoadmapUrl();
+  if (url.empty()) {
+    if (tray_) {
+      tray_->ShowBalloon(L"CALT Focus", L"Math → ML roadmap missing (frontend/jp-roadmap).");
+    }
+    return;
+  }
+  ShowFocusWindow(true);
+  if (webview_ && webview_->Ready()) {
+    webview_->Navigate(url);
+  }
+}
+
 void FocusApp::WakeOpenBibleGate() {
   EnsureEnforcer();
-  const bool bibleDone = BibleDoneTodayFromMirror();
   ShowFocusWindow(true);
-  if (!bibleDone) {
+  if (!BibleDoneTodayFromMirror()) {
     OpenBible();
     if (tray_) {
-      tray_->ShowBalloon(L"CALT Focus",
-                         L"Morning chapter first — read, then mark done.");
+      SYSTEMTIME st{};
+      GetLocalTime(&st);
+      const wchar_t* line = L"Morning chapter first — read, then mark done.";
+      if (st.wHour >= 17)
+        line = L"Evening chapter — read, then mark done.";
+      else if (st.wHour >= 12)
+        line = L"Afternoon chapter — read, then mark done.";
+      tray_->ShowBalloon(L"CALT Focus", line);
+    }
+    return;
+  }
+  if (!PlanConfirmedTodayFromMirror()) {
+    ShowFocusWindow(true);
+    if (webview_ && webview_->Ready()) webview_->Navigate(PlanUrl());
+    if (tray_) {
+      tray_->ShowBalloon(L"CALT Focus", L"Finish today's plan, then the day opens.");
     }
   }
 }
@@ -470,6 +537,7 @@ bool FocusApp::EnsurePrebuiltUiReady() {
     // Solo-pack: SoftLand / status JSON readable without :8000
     webview_->MapBehaviorData(DataBehaviorDir());
     webview_->MapBibleData(DataBibleDir());
+    webview_->MapLearnRoadmap(JpRoadmapDir());
     SetEnvironmentVariableW(L"CALT_FOCUS_UI_MODE", nullptr);
     return true;
   }
@@ -665,7 +733,7 @@ bool StartEnforcerService() {
 
 void FocusApp::RestartEnforcer() {
   if (tray_) {
-    tray_->ShowBalloon(L"CALT Focus", L"Restarting enforcer (desktop tracker)…");
+    tray_->ShowBalloon(L"CALT Focus", L"Restarting CALT (enforcer + UI)…");
   }
 
   // Prefer graceful service stop; then force-kill any leftover console instance.
@@ -706,14 +774,15 @@ void FocusApp::RestartEnforcer() {
 
   Sleep(1500);
   RefreshTrayTip();
+  // Same product surface: bring the shell back with fresh mirrors after the pipe is up.
+  ReloadUi();
   const EnforcerBadge b = ReadEnforcerBadge();
   if (tray_) {
-    std::wstring body = L"Enforcer: ";
+    std::wstring body = L"CALT: enforcer ";
     body += b.LiveLabel();
-    body += L" · Tracker: ";
-    body += b.LiveLabel();
+    body += L" · UI reloaded";
     if (!ok && !b.ok) {
-      body = L"Restart attempted — still DOWN. Run install_native_enforcer.ps1 as Admin.";
+      body = L"Restart attempted — still DOWN. Run scripts\\run\\_redeploy_calt_stack.ps1 as Admin.";
     }
     tray_->ShowBalloon(L"CALT Focus", body.c_str());
   }
@@ -795,10 +864,19 @@ void FocusApp::OpenProductivity() {
 }
 
 void FocusApp::OpenSettings() {
+  // Planning / Bible lock: Settings waits until the day is open.
+  if (!BibleDoneTodayFromMirror() || !PlanConfirmedTodayFromMirror()) {
+    WakeOpenBibleGate();
+    return;
+  }
   NavigateShell(SettingsUrl());
 }
 
 void FocusApp::OpenCalendar() {
+  if (!BibleDoneTodayFromMirror() || !PlanConfirmedTodayFromMirror()) {
+    WakeOpenBibleGate();
+    return;
+  }
   NavigateShell(CalendarUrl());
 }
 
@@ -1118,8 +1196,66 @@ void FocusApp::RefreshTrayTip() {
       kill_toast_primed_ = true;
     } else if (b.last_kill_exe != last_kill_toast_) {
       last_kill_toast_ = b.last_kill_exe;
-      std::wstring body = L"Closed: " + b.last_kill_exe + L" — hard block is armed.";
+      const wchar_t* why = L"hard block is armed.";
+      if (b.last_kill_reason == L"time_up") why = L"today's time is up.";
+      else if (b.last_kill_reason == L"session") why = L"outside this work session.";
+      std::wstring body = L"Closed: " + b.last_kill_exe + L" — " + why;
       tray_->ShowBalloon(L"CALT blocked an app", body.c_str());
+    }
+  }
+
+  // Amazfit CALT Sync → hub writes wearables_ping.json; surface on Focus tray.
+  {
+    const std::wstring ping_path = DataBehaviorDir() + L"\\wearables_ping.json";
+    HANDLE h = CreateFileW(ping_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h != INVALID_HANDLE_VALUE) {
+      char buf[2048]{};
+      DWORD n = 0;
+      const BOOL readOk = ReadFile(h, buf, sizeof(buf) - 1, &n, nullptr);
+      CloseHandle(h);
+      if (readOk && n > 0) {
+        buf[n] = 0;
+        std::string id;
+        const char* id_key = strstr(buf, "\"id\"");
+        if (id_key) {
+          const char* colon = strchr(id_key, ':');
+          if (colon) {
+            const char* q1 = strchr(colon, '"');
+            if (q1) {
+              const char* q2 = strchr(q1 + 1, '"');
+              if (q2 && q2 > q1 + 1) {
+                id.assign(q1 + 1, q2);
+              }
+            }
+          }
+        }
+        std::string message = "Watch ping";
+        const char* msg_key = strstr(buf, "\"message\"");
+        if (msg_key) {
+          const char* colon = strchr(msg_key, ':');
+          if (colon) {
+            const char* q1 = strchr(colon, '"');
+            if (q1) {
+              const char* q2 = strchr(q1 + 1, '"');
+              if (q2 && q2 > q1 + 1) {
+                message.assign(q1 + 1, static_cast<size_t>(q2 - (q1 + 1)));
+                if (message.size() > 120) message.resize(120);
+              }
+            }
+          }
+        }
+        if (!id.empty()) {
+          if (!wearables_ping_primed_) {
+            last_wearables_ping_id_ = id;
+            wearables_ping_primed_ = true;
+          } else if (id != last_wearables_ping_id_) {
+            last_wearables_ping_id_ = id;
+            std::wstring wmsg(message.begin(), message.end());
+            tray_->ShowBalloon(L"CALT Sync", wmsg.c_str());
+          }
+        }
+      }
     }
   }
 }
@@ -1143,6 +1279,26 @@ std::string ReadUtf8File(const std::wstring& path) {
 }  // namespace
 
 void FocusApp::PushStatusTick() {
+  if (webview_ && webview_->Ready()) {
+    SYSTEMTIME st{};
+    GetLocalTime(&st);
+    char today[16];
+    sprintf_s(today, "%04d-%02d-%02d", st.wYear, st.wMonth, st.wDay);
+    const char* slot = "plan";
+    if (!BibleDoneTodayFromMirror()) {
+      slot = st.wHour >= 17 ? "evening" : st.wHour >= 12 ? "afternoon" : "morning";
+    } else if (PlanConfirmedTodayFromMirror()) {
+      slot = "";
+    }
+    static std::string woke;
+    if (slot[0]) {
+      const std::string key = std::string(today) + ":" + slot;
+      if (woke != key) {
+        woke = key;
+        WakeOpenBibleGate();
+      }
+    }
+  }
   if (!webview_ || !webview_->Ready()) return;
   const std::string status = ReadUtf8File(EnforcerStatusPath());
   const std::string softland = ReadUtf8File(SoftlandPolicyPath());

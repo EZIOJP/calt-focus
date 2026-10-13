@@ -73,6 +73,7 @@ int main() {
   std::string msg;
   while (ReadMessage(msg)) {
     if (HasType(msg, "ping")) {
+      TouchGateHeartbeat("ping");
       WriteMessage(R"({"type":"pong","ok":true,"host":"calt_msg_host","softland":true,"track":true})");
       continue;
     }
@@ -80,10 +81,12 @@ int main() {
       std::string url = ExtractJsonString(msg, "url");
       std::string now = ExtractJsonString(msg, "now");
       SoftlandModeResult r = SoftlandGetMode(url, now);
+      TouchGateHeartbeat("get_mode");
       WriteMessage(SoftlandModeResultToJson(r));
       continue;
     }
     if (HasType(msg, "get_softland_doc")) {
+      TouchGateHeartbeat("get_softland_doc");
       WriteMessage(SoftlandGateSnapshotJson());
       continue;
     }
@@ -98,8 +101,94 @@ int main() {
         domain = end == std::string::npos ? url.substr(start) : url.substr(start, end - start);
       }
       bool ok = TrackTabToSqlite(url, title, domain);
+      if (ok) TouchGateHeartbeat(HasType(msg, "track_heartbeat") ? "track_heartbeat" : "track_tab");
       WriteMessage(ok ? R"({"type":"track_tab","ok":true})"
                       : R"({"type":"track_tab","ok":false,"error":"db_write_failed"})");
+      continue;
+    }
+    if (HasType(msg, "set_quinn_prefs") || HasType(msg, "get_quinn_prefs")) {
+      std::wstring policy = SoftlandPolicyPathW();
+      size_t slash = policy.find_last_of(L"\\/");
+      std::wstring dir = (slash == std::wstring::npos) ? L"." : policy.substr(0, slash);
+      CreateDirectoryW(dir.c_str(), nullptr);
+      std::wstring path = dir + L"\\quinn_dashboard.json";
+      if (HasType(msg, "get_quinn_prefs")) {
+        FILE* rf = nullptr;
+#if defined(_MSC_VER)
+        _wfopen_s(&rf, path.c_str(), L"rb");
+#else
+        rf = _wfopen(path.c_str(), L"rb");
+#endif
+        if (!rf) {
+          WriteMessage(
+              R"({"type":"get_quinn_prefs","ok":true,"appeals_enabled":true,"source":"default"})");
+          continue;
+        }
+        std::string body;
+        char buf[512];
+        while (size_t n = fread(buf, 1, sizeof(buf), rf)) body.append(buf, n);
+        fclose(rf);
+        if (body.empty()) {
+          WriteMessage(
+              R"({"type":"get_quinn_prefs","ok":true,"appeals_enabled":true,"source":"empty"})");
+        } else {
+          bool en = body.find("\"appeals_enabled\":false") == std::string::npos &&
+                    body.find("\"appeals_enabled\": false") == std::string::npos;
+          WriteMessage(std::string("{\"type\":\"get_quinn_prefs\",\"ok\":true,\"source\":\"file\",") +
+                       "\"appeals_enabled\":" + (en ? "true" : "false") + ",\"document\":" + body +
+                       "}");
+        }
+        continue;
+      }
+      // set_quinn_prefs — compact dashboard mirror for Focus / Gate.
+      bool en = msg.find("\"appeals_enabled\":false") == std::string::npos &&
+                msg.find("\"appeals_enabled\": false") == std::string::npos;
+      SYSTEMTIME st;
+      GetSystemTime(&st);
+      char iso[40];
+      snprintf(iso, sizeof(iso), "%04u-%02u-%02uT%02u:%02u:%02uZ", st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+      std::string out = std::string("{\"appeals_enabled\":") + (en ? "true" : "false") +
+                        ",\"updated_at\":\"" + iso + "\",\"source\":\"gate\"}\n";
+      std::wstring tmp = dir + L"\\quinn_dashboard.json.tmp";
+      FILE* f = nullptr;
+#if defined(_MSC_VER)
+      _wfopen_s(&f, tmp.c_str(), L"wb");
+#else
+      f = _wfopen(tmp.c_str(), L"wb");
+#endif
+      if (!f) {
+        WriteMessage(R"({"type":"set_quinn_prefs","ok":false,"error":"write_failed"})");
+        continue;
+      }
+      fwrite(out.data(), 1, out.size(), f);
+      fclose(f);
+      MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+      WriteMessage(std::string("{\"type\":\"set_quinn_prefs\",\"ok\":true,\"appeals_enabled\":") +
+                   (en ? "true" : "false") + "}");
+      continue;
+    }
+    if (HasType(msg, "log_appeal")) {
+      // Append one JSON line for Focus / Quinn appeal trail (best-effort).
+      std::wstring policy = SoftlandPolicyPathW();
+      size_t slash = policy.find_last_of(L"\\/");
+      std::wstring dir = (slash == std::wstring::npos) ? L"." : policy.substr(0, slash);
+      CreateDirectoryW(dir.c_str(), nullptr);
+      std::wstring path = dir + L"\\porn_appeals.jsonl";
+      FILE* f = nullptr;
+#if defined(_MSC_VER)
+      _wfopen_s(&f, path.c_str(), L"ab");
+#else
+      f = _wfopen(path.c_str(), L"ab");
+#endif
+      if (f) {
+        fwrite(msg.data(), 1, msg.size(), f);
+        fputc('\n', f);
+        fclose(f);
+        WriteMessage(R"({"type":"log_appeal","ok":true})");
+      } else {
+        WriteMessage(R"({"type":"log_appeal","ok":false,"error":"write_failed"})");
+      }
       continue;
     }
     if (HasType(msg, "softland_path")) {

@@ -23,6 +23,12 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& no
 /** Resolve path to softland_policy.json (env CALT_DATA_DIR / CALT_ROOT / walk from exe). */
 std::wstring SoftlandPolicyPathW();
 
+/**
+ * Touch data/productivity/behavior/gate_heartbeat.json so the enforcer knows
+ * Gate / msg_host is alive. Call on every successful native message.
+ */
+void TouchGateHeartbeat(const char* source);
+
 std::string SoftlandModeResultToJson(const SoftlandModeResult& r);
 
 /**

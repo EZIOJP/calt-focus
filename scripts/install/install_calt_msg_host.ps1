@@ -29,8 +29,36 @@ $ids = @()
 if ($ExtensionIds -and $ExtensionIds.Count -gt 0) { $ids += $ExtensionIds }
 if ($ExtensionId) { $ids += $ExtensionId }
 $ids = $ids | Where-Object { $_ -and $_.Trim() } | Select-Object -Unique
+
+# Auto-detect unpacked Gate / SelfTracker ids from Edge (and Chrome) when none passed.
 if (-not $ids -or $ids.Count -eq 0) {
-  throw "Pass -ExtensionId <id> and/or -ExtensionIds @('id1','id2') for Gate + SelfTracker."
+  $prefPaths = @(
+    (Join-Path $env:LOCALAPPDATA "Microsoft\Edge\User Data\Default\Secure Preferences"),
+    (Join-Path $env:LOCALAPPDATA "Google\Chrome\User Data\Default\Secure Preferences")
+  )
+  $needle = @("calt-gate-extension", "selftracker-extension", "calt-gate", "selftracker")
+  foreach ($pref in $prefPaths) {
+    if (-not (Test-Path $pref)) { continue }
+    try {
+      $doc = Get-Content -Raw -Encoding UTF8 $pref | ConvertFrom-Json
+      $settings = $doc.extensions.settings
+      if (-not $settings) { continue }
+      foreach ($prop in $settings.PSObject.Properties) {
+        $path = [string]$prop.Value.path
+        if (-not $path) { continue }
+        foreach ($n in $needle) {
+          if ($path -like "*$n*") { $ids += $prop.Name; break }
+        }
+      }
+    } catch {
+      # Secure Preferences can be locked / odd-shaped — fall through to manual ids.
+    }
+  }
+  $ids = $ids | Where-Object { $_ -and $_.Trim() } | Select-Object -Unique
+}
+
+if (-not $ids -or $ids.Count -eq 0) {
+  throw "Pass -ExtensionId <id> and/or -ExtensionIds @('id1','id2') for Gate + SelfTracker (or load unpacked Gate in Edge first)."
 }
 
 $ExePath = (Resolve-Path $ExePath).Path

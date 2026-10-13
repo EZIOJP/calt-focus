@@ -7,6 +7,7 @@
 #include "plan_gate.h"
 #include "policy_db.h"
 #include "productivity_store.h"
+#include "roadmap_store.h"
 #include "softland_publish.h"
 
 #include <windows.h>
@@ -14,13 +15,70 @@
 
 #include <cctype>
 #include <cstdio>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <vector>
 
 namespace {
 
-HANDLE gPipe = INVALID_HANDLE_VALUE;
+// Pool of listening instances — a single listener made concurrent CreateFile
+// callers hit ERROR_PIPE_BUSY (calendar then painted sleep-only).
+constexpr int kPipePoolSize = 6;
+HANDLE gPipePool[kPipePoolSize];
+bool gPipePoolInit = false;
 const wchar_t* kPipeName = L"\\\\.\\pipe\\calt_enforcer_cmd";
+
+SECURITY_ATTRIBUTES* PipeSa(SECURITY_ATTRIBUTES* sa, PSECURITY_DESCRIPTOR* sdOut) {
+  *sdOut = nullptr;
+  if (ConvertStringSecurityDescriptorToSecurityDescriptorW(
+          L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;IU)(A;;GA;;;AU)", SDDL_REVISION_1, sdOut, nullptr) &&
+      *sdOut) {
+    sa->nLength = sizeof(*sa);
+    sa->lpSecurityDescriptor = *sdOut;
+    sa->bInheritHandle = FALSE;
+    return sa;
+  }
+  return nullptr;
+}
+
+HANDLE CreateListeningPipe() {
+  SECURITY_ATTRIBUTES sa{};
+  PSECURITY_DESCRIPTOR sd = nullptr;
+  SECURITY_ATTRIBUTES* psa = PipeSa(&sa, &sd);
+  // NOWAIT so ConnectNamedPipe in the kill loop never blocks the service tick.
+  // Read spin below absorbs Focus's CreateFile→WriteFile gap.
+  HANDLE h = CreateNamedPipeW(kPipeName, PIPE_ACCESS_DUPLEX,
+                              PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_NOWAIT,
+                              PIPE_UNLIMITED_INSTANCES, 64 * 1024, 64 * 1024, 0, psa);
+  if (sd) LocalFree(sd);
+  if (h != INVALID_HANDLE_VALUE) {
+    ConnectNamedPipe(h, nullptr);  // arm listen
+  }
+  return h;
+}
+
+void EnsurePipePool() {
+  if (!gPipePoolInit) {
+    for (int i = 0; i < kPipePoolSize; ++i) gPipePool[i] = INVALID_HANDLE_VALUE;
+    gPipePoolInit = true;
+  }
+  for (int i = 0; i < kPipePoolSize; ++i) {
+    if (gPipePool[i] == INVALID_HANDLE_VALUE) {
+      gPipePool[i] = CreateListeningPipe();
+    }
+  }
+}
+
+void RecyclePipeSlot(int idx) {
+  if (idx < 0 || idx >= kPipePoolSize) return;
+  HANDLE old = gPipePool[idx];
+  gPipePool[idx] = CreateListeningPipe();
+  if (old != INVALID_HANDLE_VALUE) {
+    DisconnectNamedPipe(old);
+    CloseHandle(old);
+  }
+}
 
 std::string IsoLocalNow() {
   SYSTEMTIME st;
@@ -380,12 +438,29 @@ std::string SaveAndPublish(ProductivitySoftland& s, const std::wstring& behavior
 
 bool OpNeedsFreeDay(const std::string& op, const std::string& payload) {
   (void)payload;
-  // Session-first: work sessions, plan/routines, goals stay open every day.
   // Arm / kill-list / device-block / SoftLand master toggle need free day or day pass.
+  // Plan/routines: free day OR initial planning of a new day (see OpIsPlanRoutineEdit).
   // SoftLand site/schedule/mode patches: free day OR morning lock cleared (see HandleOp).
   return op == "arm.set" || op == "app_limits.set" || op == "softland.set_enabled" ||
          op == "device_block.save" || op == "device_block.apply" || op == "device_block.remove" ||
          op == "pending.add";
+}
+
+bool OpIsPlanRoutineEdit(const std::string& op) {
+  return op == "plan.upsert" || op == "plan.delete" || op == "plan.clear_day" ||
+         op == "plan.import_from_date" || op == "routine.upsert" || op == "routine.delete" ||
+         op == "routine.apply";
+}
+
+/**
+ * Initial planning of a new day: today's plan is not confirmed yet.
+ * Confirm plan, or auto-confirm after Bible plus a real today plan, closes it.
+ * Load failure stays open so the write can return its own store error.
+ */
+bool InitialDayPlanningOpen() {
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return true;
+  return !DayLoopPlanConfirmedToday(s.document_json);
 }
 
 bool OpNeedsMorningClearOrFreeDay(const std::string& op) {
@@ -403,8 +478,12 @@ std::string HandleOp(const std::string& op, const std::string& payload,
 
   // Arm / SoftLand master / device-block wait for free day or day pass.
   // SoftLand site/schedule/mode: free day OR morning ritual cleared (bible + plan if required).
-  // Work sessions, plan/routines, goals (planning on/off), Bible, journal stay open.
+  // Plan/routines: open during initial planning of a new day, and on a free day.
+  // After today's plan is confirmed, those edits need a free day or day pass.
+  // Work sessions, goals, Bible, journal, and sleep (set_bedtime) stay open.
   if (OpNeedsFreeDay(op, payload) && !ProductivityFreeDayOpen()) return "free_day_required";
+  if (OpIsPlanRoutineEdit(op) && !ProductivityFreeDayOpen() && !InitialDayPlanningOpen())
+    return "free_day_required";
   if (OpNeedsMorningClearOrFreeDay(op) && !ProductivityFreeDayOpen()) {
     ProductivitySoftland gateSoft;
     if (!ProductivityLoadSoftland(gateSoft) ||
@@ -468,6 +547,42 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     if (!JsonGetInt(payload, "id", &idInt)) return "bad_payload";
     if (!DayLoopTaskDelete(idInt, userId)) return "task_delete_failed";
     PublishDayLoopMirror(behaviorDir);
+    return "";
+  }
+  // Focus dashboard: Quinn / Qwen appeals on|off (Gate reads quinn_dashboard.json).
+  if (op == "quinn.set") {
+    bool en = true;
+    JsonGetBool(payload, "appeals_enabled", &en);
+    SYSTEMTIME st;
+    GetSystemTime(&st);
+    char iso[40];
+    snprintf(iso, sizeof(iso), "%04u-%02u-%02uT%02u:%02u:%02uZ", st.wYear, st.wMonth, st.wDay,
+             st.wHour, st.wMinute, st.wSecond);
+    std::string body = std::string("{\"appeals_enabled\":") + (en ? "true" : "false") +
+                       ",\"updated_at\":\"" + iso + "\",\"source\":\"focus\"}\n";
+    if (!WriteBehaviorMirrorFile(behaviorDir, L"quinn_dashboard.json", body)) {
+      return "quinn_write_failed";
+    }
+    if (extraOut) {
+      *extraOut = std::string(",\"appeals_enabled\":") + (en ? "true" : "false");
+    }
+    return "";
+  }
+  if (op == "quinn.get") {
+    std::ifstream in((behaviorDir + L"\\quinn_dashboard.json").c_str(), std::ios::binary);
+    bool en = true;
+    if (in) {
+      std::ostringstream ss;
+      ss << in.rdbuf();
+      std::string body = ss.str();
+      if (body.find("\"appeals_enabled\":false") != std::string::npos ||
+          body.find("\"appeals_enabled\": false") != std::string::npos) {
+        en = false;
+      }
+    }
+    if (extraOut) {
+      *extraOut = std::string(",\"appeals_enabled\":") + (en ? "true" : "false");
+    }
     return "";
   }
   if (op == "softland.set_bedtime") {
@@ -668,7 +783,35 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     std::string raw;
     if (!JsonGetRaw(payload, key, &raw)) return "bad_payload";
     if (!RawJsonAcceptable(raw, '{', 16 * 1024)) return "bad_payload";
+    std::string keptAft, keptEve;
+    if (op == "softland.patch_goals") {
+      std::string oldGoals;
+      if (JsonGetRaw(s.document_json, "goals", &oldGoals)) {
+        JsonGetString(oldGoals, "bible_afternoon_for_date", &keptAft);
+        JsonGetString(oldGoals, "bible_evening_for_date", &keptEve);
+      }
+    }
     if (!ProductivityReplaceJsonValue(s.document_json, key, raw)) return "policy_key_missing";
+    if (op == "softland.patch_goals") {
+      std::string goals;
+      if (!JsonGetRaw(s.document_json, "goals", &goals)) return "policy_key_missing";
+      if (!ProductivityReplaceJsonValue(goals, "planning_enabled", "true")) {
+        if (goals.size() > 2) goals.insert(goals.size() - 1, ",\"planning_enabled\":true");
+      }
+      auto keepDate = [&](const char* field, const std::string& kept) {
+        if (kept.empty()) return;
+        std::string cur;
+        JsonGetString(goals, field, &cur);
+        if (!cur.empty()) return;
+        const std::string lit = std::string("\"") + kept + "\"";
+        if (!ProductivityReplaceJsonValue(goals, field, lit) && goals.size() > 2) {
+          goals.insert(goals.size() - 1, std::string(",\"") + field + "\":" + lit);
+        }
+      };
+      keepDate("bible_afternoon_for_date", keptAft);
+      keepDate("bible_evening_for_date", keptEve);
+      if (!ProductivityReplaceJsonValue(s.document_json, "goals", goals)) return "policy_key_missing";
+    }
     return SaveAndPublish(s, behaviorDir);
   }
   if (op == "softland.set_reward_day") {
@@ -1071,6 +1214,57 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     if (slash != std::wstring::npos) dataDir = dataDir.substr(0, slash);
     std::wstring bibleDir = dataDir + L"\\bible";
 
+    // Math→ML roadmap progress (productivity.db + jp_roadmap.json mirror).
+    if (op == "roadmap.get") {
+      int userId = 1;
+      JsonGetInt(payload, "user_id", &userId);
+      if (userId <= 0) userId = 1;
+      RoadmapEnsureTables();
+      if (extraOut) {
+        *extraOut = ",\"document\":" + RoadmapGetDocumentJson(userId) + ",\"summary\":" +
+                    RoadmapSummaryJson(userId);
+      }
+      return "";
+    }
+    if (op == "roadmap.save") {
+      int userId = 1;
+      JsonGetInt(payload, "user_id", &userId);
+      if (userId <= 0) userId = 1;
+      std::string doc;
+      if (!JsonGetRaw(payload, "document", &doc) || !RawJsonAcceptable(doc, '{', 512 * 1024))
+        return "bad_payload";
+      if (!RoadmapSaveDocument(userId, doc, behaviorDir)) return "store_save_failed";
+      if (extraOut) *extraOut = ",\"summary\":" + RoadmapSummaryJson(userId);
+      return "";
+    }
+    if (op == "roadmap.log_attempt") {
+      int userId = 1;
+      std::string topicId, mode, prompt;
+      int level = 0, timeMs = 0;
+      bool correct = false;
+      JsonGetInt(payload, "user_id", &userId);
+      if (userId <= 0) userId = 1;
+      JsonGetString(payload, "topic_id", &topicId);
+      JsonGetInt(payload, "level", &level);
+      JsonGetBool(payload, "correct", &correct);
+      JsonGetInt(payload, "time_ms", &timeMs);
+      JsonGetString(payload, "mode", &mode);
+      JsonGetString(payload, "prompt", &prompt);
+      if (topicId.empty()) return "bad_payload";
+      if (!RoadmapLogAttempt(userId, topicId, level, correct, timeMs, mode, prompt))
+        return "store_save_failed";
+      return "";
+    }
+    if (op == "roadmap.attempts") {
+      int userId = 1;
+      int limit = 30;
+      JsonGetInt(payload, "user_id", &userId);
+      JsonGetInt(payload, "limit", &limit);
+      if (userId <= 0) userId = 1;
+      if (extraOut) *extraOut = ",\"attempts\":" + RoadmapRecentAttemptsJson(limit, userId);
+      return "";
+    }
+
     if (op == "journal.summary") {
       std::string day;
       int userId = 1;
@@ -1157,6 +1351,7 @@ std::string HandleOp(const std::string& op, const std::string& payload,
       if (userId <= 0) userId = 1;
       JsonGetString(payload, "slot", &slot);
       JsonGetBool(payload, "done", &done);
+      if (done && !LifeBibleDevotionSlotOpen(slot)) return "slot_not_open";
       std::string out;
       if (!LifeBibleDevotionDone(userId, slot, done, bibleDir, behaviorDir, &out))
         return "devotion_failed";
@@ -1369,47 +1564,6 @@ std::string HandleOp(const std::string& op, const std::string& payload,
   return "unknown_op";
 }
 
-void EnsurePipe() {
-  if (gPipe != INVALID_HANDLE_VALUE) return;
-  // LocalSystem service default DACL denies interactive user clients (Focus /
-  // msg-host / scripts) — Access denied (5). Allow SYSTEM + Admins + Interactive
-  // + Authenticated Users to connect on this machine-local control pipe.
-  PSECURITY_DESCRIPTOR sd = nullptr;
-  SECURITY_ATTRIBUTES* psa = nullptr;
-  SECURITY_ATTRIBUTES sa{};
-  if (ConvertStringSecurityDescriptorToSecurityDescriptorW(
-          L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;IU)(A;;GA;;;AU)", SDDL_REVISION_1, &sd, nullptr) &&
-      sd) {
-    sa.nLength = sizeof(sa);
-    sa.lpSecurityDescriptor = sd;
-    sa.bInheritHandle = FALSE;
-    psa = &sa;
-  }
-  // Two instances: one live listener + one spare while recycling (no listen gap).
-  // PIPE_NOWAIT: never block the kill/track loop waiting for a client.
-  gPipe = CreateNamedPipeW(kPipeName, PIPE_ACCESS_DUPLEX,
-                           PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_NOWAIT, 2, 64 * 1024,
-                           64 * 1024, 0, psa);
-  if (sd) LocalFree(sd);
-}
-
-/**
- * Recycle the listening instance. Create the next listener BEFORE closing the
- * old handle so clients never see a gap (that gap was a common Focus timeout).
- */
-void ResetPipe() {
-  HANDLE old = gPipe;
-  gPipe = INVALID_HANDLE_VALUE;
-  EnsurePipe();
-  if (gPipe != INVALID_HANDLE_VALUE) {
-    ConnectNamedPipe(gPipe, nullptr);  // arm listen (may return ERROR_PIPE_CONNECTED)
-  }
-  if (old != INVALID_HANDLE_VALUE) {
-    DisconnectNamedPipe(old);
-    CloseHandle(old);
-  }
-}
-
 }  // namespace
 
 std::string GatewayApplyOp(const std::string& op, const std::string& payloadJson,
@@ -1417,36 +1571,62 @@ std::string GatewayApplyOp(const std::string& op, const std::string& payloadJson
   return HandleOp(op, payloadJson, behaviorDir, nullptr);
 }
 
-void CmdGatewayInit() {
-  EnsurePipe();
-  if (gPipe != INVALID_HANDLE_VALUE) ConnectNamedPipe(gPipe, nullptr);
-}
+void CmdGatewayInit() { EnsurePipePool(); }
 
 void CmdGatewayShutdown() {
-  if (gPipe != INVALID_HANDLE_VALUE) {
-    CloseHandle(gPipe);
-    gPipe = INVALID_HANDLE_VALUE;
+  if (!gPipePoolInit) return;
+  for (int i = 0; i < kPipePoolSize; ++i) {
+    if (gPipePool[i] != INVALID_HANDLE_VALUE) {
+      CloseHandle(gPipePool[i]);
+      gPipePool[i] = INVALID_HANDLE_VALUE;
+    }
   }
 }
 
 void CmdGatewayPoll(const std::wstring& behaviorDir) {
-  // Serve a burst of waiting clients, but stop as soon as no one is connected
-  // so we never open extra idle instances.
-  for (int n = 0; n < 4; ++n) {
-    EnsurePipe();
-    if (gPipe == INVALID_HANDLE_VALUE) return;
+  // Serve every connected pool slot. Keep multiple listeners armed so Focus +
+  // status probes + calendar overlay never starve on ERROR_PIPE_BUSY.
+  EnsurePipePool();
+  for (int slot = 0; slot < kPipePoolSize; ++slot) {
+    HANDLE pipe = gPipePool[slot];
+    if (pipe == INVALID_HANDLE_VALUE) {
+      RecyclePipeSlot(slot);
+      pipe = gPipePool[slot];
+      if (pipe == INVALID_HANDLE_VALUE) continue;
+    }
 
     BOOL connected =
-        ConnectNamedPipe(gPipe, nullptr) ? TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
+        ConnectNamedPipe(pipe, nullptr) ? TRUE : (GetLastError() == ERROR_PIPE_CONNECTED);
     if (!connected) {
-      return;  // still listening / no client
+      continue;  // still listening
     }
+
+    // Replace this slot's listener immediately so other clients can connect
+    // while we handle the request on `pipe`.
+    gPipePool[slot] = CreateListeningPipe();
 
     char buf[64 * 1024];
     DWORD read = 0;
-    if (!ReadFile(gPipe, buf, sizeof(buf) - 1, &read, nullptr) || read == 0) {
-      if (GetLastError() != ERROR_NO_DATA) ResetPipe();
-      return;
+    bool got = false;
+    // Allow Focus WebView→native hop (~tens of ms) before the first byte.
+    for (int spin = 0; spin < 200; ++spin) {
+      read = 0;
+      SetLastError(0);
+      if (ReadFile(pipe, buf, sizeof(buf) - 1, &read, nullptr) && read > 0) {
+        got = true;
+        break;
+      }
+      const DWORD err = GetLastError();
+      if (err == ERROR_NO_DATA || err == ERROR_IO_PENDING || err == ERROR_PIPE_LISTENING) {
+        Sleep(5);
+        continue;
+      }
+      break;
+    }
+    if (!got) {
+      DisconnectNamedPipe(pipe);
+      CloseHandle(pipe);
+      continue;
     }
     buf[read] = 0;
     std::string req(buf, read);
@@ -1477,8 +1657,9 @@ void CmdGatewayPoll(const std::wstring& behaviorDir) {
     }
 
     DWORD written = 0;
-    WriteFile(gPipe, out.data(), (DWORD)out.size(), &written, nullptr);
-    FlushFileBuffers(gPipe);
-    ResetPipe();
+    WriteFile(pipe, out.data(), (DWORD)out.size(), &written, nullptr);
+    FlushFileBuffers(pipe);
+    DisconnectNamedPipe(pipe);
+    CloseHandle(pipe);
   }
 }

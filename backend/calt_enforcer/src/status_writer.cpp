@@ -67,6 +67,7 @@ bool WriteEnforcerStatus(const std::wstring& statusPath, const EnforcerStatusSna
           "  \"pid\": %lu,\n"
           "  \"last_kill\": \"%s\",\n"
           "  \"last_kill_exe\": \"%s\",\n"
+          "  \"last_kill_reason\": \"%s\",\n"
           "  \"lock_present\": %s,\n"
           "  \"service_running\": %s,\n"
           "  \"armed\": %s,\n"
@@ -81,7 +82,8 @@ bool WriteEnforcerStatus(const std::wstring& statusPath, const EnforcerStatusSna
           "  \"updated_at\": \"%s\"\n"
           "}\n",
           snap.owns ? "true" : "false", snap.pid, JsonEscape(snap.last_kill).c_str(),
-          JsonEscape(snap.last_kill_exe).c_str(), snap.lock_present ? "true" : "false",
+          JsonEscape(snap.last_kill_exe).c_str(), JsonEscape(snap.last_kill_reason).c_str(),
+          snap.lock_present ? "true" : "false",
           snap.service_running ? "true" : "false", snap.armed ? "true" : "false",
           snap.locked ? "true" : "false", snap.incubation ? "true" : "false",
           JsonEscape(snap.policy_source).c_str(), snap.focus_running ? "true" : "false",

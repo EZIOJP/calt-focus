@@ -121,6 +121,7 @@ EnforcerBadge ReadEnforcerBadge() {
   if (b.last_kill_exe.empty()) {
     b.last_kill_exe = JsonString(body, "last_kill");
   }
+  b.last_kill_reason = JsonString(body, "last_kill_reason");
   b.updated_at = JsonString(body, "updated_at");
   return b;
 }

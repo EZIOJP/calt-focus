@@ -9,4 +9,6 @@ struct KillResult {
 };
 
 // Kill processes whose image name matches any of exes (case-insensitive).
-KillResult KillMatchingExes(const std::vector<std::wstring>& exes);
+// toastSuffix is the balloon tail after "Closed: <exe> — ". Null keeps the Arm wording.
+KillResult KillMatchingExes(const std::vector<std::wstring>& exes,
+                            const wchar_t* toastSuffix = nullptr);

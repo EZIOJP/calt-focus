@@ -143,6 +143,7 @@ Built-in watch/porn lists are **not** edited here.
 |---------|--------------|---------|---------|-------|
 | Block watch sites (Study / Free) | Live toggle | `softland.patch_mode_flags` → `mode_flags.*.block_watch_sites` | SoftLand decide `FlagsForMode` | SoftLand **live** |
 | SoftLand porn heuristic | Live toggle | `mode_flags.*.block_porn` | `LooksPorn` | SoftLand **live** |
+| Sensitivity | Default on | `mode_flags.*.block_sensitive` | `grok.com`, `grok.x.ai`, `reddit.com`, `redd.it`, `venice.ai` | SoftLand **live** |
 | Block social / keywords / other / Strict allowlist | **Hidden** (not in UI) | May still exist in JSON | **Not enforced** (inert) | Dead UX |
 | Save mode flags | Button | `softland.patch_mode_flags` | Gateway | SoftLand |
 
@@ -272,7 +273,7 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 
 | Control | Write path | Backend | Class |
 |---------|------------|---------|-------|
-| **Require Confirm plan** | `softland.patch_goals` `planning_enabled` | SoftLand decide + DayLoopTick skip plan phase when false | Goals |
+| **Require Confirm plan** | Forced on (`planning_enabled` true) | SoftLand decide + DayLoopTick. Bible morning, afternoon 12:00, evening 17:00, then Confirm | Goals |
 | Auto-apply routines on login | `localStorage` planning prefs | Read by app auth/bootstrap | Local |
 | Apply once (today) / Force apply | `routine.apply` | Enforcer planner routines → `plan_blocks.json` | Plan |
 | Clear today (Daily routines) | `plan.clear_day` | Deletes today's `planner_blocks` → `plan_blocks.json` | Plan |
@@ -280,21 +281,21 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 | Clear range days — Plan → Range | FE loops `plan.clear_day` | Clears blocks for selected days | Plan |
 | Knob rows (morning gate, etc.) | Read-only distraction gate / defaults | Often “—” in Focus | Display |
 
-When **Require Confirm plan** is off (default): Bible still runs; Confirm-plan overlay is hidden; after Bible, DayLoop auto-confirms plan and couples SoftLand+Arm. SoftLand decide treats plan as satisfied. Prefer Home **work sessions** as the daily focus loop; Plan/routines stay optional.
+When **Require Confirm plan** is off (default): Bible still runs; Confirm-plan overlay is hidden. After Bible, DayLoop auto-confirms and couples SoftLand+Arm only once today has at least one non-free planned minute. Until then the new day stays in planning and Arm stays off — yesterday's enforcer does not stay active past midnight. Apply, Clear, and New routines work in that window. After the plan confirms, those edits need a free day or day pass. Sleep save stays open. SoftLand decide treats the plan gate as satisfied. Prefer Home **work sessions** as the daily focus loop; Plan/routines stay optional.
 
 ### 7.3b LLM host — `FocusLlmHostPanel`
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
-| Use LLM for session Suggest + Jarvis | `localStorage` `calt:focus-llm-host:v1` | Hosted `/v1/chat/completions` (9Router / OpenRouter / custom) | Local |
-| Preset 9Router / OpenRouter / Custom | same | Default base URLs | Local |
+| Use LLM for session Suggest + Jarvis | `localStorage` `calt:focus-llm-host:v1` | Hosted `/v1/chat/completions` (Qwen/Ollama / OpenRouter / custom) | Local |
+| Preset Qwen / OpenRouter / Custom | same | Default: Ollama `http://127.0.0.1:11434/v1` + `qwen2.5:3b` | Local |
 | Base URL, model, Bearer (OpenRouter `sk-or-…`) | same | Keys stay in this browser / on the host you run | Local |
 | OpenRouter attribution | `HTTP-Referer` + `X-OpenRouter-Title` (+ legacy `X-Title`) | Optional rankings headers | Local |
 | Test host | GET `{base}/models` | Ping only (OpenRouter needs Bearer) | Diagnostic |
 
-**Indication:** `FocusAiStatusChip` in Settings LiveStatusStrip, Home mode header, Suggest rail, and LLM/Jarvis panels (OpenRouter / 9Router / off + optional ping).
+**Indication:** `FocusAiStatusChip` in Settings LiveStatusStrip, Home mode header, Suggest rail, and LLM/Jarvis panels (Qwen / OpenRouter / off + optional ping).
 
-Work session **Suggest** (Home allow/block rail) and **Jarvis** briefs call that host; on failure Suggest uses heuristics and Jarvis uses a canned line. See `services/llm_host/README.md`.
+Work session **Suggest** (Home allow/block rail) and **Jarvis** briefs/free chat call that host; on failure Suggest uses heuristics and Jarvis uses a canned/error line. See `services/llm_host/README.md`. Legacy 9Router prefs auto-migrate to local Qwen.
 
 ### 7.3c Jarvis — `FocusJarvisPanel`
 
@@ -310,7 +311,7 @@ Study voice_agent spirit (`jarvis` | `normal`). Default **Jarvis** picks Microso
 | Test voice / Stop | — | Speak sample / cancel | Local |
 | Auto morning brief | same | Once/day on Home | Local |
 | Run brief | LLM host chat or canned | No Study `:8000` | Local |
-| Command box | same UI | `focusCommands` → mirrors / enforcer / WhatsApp | Local |
+| Command box | same UI | `focusCommands` → mirrors / enforcer / email report | Local |
 | Mic (PTT) | same UI | Edge Web Speech (`focusStt`) | Local |
 
 Study voice_agent used **faster-whisper** (Python) when installed, else SpeechRecognition. Focus uses **Web Speech** in WebView2 (no Python STT process).
@@ -319,18 +320,18 @@ Commands: `help`, `brief`, `status`, `report`, `speak on|off`, `voice jarvis|nor
 
 Home also shows day-loop **Goals · todos** (`day.task_*`) plus Plan **side todos** (`productivity:goals:v1` `extraGoals`).
 
-### 7.3d WhatsApp daily report — `FocusWhatsAppReportPanel`
+### 7.3d Email daily report — `FocusEmailReportPanel`
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
-| Enable daily send | `localStorage` `calt:focus-whatsapp-report:v1` | Auto-open while Focus running | Local |
-| Members (name + E.164) | same (`members[]`) | One `wa.me` chat per member | Local |
+| Enable daily send | `localStorage` `calt:focus-email-report:v1` | Auto-open while Focus running | Local |
+| To | fixed `JPMASTILA12@gmail.com` | `mailto:` compose | Local |
 | Send time (local) | same | Once/day window (~20m) | Local |
 | Include top apps / todos | same | From `day_activities` / `day_loop` | Local |
-| Preview / **Send report** | — | Compose + open all member chats | Local |
+| Preview / **Send report** | — | Compose + open mail app | Local |
 | Home Send report | compact card | Same send path (testing) | Local |
 
-Opens WhatsApp with a prefilled report per member (tap Send). No Meta Business API / Study `:8000`.
+Opens the default mail client with a prefilled report to `JPMASTILA12@gmail.com` (tap Send). No WhatsApp / Meta Business API / Study `:8000`.
 
 ### 7.4 Demo — `DemoModePanel`
 
@@ -338,14 +339,16 @@ Shown **only outside** Focus desktop shell. Fake SoftLand clock via Study `:8000
 
 ### 7.5 Watch / Health — `WearablesSyncPanel` + sidebar **Health**
 
-**Primary:** Amazfit **CALT Sync 4.3** Dump & Send (or Auto every 3h) → Focus hub `:8765` → Life Tracker (`/life`).
+**Only path:** Amazfit **CALT Sync 4.3** Dump & Send (or Auto every 3h) → Focus hub `:8765` → Life Tracker (`/life`). Google Fit, Health Connect, and Study `:8000` are not accepted.
+
+Watch upload is `calt_sync_host` (`scripts\run\start_calt_sync_host.bat`), a separate process from the enforcer. It blocks on `:8765` and only works when a dump arrives. The watch still uploads on its own alarm (default every 3 hours).
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
-| Hub URL | `localStorage` `calt:wearables:hubUrl` | `scripts/run/wearables_hub.py` | Local |
+| Hub URL | `localStorage` `calt:wearables:hubUrl` | `calt_sync_host` on `:8765` | Local |
 | Ingest token | `localStorage` `calt:wearables:token` | Bearer / `X-CALT-Wearable-Key` | Local |
 | Auto sync | Watch `localStorage` + `@zos/alarm` | Dump & Send on wake | Watch |
-| Life / Health UI | — | `GET /api/life/daily/*` + mirrors | Hub read |
+| Life / Health UI | — | Focus mirrors `life_today.json` / `life_days/` / `life_history_14.json` (enforcer); hub ingest only | Mirror read |
 
 See [`docs/WEARABLES.md`](WEARABLES.md).
 

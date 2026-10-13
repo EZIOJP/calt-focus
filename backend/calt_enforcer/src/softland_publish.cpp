@@ -2,6 +2,7 @@
 
 #include "day_loop.h"
 #include "life_content.h"
+#include "life_mirrors.h"
 
 #include <windows.h>
 
@@ -131,6 +132,7 @@ void PublishFocusReadMirrors(const std::wstring& behaviorDir) {
   PublishDayStatusMirror(behaviorDir);
   PublishJournalMirrors(behaviorDir, 1);
   PublishPlanBlocksMirror(behaviorDir);
+  PublishLifeMirrors(behaviorDir);
   std::wstring dataDir = behaviorDir;
   const size_t slash = dataDir.find_last_of(L"\\/");
   if (slash != std::wstring::npos) dataDir = dataDir.substr(0, slash);

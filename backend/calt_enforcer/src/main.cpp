@@ -3,6 +3,7 @@
 #include "win_service.h"
 
 #include <windows.h>
+#include <winsvc.h>
 
 #include <iostream>
 #include <string>
@@ -151,6 +152,27 @@ int wmain(int argc, wchar_t** argv) {
         wcscmp(argv[i], L"--device-block-remove") == 0 ||
         wcscmp(argv[i], L"--device-block-refresh") == 0) {
       return DeviceBlockCliMain(behavior, argc, argv);
+    }
+  }
+
+  // Refuse console when the Windows service already owns the cmd pipe —
+  // a second listener makes Focus clients hang on plan.overlay (empty day).
+  {
+    SC_HANDLE scm = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (scm) {
+      SC_HANDLE svc = OpenServiceW(scm, L"CALTEnforcer", SERVICE_QUERY_STATUS);
+      if (svc) {
+        SERVICE_STATUS st{};
+        if (QueryServiceStatus(svc, &st) && st.dwCurrentState == SERVICE_RUNNING) {
+          std::wcerr << L"CALTEnforcer service is RUNNING — refuse console start "
+                        L"(dual pipe listeners break Focus calendar overlay).\n";
+          CloseServiceHandle(svc);
+          CloseServiceHandle(scm);
+          return 2;
+        }
+        CloseServiceHandle(svc);
+      }
+      CloseServiceHandle(scm);
     }
   }
 

@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <regex>
 #include <sstream>
 #include <string>
@@ -361,7 +362,61 @@ long long MergeSeconds(std::vector<Interval>& iv) {
   return total > 0 ? total : 0;
 }
 
+std::string JsonEscape(const std::string& s) {
+  std::string o;
+  o.reserve(s.size() + 8);
+  for (unsigned char c : s) {
+    if (c == '"' || c == '\\') {
+      o.push_back('\\');
+      o.push_back((char)c);
+    } else if (c >= 0x20) {
+      o.push_back((char)c);
+    }
+  }
+  return o;
+}
+
+struct AppBucket {
+  std::vector<Interval> iv;
+  std::string category;
+  int score = 35;
+  bool uncategorized = true;
+};
+
 }  // namespace
+
+/** Drop tracked_sessions older than retainDays (Focus SoT grows forever otherwise). */
+void PruneOldTrackedSessions(sqlite3* db, int retainDays) {
+  if (!db || retainDays < 7) return;
+  SYSTEMTIME localToday{};
+  GetLocalTime(&localToday);
+  localToday.wHour = 0;
+  localToday.wMinute = 0;
+  localToday.wSecond = 0;
+  localToday.wMilliseconds = 0;
+  FILETIME ft{};
+  SystemTimeToFileTime(&localToday, &ft);
+  ULARGE_INTEGER uli{};
+  uli.LowPart = ft.dwLowDateTime;
+  uli.HighPart = ft.dwHighDateTime;
+  uli.QuadPart -= (ULONGLONG)retainDays * 864000000000ULL;  // 100ns ticks
+  ft.dwLowDateTime = uli.LowPart;
+  ft.dwHighDateTime = uli.HighPart;
+  SYSTEMTIME localCut{};
+  FileTimeToSystemTime(&ft, &localCut);
+  SYSTEMTIME utcCut{};
+  if (!TzSpecificLocalTimeToSystemTime(nullptr, &localCut, &utcCut)) utcCut = localCut;
+  char cutoff[40];
+  snprintf(cutoff, sizeof(cutoff), "%04u-%02u-%02uT%02u:%02u:%02u.000Z", utcCut.wYear, utcCut.wMonth,
+           utcCut.wDay, utcCut.wHour, utcCut.wMinute, utcCut.wSecond);
+  sqlite3_stmt* st = nullptr;
+  if (sqlite3_prepare_v2(db, "DELETE FROM tracked_sessions WHERE start_time < ?;", -1, &st,
+                         nullptr) != SQLITE_OK)
+    return;
+  sqlite3_bind_text(st, 1, cutoff, -1, SQLITE_TRANSIENT);
+  sqlite3_step(st);
+  sqlite3_finalize(st);
+}
 
 void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) {
   EnsureRules(behaviorDir);
@@ -373,10 +428,15 @@ void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) 
     return;
   }
 
+  // 90-day retention — extension + desktop tracker INSERT forever without this.
+  PruneOldTrackedSessions(db, 90);
+
   const std::string today = LocalDateStr();
   std::string dayStartZ;
   std::string dayEndZ;
   LocalDayUtcBoundsZ(dayStartZ, dayEndZ);
+  const long long dayA = ParseIsoToUnixApprox(dayStartZ);
+  const long long dayB = ParseIsoToUnixApprox(dayEndZ);
 
   sqlite3_stmt* st = nullptr;
   const char* sql =
@@ -393,10 +453,11 @@ void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) 
   sqlite3_bind_text(st, 2, dayStartZ.c_str(), -1, SQLITE_TRANSIENT);
 
   std::vector<Interval> productive;
+  std::map<std::string, AppBucket> byApp;
   int sessionCount = 0;
   while (sqlite3_step(st) == SQLITE_ROW) {
     ++sessionCount;
-    sqlite3_int64 sid = sqlite3_column_int64(st, 0);
+    const char* sidTxt = reinterpret_cast<const char*>(sqlite3_column_text(st, 0));
     const char* app = reinterpret_cast<const char*>(sqlite3_column_text(st, 1));
     const char* title = reinterpret_cast<const char*>(sqlite3_column_text(st, 2));
     const char* cat = reinterpret_cast<const char*>(sqlite3_column_text(st, 3));
@@ -411,15 +472,18 @@ void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) 
       auto cl = ClassifySession(app ? app : "", title ? title : "");
       category = cl.first;
       score = cl.second;
-      sqlite3_stmt* up = nullptr;
-      if (sqlite3_prepare_v2(db,
-                             "UPDATE tracked_sessions SET category=?, category_source='native-rules' "
-                             "WHERE session_id=?;",
-                             -1, &up, nullptr) == SQLITE_OK) {
-        sqlite3_bind_text(up, 1, category.c_str(), -1, SQLITE_TRANSIENT);
-        sqlite3_bind_int64(up, 2, sid);
-        sqlite3_step(up);
-        sqlite3_finalize(up);
+      // session_id is TEXT (e.g. native-…); bind as text or category never sticks.
+      if (sidTxt && *sidTxt) {
+        sqlite3_stmt* up = nullptr;
+        if (sqlite3_prepare_v2(db,
+                               "UPDATE tracked_sessions SET category=?, category_source='native-rules' "
+                               "WHERE session_id=?;",
+                               -1, &up, nullptr) == SQLITE_OK) {
+          sqlite3_bind_text(up, 1, category.c_str(), -1, SQLITE_TRANSIENT);
+          sqlite3_bind_text(up, 2, sidTxt, -1, SQLITE_TRANSIENT);
+          sqlite3_step(up);
+          sqlite3_finalize(up);
+        }
       }
     } else {
       score = ScoreForCategory(category);
@@ -428,11 +492,31 @@ void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) 
     if (overrideVal == 1) score = (std::max)(score, gRules.threshold);
     if (overrideVal == 0) score = 0;
 
-    if (score < gRules.threshold) continue;
     long long a = ParseIsoToUnixApprox(start ? start : "");
     long long b = ParseIsoToUnixApprox(end && *end ? end : IsoLocalNow());
     if (b <= a) b = a + 1;  // point samples from track_tab → 1s credit
-    productive.push_back({a, b});
+    // Clip to local calendar day so Activities / rollup don't leak multi-day opens.
+    if (dayB > dayA) {
+      if (a < dayA) a = dayA;
+      if (b > dayB) b = dayB;
+    }
+    if (b <= a) continue;
+
+    std::string appKey = app && *app ? app : "unknown";
+    for (auto& c : appKey) c = (char)tolower((unsigned char)c);
+    AppBucket& bucket = byApp[appKey];
+    if (bucket.iv.empty()) {
+      bucket.category = category;
+      bucket.score = score;
+      bucket.uncategorized = (category.empty() || category == "Uncategorized");
+    } else if (score > bucket.score) {
+      bucket.category = category;
+      bucket.score = score;
+      bucket.uncategorized = (category.empty() || category == "Uncategorized");
+    }
+    bucket.iv.push_back({a, b});
+
+    if (score >= gRules.threshold) productive.push_back({a, b});
   }
   sqlite3_finalize(st);
   sqlite3_close(db);
@@ -467,6 +551,55 @@ void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) 
     }
   }
 
+  struct ActRow {
+    std::string key;
+    std::string label;
+    std::string category;
+    int score = 0;
+    long long seconds = 0;
+    bool uncategorized = true;
+  };
+  std::vector<ActRow> acts;
+  long long totalSec = 0;
+  int uncategorizedCount = 0;
+  acts.reserve(byApp.size());
+  for (auto& kv : byApp) {
+    long long sec = MergeSeconds(kv.second.iv);
+    if (sec <= 0) continue;
+    totalSec += sec;
+    ActRow row;
+    row.key = "app:" + kv.first;
+    row.label = kv.first;
+    row.category = kv.second.category.empty() ? "Uncategorized" : kv.second.category;
+    row.score = kv.second.score;
+    row.seconds = sec;
+    row.uncategorized = kv.second.uncategorized;
+    if (row.uncategorized) ++uncategorizedCount;
+    acts.push_back(std::move(row));
+  }
+  std::sort(acts.begin(), acts.end(),
+            [](const ActRow& x, const ActRow& y) { return x.seconds > y.seconds; });
+
+  std::ostringstream actJs;
+  actJs << "{\n"
+        << "  \"date\": \"" << today << "\",\n"
+        << "  \"updated_at\": \"" << IsoLocalNow() << "\",\n"
+        << "  \"total_seconds\": " << totalSec << ",\n"
+        << "  \"uncategorized_count\": " << uncategorizedCount << ",\n"
+        << "  \"source\": \"calt_enforcer\",\n"
+        << "  \"activities\": [\n";
+  for (size_t i = 0; i < acts.size(); ++i) {
+    const ActRow& r = acts[i];
+    actJs << "    {\"key\":\"" << JsonEscape(r.key) << "\",\"label\":\"" << JsonEscape(r.label)
+          << "\",\"kind\":\"app\",\"parent\":null,\"seconds\":" << r.seconds << ",\"category\":\""
+          << JsonEscape(r.category) << "\",\"productivity_score\":" << r.score
+          << ",\"uncategorized\":" << (r.uncategorized ? "true" : "false") << "}";
+    if (i + 1 < acts.size()) actJs << ",";
+    actJs << "\n";
+  }
+  actJs << "  ]\n}\n";
+  WriteFileUtf8(Join(behaviorDir, L"day_activities.json"), actJs.str());
+
   int prodMin = (int)(prodSec / 60);
   int focusGoal = 180;
   {
@@ -484,6 +617,7 @@ void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) 
      << "  \"updated_at\": \"" << IsoLocalNow() << "\",\n"
      << "  \"productive_minutes\": " << prodMin << ",\n"
      << "  \"productive_seconds\": " << prodSec << ",\n"
+     << "  \"total_seconds\": " << totalSec << ",\n"
      << "  \"threshold\": " << gRules.threshold << ",\n"
      << "  \"daily_focus_minutes\": " << focusGoal << ",\n"
      << "  \"session_count\": " << sessionCount << ",\n"

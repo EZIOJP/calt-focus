@@ -30,8 +30,13 @@ add_executable(calt_enforcer
   src/day_loop.cpp
   src/plan_gate.cpp
   src/life_content.cpp
+  src/life_mirrors.cpp
   src/device_block.cpp
   src/tracker_agent.cpp
+  src/app_limits.cpp
+  src/work_session.cpp
+  src/gate_watch.cpp
+  src/roadmap_store.cpp
   ${SQLITE_DIR}/sqlite3.c
 )
 target_include_directories(calt_enforcer PRIVATE src ${SQLITE_DIR})

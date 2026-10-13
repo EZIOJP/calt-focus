@@ -31,12 +31,14 @@ class FocusApp {
   bool WaitForPort(unsigned short port, DWORD timeoutMs);
   bool PortListening(unsigned short port);
   bool BibleDoneTodayFromMirror() const;
+  bool PlanConfirmedTodayFromMirror() const;
   void WakeOpenBibleGate();
   void OpenProductivity();
   void OpenSettings();
   void OpenCalendar();
   void OpenPlan();
   void OpenBible();
+  void OpenRoadmap();
   void NavigateShell(const std::wstring& url);
   void ReloadUi();
   void UpdateUi();
@@ -66,4 +68,6 @@ class FocusApp {
   std::string last_status_push_fp_;
   std::wstring last_kill_toast_;
   bool kill_toast_primed_ = false;
+  std::string last_wearables_ping_id_;
+  bool wearables_ping_primed_ = false;
 };

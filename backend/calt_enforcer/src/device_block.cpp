@@ -36,6 +36,7 @@ const char* kPornSeeds[] = {
     "imagefap.com",    "motherless.com",  "fapello.com",     "missav.com",
     "jable.tv",        "thisvid.com",     "xhamster2.com",   "xhamster3.com",
     "xvideos2.com",    "xnxx.tv",         "pornhub.org",     "pornhub.net",
+    "perchance.org",   "perchance.ai",
     nullptr,
 };
 

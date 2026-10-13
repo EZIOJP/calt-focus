@@ -24,6 +24,8 @@ class WebViewHost {
   bool MapBehaviorData(const std::wstring& folderAbsolute);
   // Map https://calt-bible.app → data/bible (WEB corpus for Focus reader).
   bool MapBibleData(const std::wstring& folderAbsolute);
+  // Map https://calt-learn.app → frontend/jp-roadmap (offline Math→ML).
+  bool MapLearnRoadmap(const std::wstring& folderAbsolute);
   void Resize();
   void Navigate(const std::wstring& url);
   /** Change only the hash (SPA) — no full document reload. */
@@ -36,6 +38,12 @@ class WebViewHost {
   bool BehaviorMapped() const { return behavior_mapped_; }
 
   HWND Parent() const { return parent_; }
+
+  /** Posted from enforcer worker → UI thread (see EnforcerCmdQueue). */
+  static constexpr UINT WM_ENFORCER_CMD_RESULT = WM_APP + 57;
+  /** Deliver a marshaled PostWebMessageAsJson payload. Returns true if consumed. */
+  static bool DeliverEnforcerCmdResult(LPARAM lParam);
+  static void SetEnforcerUiHwnd(HWND hwnd);
 
  private:
   void OnEnvironment(HRESULT hr, void* env);

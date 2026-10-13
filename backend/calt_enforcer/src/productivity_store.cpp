@@ -5,6 +5,7 @@
 
 #include <cctype>
 #include <cstdio>
+#include <ctime>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -698,7 +699,8 @@ bool ProductivityMigrateAndImport(const std::wstring& softlandJsonPath) {
           "    \"day_pass\": {\"date\": null, \"spent\": false, \"remaining_seconds\": 0},\n"
           "    \"reward_day_active\": false, \"earned_ledger_seconds\": 0},\n"
           "  \"goals\": {\"daily_focus_minutes\": 0, \"goal_met\": false, \"bible_done\": false,\n"
-          "    \"bible_done_for_date\": null, \"plan_confirmed_for_date\": null, \"plan_confirmed\": false},\n"
+          "    \"bible_done_for_date\": null, \"plan_confirmed_for_date\": null, \"plan_confirmed\": false,\n"
+          "    \"planning_enabled\": true},\n"
           "  \"mode_flags\": {}\n}\n";
     }
     std::string now = IsoLocalNow();
@@ -809,6 +811,13 @@ bool ProductivityPassGrantedToday() {
   std::string d = LocalDateStr();
   return ScalarInt("SELECT COUNT(*) FROM productivity_day_passes WHERE local_date = ?;", &d,
                    nullptr) > 0;
+}
+
+bool ProductivityFreeDayOpen() {
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return false;
+  if (s.reward_day_active) return true;
+  return ProductivityPassGrantedToday();
 }
 
 bool ProductivityInsertPass(const std::string& localDate, const std::string& weekStart) {
@@ -2027,9 +2036,31 @@ bool ProductivityRoutineUpsert(const std::string& payloadJson, int userId,
   return true;
 }
 
-bool ProductivityRoutineDelete(long long id, int userId) {
+bool ProductivityRoutineDelete(long long id, int userId, int* outBlocksCleared) {
+  if (outBlocksCleared) *outBlocksCleared = 0;
   if (!gDb || id <= 0) return false;
   ProductivityEnsurePlanner();
+
+  // Snapshot title/category before delete so today's applied instances can go too.
+  std::string title, category;
+  {
+    sqlite3_stmt* st = nullptr;
+    if (sqlite3_prepare_v2(gDb,
+                           "SELECT title, category FROM planner_routines WHERE id=? AND user_id=?;",
+                           -1, &st, nullptr) == SQLITE_OK) {
+      sqlite3_bind_int64(st, 1, id);
+      sqlite3_bind_int(st, 2, userId);
+      if (sqlite3_step(st) == SQLITE_ROW) {
+        const char* t = reinterpret_cast<const char*>(sqlite3_column_text(st, 0));
+        const char* c = reinterpret_cast<const char*>(sqlite3_column_text(st, 1));
+        if (t) title = t;
+        if (c) category = c;
+      }
+      sqlite3_finalize(st);
+    }
+  }
+  if (title.empty()) return false;
+
   sqlite3_stmt* st = nullptr;
   if (sqlite3_prepare_v2(gDb, "DELETE FROM planner_routines WHERE id=? AND user_id=?;", -1, &st,
                          nullptr) != SQLITE_OK) {
@@ -2041,6 +2072,51 @@ bool ProductivityRoutineDelete(long long id, int userId) {
   int changes = sqlite3_changes(gDb);
   sqlite3_finalize(st);
   if (!ok || changes <= 0) return false;
+
+  // Clear today's calendar instances created by Apply (same title + category).
+  SYSTEMTIME nowSt;
+  GetLocalTime(&nowSt);
+  char dayBuf[16];
+  snprintf(dayBuf, sizeof(dayBuf), "%04u-%02u-%02u", nowSt.wYear, nowSt.wMonth, nowSt.wDay);
+  auto dim = [](int y_, int m_) {
+    static const int mdays[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int n = mdays[m_];
+    if (m_ == 2 && ((y_ % 4 == 0 && y_ % 100 != 0) || (y_ % 400 == 0))) n = 29;
+    return n;
+  };
+  int y = nowSt.wYear, mo = nowSt.wMonth, d = nowSt.wDay;
+  int ny = y, nmo = mo, nd = d + 1;
+  if (nd > dim(ny, nmo)) {
+    nd = 1;
+    nmo += 1;
+    if (nmo > 12) {
+      nmo = 1;
+      ny += 1;
+    }
+  }
+  char nextDay[16];
+  snprintf(nextDay, sizeof(nextDay), "%04d-%02d-%02d", ny, nmo, nd);
+  std::string from = ToStoreTs(std::string(dayBuf) + "T00:00:00");
+  std::string toExclusive = ToStoreTs(std::string(nextDay) + "T00:00:00");
+
+  sqlite3_stmt* bst = nullptr;
+  if (sqlite3_prepare_v2(gDb,
+                         "DELETE FROM planner_blocks WHERE user_id=? AND title=? AND category=? "
+                         "AND status IN ('scheduled','in_progress') AND start_at < ? AND "
+                         "end_at > ?;",
+                         -1, &bst, nullptr) == SQLITE_OK) {
+    sqlite3_bind_int(bst, 1, userId);
+    sqlite3_bind_text(bst, 2, title.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(bst, 3, category.empty() ? "personal" : category.c_str(), -1,
+                      SQLITE_TRANSIENT);
+    sqlite3_bind_text(bst, 4, toExclusive.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(bst, 5, from.c_str(), -1, SQLITE_TRANSIENT);
+    if (sqlite3_step(bst) == SQLITE_DONE && outBlocksCleared) {
+      *outBlocksCleared = sqlite3_changes(gDb);
+    }
+    sqlite3_finalize(bst);
+  }
+
   ProductivityBumpSeq();
   return true;
 }
@@ -2418,26 +2494,120 @@ std::string ProductivityPlanOverlayJson(const std::string& fromIso, const std::s
   std::string from = ToStoreTs(fromIso);
   std::string to = ToStoreTs(toIso);
   sqlite3_stmt* st = nullptr;
+  // Newest-first so busy weeks don't drop today's browser rows at the ASC LIMIT.
   const char* sql =
       "SELECT session_id, start_time, end_time, source, category, app_name, window_title, "
       "task_id FROM tracked_sessions WHERE user_id=? AND start_time < ? AND "
       "(end_time IS NULL OR end_time = '' OR end_time > ?) "
-      "ORDER BY start_time ASC LIMIT 500;";
+      "ORDER BY start_time DESC LIMIT 800;";
   if (sqlite3_prepare_v2(gDb, sql, -1, &st, nullptr) != SQLITE_OK) {
     return "{\"sessions\":[],\"hour_slices\":[]}";
   }
   sqlite3_bind_int(st, 1, userId);
   sqlite3_bind_text(st, 2, to.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(st, 3, from.c_str(), -1, SQLITE_TRANSIENT);
-  std::string sessions = "[";
-  bool first = true;
+  std::vector<std::string> sessionParts;
+  auto isBrowserOverlayRow = [](const std::string& source, const std::string& app,
+                                const std::string& title) -> bool {
+    std::string src = source;
+    for (char& c : src) c = (char)tolower((unsigned char)c);
+    if (src == "extension" || src == "track_tab" || src == "browser" || src == "web" ||
+        src == "url" || src == "gate" || src == "native_messaging" || src == "selftracker")
+      return true;
+    std::string a = app;
+    for (char& c : a) c = (char)tolower((unsigned char)c);
+    // app_name like "msedge:youtube.com"
+    if (a.find(':') != std::string::npos) {
+      size_t colon = a.rfind(':');
+      if (colon != std::string::npos && colon + 1 < a.size() && a.find('.') != std::string::npos)
+        return true;
+    }
+    auto endsExe = [&](const char* name) {
+      size_t n = strlen(name);
+      return a == name || (a.size() == n + 4 && a.compare(0, n, name) == 0 && a.compare(n, 4, ".exe") == 0);
+    };
+    if (endsExe("chrome") || endsExe("msedge") || endsExe("msedgewebview2") || endsExe("firefox") ||
+        endsExe("brave") || endsExe("opera") || endsExe("vivaldi") || endsExe("iexplore") ||
+        endsExe("arc") || endsExe("zen") || endsExe("chromium"))
+      return true;
+    std::string t = title;
+    for (char& c : t) c = (char)tolower((unsigned char)c);
+    if (t.find("google chrome") != std::string::npos || t.find("microsoft edge") != std::string::npos ||
+        t.find("mozilla firefox") != std::string::npos || t.find("zen browser") != std::string::npos)
+      return true;
+    return false;
+  };
+  // Best-effort host from title / extension app_name for Home most-used sites.
+  auto siteFromOverlayRow = [](const std::string& source, const std::string& app,
+                               const std::string& title) -> std::string {
+    auto lower = [](std::string s) {
+      for (char& c : s) c = (char)tolower((unsigned char)c);
+      return s;
+    };
+    auto looksHost = [](const std::string& s) -> bool {
+      if (s.size() < 3 || s.size() > 80) return false;
+      if (s.find(' ') != std::string::npos || s.find(".exe") != std::string::npos) return false;
+      // Reject editor/file tokens scraped from titles (foo.plan.md, note.txt).
+      static const char* kBadExt[] = {".md", ".txt", ".json", ".log", ".cpp", ".h",
+                                     ".ts", ".tsx", ".js", ".jsx", ".py", ".rs", ".go",
+                                     ".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp",
+                                     ".dll", ".bat", ".ps1", ".css", ".html", ".map"};
+      for (const char* ext : kBadExt) {
+        const size_t n = strlen(ext);
+        if (s.size() >= n && s.compare(s.size() - n, n, ext) == 0) return false;
+      }
+      size_t dot = s.find('.');
+      if (dot == std::string::npos || dot == 0 || dot + 2 >= s.size()) return false;
+      // Require a plausible public suffix (letters only, 2–24).
+      size_t last = s.rfind('.');
+      if (last == std::string::npos || last + 1 >= s.size()) return false;
+      std::string tld = s.substr(last + 1);
+      if (tld.size() < 2 || tld.size() > 24) return false;
+      for (char c : tld) {
+        if (c < 'a' || c > 'z') return false;
+      }
+      return true;
+    };
+    std::string src = lower(source);
+    std::string a = lower(app);
+    // Desktop/selftracker often stores "msedge:youtube.com" / "chrome:github.com".
+    {
+      size_t colon = a.rfind(':');
+      if (colon != std::string::npos && colon + 1 < a.size()) {
+        std::string host = a.substr(colon + 1);
+        if (looksHost(host)) return host;
+      }
+    }
+    if ((src == "extension" || src == "track_tab" || src == "browser" || src == "web" ||
+         src == "url" || src == "selftracker") &&
+        looksHost(a))
+      return a;
+    if (looksHost(a)) return a;
+    // Scan title for a host-like token (github.com, docs.google.com, …).
+    std::string t = lower(title);
+    size_t i = 0;
+    while (i < t.size()) {
+      if (!((t[i] >= 'a' && t[i] <= 'z') || (t[i] >= '0' && t[i] <= '9'))) {
+        ++i;
+        continue;
+      }
+      size_t j = i;
+      while (j < t.size() &&
+             ((t[j] >= 'a' && t[j] <= 'z') || (t[j] >= '0' && t[j] <= '9') || t[j] == '.' ||
+              t[j] == '-'))
+        ++j;
+      std::string tok = t.substr(i, j - i);
+      if (tok.rfind("www.", 0) == 0) tok = tok.substr(4);
+      if (looksHost(tok)) return tok;
+      i = j ? j : i + 1;
+    }
+    return {};
+  };
   while (sqlite3_step(st) == SQLITE_ROW) {
     auto col = [&](int i) -> std::string {
       const char* p = reinterpret_cast<const char*>(sqlite3_column_text(st, i));
       return p ? p : "";
     };
-    if (!first) sessions += ",";
-    first = false;
     std::string sid = col(0);
     std::string start = ToApiIso(col(1));
     std::string end = ToApiIso(col(2));
@@ -2445,19 +2615,227 @@ std::string ProductivityPlanOverlayJson(const std::string& fromIso, const std::s
     std::string category = col(4);
     std::string app = col(5);
     std::string title = col(6);
-    if (title.size() > 80) title = title.substr(0, 80);
+    const bool browserRow = isBrowserOverlayRow(source, app, title);
+    std::string site = siteFromOverlayRow(source, app, title);
+    // Keep non-browser apps; keep labeled browser/site rows. Drop bare browser
+    // shells (msedge.exe with no host) — those are calendar noise.
+    if (browserRow && site.empty()) {
+      continue;
+    }
+    // Keep JSON lean — site-labeled rows don't need long titles for calendar paint.
+    if (!site.empty()) title.clear();
+    else if (title.size() > 48) title = title.substr(0, 48);
     bool hasTask = sqlite3_column_type(st, 7) != SQLITE_NULL;
     long long taskId = hasTask ? sqlite3_column_int64(st, 7) : 0;
-    sessions += "{\"session_id\":\"" + JsonEscape(sid) + "\",\"start_time\":\"" +
-                JsonEscape(start) + "\",\"end_time\":\"" + JsonEscape(end) + "\",\"source\":\"" +
-                JsonEscape(source) + "\",\"category\":" +
-                (category.empty() ? "null" : ("\"" + JsonEscape(category) + "\"")) +
-                ",\"app_name\":" + (app.empty() ? "null" : ("\"" + JsonEscape(app) + "\"")) +
-                ",\"window_title\":" +
-                (title.empty() ? "null" : ("\"" + JsonEscape(title) + "\"")) + ",\"task_id\":" +
-                (hasTask ? std::to_string(taskId) : "null") + "}";
+    sessionParts.push_back(
+        "{\"session_id\":\"" + JsonEscape(sid) + "\",\"start_time\":\"" + JsonEscape(start) +
+        "\",\"end_time\":\"" + JsonEscape(end) + "\",\"source\":\"" + JsonEscape(source) +
+        "\",\"category\":" + (category.empty() ? "null" : ("\"" + JsonEscape(category) + "\"")) +
+        ",\"app_name\":" + (app.empty() ? "null" : ("\"" + JsonEscape(app) + "\"")) +
+        ",\"window_title\":" + (title.empty() ? "null" : ("\"" + JsonEscape(title) + "\"")) +
+        ",\"site\":" + (site.empty() ? "null" : ("\"" + JsonEscape(site) + "\"")) +
+        ",\"task_id\":" + (hasTask ? std::to_string(taskId) : "null") + "}");
   }
   sqlite3_finalize(st);
+  std::string sessions = "[";
+  for (size_t i = sessionParts.size(); i > 0; --i) {
+    if (i != sessionParts.size()) sessions += ",";
+    sessions += sessionParts[i - 1];
+  }
+
+  // Inject Amazfit / CALT Sync sleep as calendar actuals (category Sleep).
+  {
+    const std::wstring beh = ProductivityCurrentBehaviorDir();
+    auto readUtf8 = [](const std::wstring& path) -> std::string {
+      std::ifstream in(path.c_str(), std::ios::binary);
+      if (!in) return {};
+      std::ostringstream ss;
+      ss << in.rdbuf();
+      return ss.str();
+    };
+    auto join = [](const std::wstring& a, const std::wstring& b) -> std::wstring {
+      if (a.empty()) return b;
+      if (a.back() == L'\\' || a.back() == L'/') return a + b;
+      return a + L"\\" + b;
+    };
+    auto extractNum = [](const std::string& body, const char* key, double& out) -> bool {
+      out = 0;
+      const std::string needle = std::string("\"") + key + "\"";
+      size_t p = body.find(needle);
+      if (p == std::string::npos) return false;
+      p = body.find(':', p + needle.size());
+      if (p == std::string::npos) return false;
+      ++p;
+      while (p < body.size() && (body[p] == ' ' || body[p] == '\t')) ++p;
+      if (p >= body.size() || body.compare(p, 4, "null") == 0) return false;
+      char* end = nullptr;
+      double v = strtod(body.c_str() + p, &end);
+      if (end == body.c_str() + p) return false;
+      out = v;
+      return true;
+    };
+    auto localDateOffset = [](int offsetDays) -> std::string {
+      time_t now = time(nullptr);
+      now += static_cast<time_t>(offsetDays) * 86400;
+      struct tm t {};
+#if defined(_MSC_VER)
+      localtime_s(&t, &now);
+#else
+      struct tm* p = localtime(&now);
+      if (p) t = *p;
+#endif
+      char buf[16];
+      snprintf(buf, sizeof(buf), "%04d-%02d-%02d", t.tm_year + 1900, t.tm_mon + 1, t.tm_mday);
+      return buf;
+    };
+    // Cover today ± 1 relative to query window mid (enough for day/week views).
+    for (int off = -8; off <= 1; ++off) {
+      const std::string day = localDateOffset(off);
+      if (day < from.substr(0, 10) && day + "T23:59:59" < from) continue;
+      // Load wearable for that day
+      std::string wear = readUtf8(join(join(beh, L"wearable_days"),
+                                       std::wstring(day.begin(), day.end()) + L".json"));
+      std::string mirror = readUtf8(join(beh, L"wearable_day.json"));
+      std::string sleepWin = readUtf8(join(beh, L"sleep_windows.json"));
+      double hours = 0;
+      double totalMin = 0;
+      std::string startIso;
+      std::string endIso;
+      // Prefer explicit sleep_windows for this day (match "date":"YYYY-MM-DD", not updated_at).
+      if (!sleepWin.empty()) {
+        const std::string dateKey = std::string("\"date\":\"") + day + "\"";
+        size_t dpos = sleepWin.find(dateKey);
+        if (dpos == std::string::npos) {
+          const std::string dateKeySp = std::string("\"date\": \"") + day + "\"";
+          dpos = sleepWin.find(dateKeySp);
+        }
+        if (dpos != std::string::npos) {
+          size_t wstart = sleepWin.rfind('{', dpos);
+          size_t wend = sleepWin.find('}', dpos);
+          if (wstart != std::string::npos && wend != std::string::npos && wend > wstart) {
+            std::string frag = sleepWin.substr(wstart, wend - wstart + 1);
+            auto extractStr = [&](const char* key) -> std::string {
+              const std::string needle = std::string("\"") + key + "\"";
+              size_t p = frag.find(needle);
+              if (p == std::string::npos) return {};
+              p = frag.find(':', p + needle.size());
+              if (p == std::string::npos) return {};
+              p = frag.find('"', p);
+              if (p == std::string::npos) return {};
+              size_t q = frag.find('"', p + 1);
+              if (q == std::string::npos) return {};
+              return frag.substr(p + 1, q - p - 1);
+            };
+            startIso = extractStr("start");
+            endIso = extractStr("end");
+          }
+        }
+      }
+      if (startIso.empty() || endIso.empty()) {
+        const std::string& src =
+            (!wear.empty() && wear.find("sleep") != std::string::npos) ? wear
+            : (!mirror.empty() && (off == 0 || mirror.find(day) != std::string::npos)) ? mirror
+                                                                                        : wear;
+        if (src.empty()) continue;
+        extractNum(src, "sleep_hours", hours);
+        double startMinWatch = -1;
+        double endMinWatch = -1;
+        size_t sleepObj = src.find("\"sleep\"");
+        if (sleepObj != std::string::npos) {
+          std::string frag = src.substr(sleepObj, 1200);
+          extractNum(frag, "total_min", totalMin);
+          extractNum(frag, "start_min", startMinWatch);
+          extractNum(frag, "end_min", endMinWatch);
+        }
+        auto addMins = [&](const std::string& ymd, int absMin, char* out, size_t outN) {
+          if (ymd.size() < 10 || outN < 20) {
+            if (outN) out[0] = 0;
+            return;
+          }
+          struct tm t {};
+          t.tm_year = atoi(ymd.c_str()) - 1900;
+          t.tm_mon = atoi(ymd.c_str() + 5) - 1;
+          t.tm_mday = atoi(ymd.c_str() + 8);
+          t.tm_isdst = -1;
+          time_t tt = mktime(&t);
+          if (tt == (time_t)-1) {
+            out[0] = 0;
+            return;
+          }
+          tt += static_cast<time_t>(absMin) * 60;
+#if defined(_MSC_VER)
+          localtime_s(&t, &tt);
+#else
+          {
+            struct tm* p = localtime(&tt);
+            if (p) t = *p;
+            else {
+              out[0] = 0;
+              return;
+            }
+          }
+#endif
+          snprintf(out, outN, "%04d-%02d-%02dT%02d:%02d:00", t.tm_year + 1900, t.tm_mon + 1,
+                   t.tm_mday, t.tm_hour, t.tm_min);
+        };
+        char sbuf[40] = {};
+        char ebuf[40] = {};
+        std::string base = day;
+        // Prefer watch local_date when present on the wearable mirror.
+        {
+          size_t p = src.find("\"local_date\"");
+          if (p != std::string::npos) {
+            size_t q1 = src.find('"', p + 12);
+            if (q1 != std::string::npos) {
+              size_t q2 = src.find('"', q1 + 1);
+              if (q2 != std::string::npos && q2 - q1 >= 11)
+                base = src.substr(q1 + 1, 10);
+            }
+          }
+        }
+        if (startMinWatch >= 0 && endMinWatch >= 0 && endMinWatch != startMinWatch) {
+          const int sAbs = (int)startMinWatch;
+          const int eAbs = (int)endMinWatch;
+          if (sAbs >= 1440 || eAbs >= 1440) {
+            addMins(base, sAbs, sbuf, sizeof(sbuf));
+            addMins(base, eAbs, ebuf, sizeof(ebuf));
+          } else if (eAbs <= sAbs) {
+            addMins(base, -(24 * 60 - sAbs), sbuf, sizeof(sbuf));
+            addMins(base, eAbs, ebuf, sizeof(ebuf));
+          } else {
+            addMins(base, sAbs, sbuf, sizeof(sbuf));
+            addMins(base, eAbs, ebuf, sizeof(ebuf));
+          }
+        } else {
+          int mins = 0;
+          if (totalMin > 0) mins = (int)(totalMin + 0.5);
+          else if (hours > 0) mins = (int)(hours * 60.0 + 0.5);
+          if (mins <= 0) continue;
+          if (mins > 16 * 60) mins = 16 * 60;
+          addMins(day, -(24 * 60 - 23 * 60), sbuf, sizeof(sbuf));
+          addMins(day, -(24 * 60 - 23 * 60) + mins, ebuf, sizeof(ebuf));
+        }
+        if (!sbuf[0] || !ebuf[0]) continue;
+        startIso = sbuf;
+        endIso = ebuf;
+      }
+      if (startIso.empty() || endIso.empty()) continue;
+      // Local wall → UTC store (compare to query bounds) → API Z for FE.
+      const std::string startStore = ToStoreTs(startIso);
+      const std::string endStore = ToStoreTs(endIso);
+      if (startStore.empty() || endStore.empty()) continue;
+      if (endStore <= from || startStore >= to) continue;
+      const std::string sleepId = "wearable-sleep-" + day;
+      if (sessions.find(sleepId) != std::string::npos) continue;
+      if (sessions.size() > 1) sessions += ",";
+      sessions += "{\"session_id\":\"" + JsonEscape(sleepId) +
+                  "\",\"start_time\":\"" + JsonEscape(ToApiIso(startStore)) +
+                  "\",\"end_time\":\"" + JsonEscape(ToApiIso(endStore)) +
+                  "\",\"source\":\"wearable_sleep\",\"category\":\"Sleep\","
+                  "\"app_name\":\"amazfit\",\"window_title\":\"Sleep\",\"site\":null,\"task_id\":null}";
+    }
+  }
+
   sessions += "]";
   return "{\"sessions\":" + sessions + ",\"hour_slices\":[]}";
 }

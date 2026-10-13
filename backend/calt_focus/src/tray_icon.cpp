@@ -124,10 +124,11 @@ void TrayIcon::PopupMenu() {
   AppendMenuW(menu, MF_STRING, ID_OPEN, L"Open Focus");
   AppendMenuW(menu, MF_STRING, ID_CALENDAR, L"Open Calendar");
   AppendMenuW(menu, MF_STRING, ID_PLAN, L"Open Plan");
+  AppendMenuW(menu, MF_STRING, ID_ROADMAP, L"Open Math \x2192 ML");
   AppendMenuW(menu, MF_STRING, ID_SETTINGS, L"Open Settings");
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, ID_RUN, L"Ensure enforcer + open");
-  AppendMenuW(menu, MF_STRING, ID_RESTART_ENFORCER, L"Restart enforcer (tracker)");
+  AppendMenuW(menu, MF_STRING, ID_RESTART_ENFORCER, L"Restart CALT (enforcer + UI)");
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, ID_RELOAD_UI, L"Reload UI");
   AppendMenuW(menu, MF_STRING, ID_UPDATE_UI, L"Update UI (rebuild + reload)");
@@ -204,6 +205,9 @@ LRESULT TrayIcon::HandleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
         return 0;
       case ID_PLAN:
         if (on_plan_) on_plan_();
+        return 0;
+      case ID_ROADMAP:
+        if (on_roadmap_) on_roadmap_();
         return 0;
       case ID_PROD:
         if (on_prod_) on_prod_();

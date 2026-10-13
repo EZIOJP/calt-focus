@@ -1,16 +1,24 @@
 /**
- * Health dumper — Dump captures, Send flushes queue.
- * Optional auto: watch alarm wakes this page every N hours (default 3) → Dump & Send.
+ * CALT Sync — one-tap Dump & Send.
+ * Optional auto: watch alarm wakes this page every N hours (default 3) → Sync.
  */
-import { createWidget, widget, align, text_style, prop } from '@zos/ui'
+import { createWidget, widget, prop } from '@zos/ui'
+import {
+  pauseDropWristScreenOff,
+  pausePalmScreenOff,
+  resetDropWristScreenOff,
+  resetPageBrightTime,
+  resetPalmScreenOff,
+  setPageBrightTime,
+} from '@zos/display'
 import { push } from '@zos/router'
 import { onGesture, offGesture, GESTURE_LEFT } from '@zos/interaction'
 import { localStorage } from '@zos/storage'
 import { log } from '@zos/utils'
-import { buildHealthSnapshot, snapshotSummary, sleepDisplayMinutes } from './sensors'
+import { buildHealthSnapshot, sleepDisplayMinutes } from './sensors'
 import { screen } from './layout'
 import { sidePayload } from '../shared/sidePayload'
-import { autoStatusLine, markAutoRan } from './autoAlarm'
+import { markAutoRan } from './autoAlarm'
 import {
   queueSnapshot,
   snapshotForDay,
@@ -20,26 +28,43 @@ import {
   loadChunkResume,
   saveChunkResume,
   clearChunkResume,
-  queuedDays,
-  queueDepth,
   pendingDays,
   markDaySynced,
-  lastSyncedDay,
-  gapDays,
 } from './queue'
 
 const logger = log.getLogger('calt-dump')
-const COLOR_OK = 0x88c0bb
-const COLOR_BUSY = 0xf0c674
-const COLOR_ERR = 0xff6666
-const COLOR_MUTED = 0xaaaaaa
+const AWAKE_MS = 10 * 60 * 1000
+const CHUNK_GAP_MS = 1800
 
-function bar(done, total) {
-  const n = Math.max(1, Number(total) || 1)
-  const d = Math.max(0, Math.min(n, Number(done) || 0))
-  let s = ''
-  for (let i = 0; i < n; i++) s += i < d ? '#' : '-'
-  return `[${s}] ${d}/${n}`
+function holdAwake() {
+  try {
+    setPageBrightTime({ brightTime: AWAKE_MS })
+  } catch (_) {}
+  try {
+    pauseDropWristScreenOff({ duration: AWAKE_MS })
+  } catch (_) {}
+  try {
+    pausePalmScreenOff({ duration: AWAKE_MS })
+  } catch (_) {}
+}
+
+function releaseAwake() {
+  try {
+    resetPageBrightTime()
+  } catch (_) {}
+  try {
+    resetDropWristScreenOff()
+  } catch (_) {}
+  try {
+    resetPalmScreenOff()
+  } catch (_) {}
+}
+
+function after(ms) {
+  return new Promise((resolve) => {
+    if (typeof setTimeout === 'function') setTimeout(resolve, ms)
+    else resolve()
+  })
 }
 
 function fmtSyncError(err, result) {
@@ -53,7 +78,7 @@ function fmtSyncError(err, result) {
   const raw = pieces.join(' · ')
   const d = raw.toLowerCase()
   if (d.includes('timed out') || d.includes('timeout')) {
-    return 'BLE timeout · keep watch + phone awake, tap Send again'
+    return 'BLE timeout · keep watch + phone awake, tap Sync again'
   }
   if (d.includes('localhost') || d.includes('127.0.0.1')) {
     return 'Use PC LAN IP in phone settings, not localhost'
@@ -64,12 +89,12 @@ function fmtSyncError(err, result) {
   if (d.includes('401') || d.includes('unauthorized')) {
     return 'Token rejected · calt-local-wearables'
   }
-  if (d.includes('413')) return 'Dump too large · retry Send (resumes chunk)'
+  if (d.includes('413')) return 'Dump too large · retry Sync (resumes chunk)'
   if (d.includes('network') || d.includes('-2') || (d.includes('fail') && d.includes('fetch'))) {
-    return 'Phone cannot reach PC · same Wi-Fi, hub :8765 or API :8000'
+    return 'Phone cannot reach PC · same Wi-Fi, hub :8765'
   }
   const short = raw.replace(/\s+/g, ' ').trim()
-  return (short || 'Send failed · swipe to log').slice(0, 96)
+  return (short || 'Sync failed · swipe to log').slice(0, 96)
 }
 
 function persistProgress(text) {
@@ -138,6 +163,7 @@ Page({
   },
 
   onDestroy() {
+    releaseAwake()
     try {
       offGesture()
     } catch (_) {}
@@ -146,296 +172,147 @@ Page({
   build() {
     const { messageBuilder } = getApp().globalData || getApp()._options.globalData || {}
     if (!messageBuilder) {
-      createWidget(widget.TEXT, {
-        x: 20,
-        y: 80,
-        w: 440,
-        h: 80,
-        color: 0xff6666,
-        text_size: 22,
-        align_h: align.CENTER_H,
-        text: 'BLE not ready — reopen app',
+      const S0 = screen()
+      createWidget(widget.FILL_RECT, {
+        x: 0,
+        y: 0,
+        w: S0.width,
+        h: S0.height,
+        color: 0x000000,
+      })
+      const size = Math.round(Math.min(S0.width, S0.height) * 0.62)
+      createWidget(widget.BUTTON, {
+        x: Math.round((S0.width - size) / 2),
+        y: Math.round((S0.height - size) / 2),
+        w: size,
+        h: size,
+        radius: Math.round(size / 2),
+        text: 'Wait',
+        color: 0xffffff,
+        text_size: Math.round(S0.width * 0.08),
+        normal_color: 0x111111,
+        press_color: 0x2a2a2a,
+        click_func: () => {},
       })
       return
     }
 
     const S = screen()
-    const { pad, contentW, width, height } = S
-    const btnH = Math.round(height * 0.14)
-    const gap = Math.round(pad * 0.35)
+    const { width, height } = S
+    const syncSize = Math.round(Math.min(width, height) * 0.62)
+    const syncX = Math.round((width - syncSize) / 2)
+    const syncY = Math.round((height - syncSize) / 2)
 
-    // Do not hit every sensor just to paint the home screen.
-    const queuedToday = snapshotForDay(localDateKey())
-    this._preview = queuedToday || null
+    createWidget(widget.FILL_RECT, {
+      x: 0,
+      y: 0,
+      w: width,
+      h: height,
+      color: 0x000000,
+    })
 
-    createWidget(widget.TEXT, {
-      x: pad,
-      y: Math.round(height * 0.06),
-      w: contentW,
-      h: Math.round(height * 0.07),
+    this.syncBtn = createWidget(widget.BUTTON, {
+      x: syncX,
+      y: syncY,
+      w: syncSize,
+      h: syncSize,
+      radius: Math.round(syncSize / 2),
+      text: 'Sync',
       color: 0xffffff,
-      text_size: Math.round(width * 0.055),
-      align_h: align.CENTER_H,
-      text: 'CALT Dump',
-    })
-
-    this.snapW = createWidget(widget.TEXT, {
-      x: pad,
-      y: Math.round(height * 0.14),
-      w: contentW,
-      h: Math.round(height * 0.16),
-      color: 0x88c0bb,
-      text_size: Math.round(width * 0.036),
-      align_h: align.CENTER_H,
-      text_style: text_style.WRAP,
-      text: queuedToday ? snapshotSummary(queuedToday) : 'Tap Dump today',
-    })
-
-    this.queueW = createWidget(widget.TEXT, {
-      x: pad,
-      y: Math.round(height * 0.30),
-      w: contentW,
-      h: Math.round(height * 0.06),
-      color: 0xf0c674,
-      text_size: Math.round(width * 0.03),
-      align_h: align.CENTER_H,
-      text_style: text_style.WRAP,
-      text: `Queue ${queueDepth()}/7 days`,
-    })
-
-    this.progressW = createWidget(widget.TEXT, {
-      x: pad,
-      y: Math.round(height * 0.36),
-      w: contentW,
-      h: Math.round(height * 0.06),
-      color: COLOR_MUTED,
-      text_size: Math.round(width * 0.03),
-      align_h: align.CENTER_H,
-      text_style: text_style.WRAP,
-      text: 'Idle',
-    })
-
-    this.statusW = createWidget(widget.TEXT, {
-      x: pad,
-      y: Math.round(height * 0.42),
-      w: contentW,
-      h: Math.round(height * 0.08),
-      color: COLOR_MUTED,
-      text_size: Math.round(width * 0.028),
-      align_h: align.CENTER_H,
-      text_style: text_style.WRAP,
-      text: 'Dump then Send',
-    })
-
-    this.autoW = createWidget(widget.TEXT, {
-      x: pad,
-      y: Math.round(height * 0.485),
-      w: contentW,
-      h: Math.round(height * 0.035),
-      color: 0x88c0bb,
-      text_size: Math.round(width * 0.026),
-      align_h: align.CENTER_H,
-      text_style: text_style.WRAP,
-      text: autoStatusLine(),
-    })
-
-    let y = Math.round(height * 0.52)
-    createWidget(widget.BUTTON, {
-      x: pad,
-      y,
-      w: contentW,
-      h: btnH,
-      radius: Math.round(btnH * 0.22),
-      text: 'Dump today',
-      text_size: Math.round(width * 0.045),
-      normal_color: 0x2a4a6a,
-      press_color: 0x1e364d,
-      click_func: () => this.doDump(),
-    })
-    y += btnH + gap
-
-    createWidget(widget.BUTTON, {
-      x: pad,
-      y,
-      w: contentW,
-      h: btnH,
-      radius: Math.round(btnH * 0.22),
-      text: 'Dump & Send',
-      text_size: Math.round(width * 0.045),
-      normal_color: 0x3d5a80,
-      press_color: 0x2c4160,
+      text_size: Math.round(width * 0.08),
+      normal_color: 0x111111,
+      press_color: 0x2a2a2a,
       click_func: () => {
-        this.doDump()
         this.doSend(messageBuilder)
       },
     })
-    y += btnH + gap
 
-    createWidget(widget.BUTTON, {
-      x: pad,
-      y,
-      w: contentW,
-      h: btnH,
-      radius: Math.round(btnH * 0.22),
-      text: 'Send queue',
-      text_size: Math.round(width * 0.045),
-      normal_color: 0x1a9b8e,
-      press_color: 0x147a70,
-      click_func: () => this.doSend(messageBuilder),
-    })
-    y += btnH + gap
-
-    // Auto-launch from alarm: dump + send once UI + BLE are ready.
     try {
       const g = getApp().globalData || (getApp()._options && getApp()._options.globalData) || {}
       if (g.autoLaunch) {
         g.autoLaunch = false
-        this.setStatus('Auto sync…', COLOR_BUSY)
         setTimeout(() => {
           try {
-            this.doDump()
             this.doSend(messageBuilder, { fromAuto: true })
           } catch (e) {
             logger.log(`auto ${e}`)
-            this.setError('Auto sync failed · tap Dump & Send')
+            this.setError('Retry')
           }
         }, 400)
       }
     } catch (_) {}
 
-    createWidget(widget.TEXT, {
-      x: pad,
-      y,
-      w: contentW,
-      h: Math.round(height * 0.06),
-      color: 0x666666,
-      text_size: Math.round(width * 0.028),
-      align_h: align.CENTER_H,
-      text: 'Swipe · settings / log',
-    })
-
     try {
-      const last = localStorage.getItem('calt_last_summary')
-      const err = localStorage.getItem('calt_last_error')
-      const prog = localStorage.getItem('calt_last_progress')
-      if (prog) this.setProgress(prog, COLOR_MUTED)
-      if (err) this.setError(err)
-      else if (last) this.setStatus(last, COLOR_MUTED)
+      if (localStorage.getItem('calt_last_error')) this.setButton('Retry')
     } catch (_) {}
   },
 
-  setProgress(text, color) {
+  setButton(text) {
+    if (!this.syncBtn) return
+    try {
+      this.syncBtn.setProperty(prop.TEXT, text || 'Sync')
+    } catch (_) {}
+  },
+
+  setProgress(text) {
     persistProgress(text)
-    if (!this.progressW) return
-    this.progressW.setProperty(prop.TEXT, text || 'Idle')
-    try {
-      this.progressW.setProperty(prop.COLOR, color == null ? COLOR_BUSY : color)
-    } catch (_) {}
+    this.setButton(text || 'Sync')
   },
 
-  setStatus(text, color) {
-    if (this.statusW) {
-      this.statusW.setProperty(prop.TEXT, text)
-      try {
-        this.statusW.setProperty(prop.COLOR, color == null ? COLOR_MUTED : color)
-      } catch (_) {}
-    }
-  },
+  setStatus() {},
 
   setError(text) {
     persistError(text)
-    this.setProgress('Failed · tap Send to retry', COLOR_ERR)
-    this.setStatus(text, COLOR_ERR)
+    this.setButton('Retry')
+    releaseAwake()
   },
 
   clearError() {
     persistError('')
   },
 
-  refreshQueueLabel() {
-    if (!this.queueW) return
-    const pending = pendingDays()
-    const mark = lastSyncedDay()
-    const tail = mark ? `thru ${mark}` : 'never synced'
-    this.queueW.setProperty(
-      prop.TEXT,
-      pending.length ? `Pending ${pending.length} · ${tail}` : `Up to date · ${tail}`,
-    )
-  },
-
-  doDump() {
-    this.clearError()
-    this.setProgress('Capturing sensors…', COLOR_BUSY)
-    this.setStatus('Please wait', COLOR_BUSY)
-    const health = buildHealthSnapshot('full')
-    this._preview = health
-    queueSnapshot(health, { force: true })
-    if (this.snapW) this.snapW.setProperty(prop.TEXT, snapshotSummary(health))
-    this.refreshQueueLabel()
-    this.setProgress('Queued today', COLOR_OK)
-    this.setStatus('Press Send queue', COLOR_OK)
-  },
-
   doSend(messageBuilder, opts) {
-    if (this._syncing) {
-      this.setStatus('Already sending…', COLOR_BUSY)
-      return
-    }
+    if (this._syncing) return
     const fromAuto = !!(opts && opts.fromAuto)
     this._syncing = true
     this.clearError()
-    this.setProgress('Starting…', COLOR_BUSY)
-    this.setStatus(fromAuto ? 'Auto sending…' : 'Sending to phone', COLOR_BUSY)
+    holdAwake()
+    this.setButton('…')
 
     const today = localDateKey()
-    // Ensure today exists if user forgot Dump
-    if (queuedDays().indexOf(today) < 0) {
-      const health = buildHealthSnapshot('full')
-      this._preview = health
-      queueSnapshot(health, { force: true })
-      if (this.snapW) this.snapW.setProperty(prop.TEXT, snapshotSummary(health))
-    }
+    const health = buildHealthSnapshot('full')
+    this._preview = health
+    queueSnapshot(health, { force: true })
 
-    // Oldest first, so a run always fills forward from the watermark to today.
     const days = pendingDays()
     const resume = loadChunkResume()
-    if (resume && resume.day && days.indexOf(resume.day) < 0) {
-      days.unshift(resume.day)
-    }
+    if (resume && resume.day && days.indexOf(resume.day) < 0) days.unshift(resume.day)
     if (!days.length) {
       this._syncing = false
-      this.setProgress('Idle', COLOR_MUTED)
-      this.setStatus('Nothing to send · Dump today first', COLOR_ERR)
+      this.setButton('Sync')
+      releaseAwake()
       return
     }
 
     const self = this
     let resumeApplied = false
-    const preview = this._preview || buildHealthSnapshot('full')
+    const preview = this._preview
+
+    const finish = () => {
+      clearChunkResume()
+      self._syncing = false
+      if (fromAuto) markAutoRan()
+      persistError('')
+      self.setButton('OK')
+      releaseAwake()
+      after(1200).then(() => {
+        if (!self._syncing) self.setButton('Sync')
+      })
+    }
 
     const runDay = (dayIndex) => {
       if (dayIndex >= days.length) {
-        clearChunkResume()
-        self._syncing = false
-        self.refreshQueueLabel()
-        self.setProgress(bar(days.length * 4, days.length * 4), COLOR_OK)
-        // Gaps are days the watch never captured. Sensors only report the
-        // current day, so no later run can recover them — say so instead of
-        // reporting a clean fill.
-        const gaps = gapDays(today)
-        if (fromAuto) markAutoRan()
-        if (self.autoW) {
-          try {
-            self.autoW.setProperty(prop.TEXT, autoStatusLine())
-          } catch (_) {}
-        }
-        self.setStatus(
-          gaps.length
-            ? `${fromAuto ? 'Auto · ' : ''}Sent ${days.length}d · ${gaps.length}d never captured`
-            : `${fromAuto ? 'Auto · ' : ''}Done · filled thru ${today}`,
-          gaps.length ? COLOR_BUSY : COLOR_OK,
-        )
-        persistError('')
+        finish()
         return
       }
       const day = days[dayIndex]
@@ -454,22 +331,17 @@ Page({
 
       const runPart = (partIndex) => {
         if (partIndex >= chunks.length) {
-          // Watermark advances only after every chunk of the day was ACKed.
           markDaySynced(day)
           removeQueuedSnapshot(day)
           saveChunkResume(days[dayIndex + 1] || '', 0)
-          self.refreshQueueLabel()
-          runDay(dayIndex + 1)
+          after(CHUNK_GAP_MS).then(() => runDay(dayIndex + 1))
           return
         }
+        holdAwake()
         const chunk = chunks[partIndex]
         const overall = dayIndex * chunks.length + partIndex + 1
-        const overallTotal = days.length * chunks.length
-        self.setProgress(
-          `Day ${dayIndex + 1}/${days.length} · ${chunk.label}\n${bar(partIndex + 1, chunks.length)}  all ${overall}/${overallTotal}`,
-          COLOR_BUSY,
-        )
-        self.setStatus(`${day} sending…`, COLOR_BUSY)
+        const overallTotal = Math.max(1, days.length * chunks.length)
+        self.setButton(`${overall}/${overallTotal}`)
         messageBuilder
           .request({
             method: 'SYNC',
@@ -498,31 +370,24 @@ Page({
             if (!result.healthOk) {
               saveChunkResume(day, partIndex)
               self._syncing = false
-              self.setError(
-                `${day} ${chunk.label} ${partIndex + 1}/${chunks.length} · ${fmtSyncError(null, result)}`,
-              )
+              logger.log(fmtSyncError(null, result))
+              self.setError('Retry')
               return
             }
             saveChunkResume(day, partIndex + 1)
-            self.setProgress(
-              `Day ${dayIndex + 1}/${days.length} · ${chunk.label} OK\n${bar(partIndex + 1, chunks.length)}`,
-              COLOR_OK,
-            )
-            runPart(partIndex + 1)
+            after(CHUNK_GAP_MS).then(() => runPart(partIndex + 1))
           })
           .catch((e) => {
             saveChunkResume(day, partIndex)
             self._syncing = false
-            self.setError(
-              `${day} ${chunk.label} ${partIndex + 1}/${chunks.length} · ${fmtSyncError(e, null)}`,
-            )
             logger.log(`send ${e}`)
+            self.setError('Retry')
           })
       }
 
       runPart(startPart)
     }
 
-    runDay(0)
+    after(600).then(() => runDay(0))
   },
 })

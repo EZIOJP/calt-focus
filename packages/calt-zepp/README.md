@@ -1,7 +1,7 @@
 # CALT Sync 4.3 — rich health dumper (Zepp OS 6)
 
-Watch app that dumps **rich body metrics** to the PC. Posts to the **Focus / tracker hub**
-(`:8765`) first, then falls back to Study FastAPI (`:8000`) if configured.
+Watch app that dumps **rich body metrics** to the PC. Posts only to the **Focus hub**
+(`:8765`).
 
 Watch stamps **calendar day + timezone offset** before BLE. Phone must not replace that with its own clock.
 
@@ -9,11 +9,9 @@ Watch stamps **calendar day + timezone offset** before BLE. Phone must not repla
 
 | Action | Behavior |
 |--------|----------|
-| **Dump today** | Capture full body snapshot into the local queue |
-| **Dump & Send** | Capture then flush queue in one tap |
-| **Send queue** | Upload queued days (hub → API fallback) |
-| **Auto sync** | Watch Settings → ON · alarm every 1/3/6/12h → Dump & Send |
-| **Test PC** | Settings → Test PC pings hub/API health |
+| **Sync** | One button on a black screen. Stays awake and sends every queued day through now, one chunk at a time |
+| **Auto sync** | Swipe → Auto / interval. Same send |
+| **Test PC** | Settings → same as Ping PC (health + notify) |
 
 ## Rich payload (`processed_v2`)
 
@@ -25,21 +23,11 @@ Chunks (5): Sleep · Activity · Heart · Series · Extras — resume-safe, idem
 
 ### Focus (recommended for Productivity)
 
-1. Run `calt-focus\scripts\run\start_wearables_hub.bat` (`:8765`).
+1. Run `scripts\run\start_calt_sync_host.bat` (`calt_sync_host` on `:8765`).
 2. Phone Zepp → **CALT Sync** settings:
    - **Base URL:** `http://<PC-LAN-IP>:8765`
-   - **API URL:** leave blank (Focus has no Study `:8000`)
    - **Ingest token:** `calt-local-wearables`
 3. Phone browser: `http://<IP>:8765/health`
-
-### Study (legacy dual stack)
-
-1. Prefer **desktop tracker** (hub `:8765`) **or** API only (`run.bat` `:8000`).
-2. Phone Zepp → **CALT Sync** settings:
-   - **Base URL:** `http://<PC-LAN-IP>:8765`
-   - **API URL:** leave blank (auto `http://<same-IP>:8000`) or set explicitly
-   - **Ingest token:** `calt-local-wearables`
-3. Phone browser: `http://<IP>:8765/health` and/or `http://<IP>:8000/health`
 
 ## Install
 
@@ -47,17 +35,19 @@ Chunks (5): Sleep · Activity · Heart · Series · Extras — resume-safe, idem
 packages\calt-zepp\sideload.bat
 ```
 
-Uninstall older CALT Sync first, then sideload **4.3.0**. Turn on **Auto sync** in watch Settings after the first successful Dump & Send.
+Uninstall older CALT Sync first, then sideload **4.4.0**. The watch face is one Sync button. Swipe for Auto / interval.
 
 ## Hub / API
 
 ```text
-POST /api/wearables/zepp
+POST /api/wearables/zepp          → ingest (Focus coerces + mirrors; stores wearable_raw/)
+POST /api/wearables/zepp/raw      → raw dump; Focus does all processing
+POST /api/wearables/zepp/ping     → connectivity ping → PC toast + wearables_ping.json
 GET  /api/wearables/zepp/health
-GET  /api/wearables/zepp/status   → categories inventory
+GET  /api/wearables/zepp/status   → categories inventory + last_ping
 ```
 
-Same routes on hub and FastAPI. Auth: `Authorization: Bearer <token>` + `X-CALT-Wearable-Key`.
+Auth: `Authorization: Bearer <token>` + `X-CALT-Wearable-Key`.
 
 ## Limits
 

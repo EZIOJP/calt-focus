@@ -208,18 +208,51 @@ const std::vector<std::string>& BuiltinWatch() {
   return k;
 }
 
-const std::vector<std::string>& BuiltinPornSuffix() {
-  static const std::vector<std::string> k = {".xxx", ".porn", ".sex"};
-  return k;
+// Single SoT: extensions/calt-gate-extension/data/host_seed.json → host_seed.generated.h
+#include "host_seed.generated.h"
+
+const std::vector<std::string>& BuiltinPornHosts() { return SeedPornHosts(); }
+
+const std::vector<std::string>& BuiltinPornSuffix() { return SeedPornSuffix(); }
+
+/** Sites that are not tubes but routinely surface adult content. */
+const std::vector<std::string>& BuiltinSensitiveHosts() { return SeedSensitiveHosts(); }
+
+bool LooksSensitive(const std::string& host) {
+  return ListMatch(host, BuiltinSensitiveHosts());
 }
 
 bool LooksPorn(const std::string& host) {
+  if (host.empty()) return false;
   for (const auto& s : BuiltinPornSuffix()) {
-    if (host.size() >= s.size() && host.compare(host.size() - s.size(), s.size(), s) == 0) return true;
+    if (host.size() >= s.size() && host.compare(host.size() - s.size(), s.size(), s) == 0)
+      return true;
   }
-  if (host.find("porn") != std::string::npos) return true;
-  if (host.find("xvideos") != std::string::npos) return true;
-  if (host.find("pornhub") != std::string::npos) return true;
+  if (ListMatch(host, BuiltinPornHosts())) return true;
+  // Whole-label match only (avoids Scunthorpe) — labels from host_seed.json.
+  {
+    std::string labels = host;
+    for (char& c : labels) {
+      if (c == '.' || c == '-') c = ' ';
+    }
+    std::string tok;
+    auto checkTok = [&](const std::string& t) {
+      if (t.size() < 3) return false;
+      for (const auto& lab : SeedPornLabels()) {
+        if (t == lab) return true;
+      }
+      return false;
+    };
+    for (size_t i = 0; i <= labels.size(); ++i) {
+      char c = i < labels.size() ? labels[i] : ' ';
+      if (c == ' ') {
+        if (checkTok(tok)) return true;
+        tok.clear();
+      } else {
+        tok.push_back(c);
+      }
+    }
+  }
   return false;
 }
 
@@ -397,6 +430,7 @@ bool DaysInclude(const std::string& winJson, int weekday) {
 struct ModeFlags {
   bool block_watch_sites = true;
   bool block_porn = true;
+  bool block_sensitive = true;
   bool block_social = true;
   bool block_keywords = true;
   bool block_other = true;
@@ -420,6 +454,7 @@ ModeFlags FlagsForMode(const std::string& body, const std::string& mode) {
     bool v = false;
     if (JsonBoolNear(section, "block_watch_sites", &v)) f.block_watch_sites = v;
     if (JsonBoolNear(section, "block_porn", &v)) f.block_porn = v;
+    if (JsonBoolNear(section, "block_sensitive", &v)) f.block_sensitive = v;
     if (JsonBoolNear(section, "block_social", &v)) f.block_social = v;
     if (JsonBoolNear(section, "block_keywords", &v)) f.block_keywords = v;
     if (JsonBoolNear(section, "block_other", &v)) f.block_other = v;
@@ -511,6 +546,36 @@ std::wstring SoftlandPolicyPathW() {
                   L"data\\productivity\\behavior\\softland_policy.json");
 }
 
+void TouchGateHeartbeat(const char* source) {
+  std::wstring policy = SoftlandPolicyPathW();
+  size_t slash = policy.find_last_of(L"\\/");
+  std::wstring dir = (slash == std::wstring::npos) ? L"." : policy.substr(0, slash);
+  CreateDirectoryW(dir.c_str(), nullptr);
+
+  SYSTEMTIME st;
+  GetSystemTime(&st);
+  char iso[40];
+  snprintf(iso, sizeof(iso), "%04u-%02u-%02uT%02u:%02u:%02uZ", st.wYear, st.wMonth, st.wDay,
+           st.wHour, st.wMinute, st.wSecond);
+
+  const char* src = (source && *source) ? source : "native";
+  std::string body = std::string("{\"ok\":true,\"source\":\"") + src + "\",\"at\":\"" + iso +
+                     "\"}\n";
+
+  std::wstring tmp = JoinPath(dir, L"gate_heartbeat.json.tmp");
+  std::wstring path = JoinPath(dir, L"gate_heartbeat.json");
+  FILE* f = nullptr;
+#if defined(_MSC_VER)
+  _wfopen_s(&f, tmp.c_str(), L"wb");
+#else
+  f = _wfopen(tmp.c_str(), L"wb");
+#endif
+  if (!f) return;
+  fwrite(body.data(), 1, body.size(), f);
+  fclose(f);
+  MoveFileExW(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+}
+
 // Active work session: only the chosen hosts (plus localhost). Returns true when
 // the session made the decision. Inactive sessions return false.
 bool WorkSessionSiteDecision(const std::wstring& policyPath, const std::string& url,
@@ -522,11 +587,16 @@ bool WorkSessionSiteDecision(const std::wstring& policyPath, const std::string& 
   if (body.empty()) return false;
   bool active = false;
   if (!JsonBoolNear(body, "active", &active) || !active) return false;
+  LocalNow now = LocalClock();
   std::string ends;
   JsonStringNear(body, "ends_at", &ends);
   if (!ends.empty() && ends != "null") {
-    LocalNow now = LocalClock();
     if (!IsoStillActive(ends, now.unix)) return false;
+  } else {
+    // Open-ended session from a previous calendar day must not block planning.
+    std::string started;
+    JsonStringNear(body, "started_at", &started);
+    if (started.size() >= 10 && started.compare(0, 10, now.ymd) < 0) return false;
   }
   std::vector<std::string> sites;
   ParseStringArrayNear(body, "sites", sites);
@@ -542,7 +612,9 @@ bool WorkSessionSiteDecision(const std::wstring& policyPath, const std::string& 
     r->interstitial = false;
     return true;
   }
-  if (host == "localhost" || host == "127.0.0.1" || ListMatch(host, sites)) {
+  if (host == "localhost" || host == "127.0.0.1" || host == "calt.app" ||
+      host == "calt-learn.app" || host == "calt-data.app" || host == "calt-bible.app" ||
+      ListMatch(host, sites)) {
     r->action = "allow";
     r->reason = "session_site";
     r->matched = host;
@@ -554,6 +626,45 @@ bool WorkSessionSiteDecision(const std::wstring& policyPath, const std::string& 
   r->matched = host;
   r->interstitial = true;
   return true;
+}
+
+struct DayRitual {
+  bool bible_today = false;
+  bool plan_today = false;
+  bool pending = false;
+  const char* reason = "";
+};
+
+/** Planning is required. Bible: morning always, afternoon from 12:00, evening from 17:00. */
+DayRitual ReadDayRitual(const std::string& goals, const LocalNow& now) {
+  DayRitual r;
+  bool bible_done = false;
+  bool plan_confirmed = false;
+  std::string bible_date, plan_date, aft, eve;
+  if (!goals.empty()) {
+    JsonBoolNear(goals, "bible_done", &bible_done);
+    JsonBoolNear(goals, "plan_confirmed", &plan_confirmed);
+    JsonStringNear(goals, "bible_done_for_date", &bible_date);
+    JsonStringNear(goals, "plan_confirmed_for_date", &plan_date);
+    JsonStringNear(goals, "bible_afternoon_for_date", &aft);
+    JsonStringNear(goals, "bible_evening_for_date", &eve);
+  }
+  r.bible_today = bible_done && bible_date == now.ymd;
+  r.plan_today = plan_confirmed && plan_date == now.ymd;
+  if (!r.bible_today) {
+    r.pending = true;
+    r.reason = "morning_bible";
+  } else if (now.minutes >= 12 * 60 && aft != now.ymd) {
+    r.pending = true;
+    r.reason = "afternoon_bible";
+  } else if (now.minutes >= 17 * 60 && eve != now.ymd) {
+    r.pending = true;
+    r.reason = "evening_bible";
+  } else if (!r.plan_today) {
+    r.pending = true;
+    r.reason = "morning_plan";
+  }
+  return r;
 }
 
 SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*now_iso_opt*/) {
@@ -614,25 +725,18 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   }
 
   std::string goalsObj = ExtractObject(body, "goals");
-  bool bible_done = false;
-  bool plan_confirmed = false;
-  bool planning_enabled = false;
-  std::string bible_date, plan_date;
-  if (!goalsObj.empty()) {
-    JsonBoolNear(goalsObj, "bible_done", &bible_done);
-    JsonBoolNear(goalsObj, "plan_confirmed", &plan_confirmed);
-    JsonStringNear(goalsObj, "bible_done_for_date", &bible_date);
-    JsonStringNear(goalsObj, "plan_confirmed_for_date", &plan_date);
-    // Absent key → planning on (legacy). Explicit false skips Confirm-plan gate.
-    if (!JsonBoolNear(goalsObj, "planning_enabled", &planning_enabled)) planning_enabled = false;
-  }
-  const bool bible_today = bible_done && bible_date == now.ymd;
-  const bool plan_today =
-      !planning_enabled || (plan_confirmed && plan_date == now.ymd);
-  const bool morning_pending = !bible_today || !plan_today;
+  const DayRitual ritual = ReadDayRitual(goalsObj, now);
+  const bool bible_today = ritual.bible_today;
+  const bool plan_today = ritual.plan_today;
+  const bool morning_pending = ritual.pending;
+  (void)bible_today;
+  (void)plan_today;
+  const char* ritual_reason = ritual.reason;
 
   bool incubating = IsoStillActive(incubation_until, now.unix);
   bool free_win = IsoStillActive(free_until, now.unix);
+  std::string goal_free_date;
+  if (!runtime.empty()) JsonStringNear(runtime, "goal_free_granted_date", &goal_free_date);
   if (!free_after.empty() && free_after != "null") {
     int fa = ParseHm(free_after);
     if (fa >= 0 && now.minutes >= fa) free_win = true;
@@ -641,6 +745,9 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   if (!runtime.empty()) JsonStringNear(runtime, "emergency_until", &emergency_until);
   bool emergency = IsoStillActive(emergency_until, now.unix);
   if (emergency) free_win = true;
+  // Study goal met: every site except porn. Emergency and incubation keep their tighter rules.
+  const bool study_complete = goal_free_date == now.ymd && free_win && !emergency && !incubating &&
+                              !morning_pending;
 
   // Morning ritual wins over leftover free/reward until Bible + Confirm today.
   if (morning_pending && !emergency) {
@@ -674,7 +781,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     r.until = incubation_until;
     r.reason = "incubation";
   } else if (morning_pending) {
-    r.reason = !bible_today ? "morning_bible" : "morning_plan";
+    r.reason = ritual_reason;
   } else if (emergency) {
     r.reason = "emergency_winddown";
     r.until = emergency_until;
@@ -703,7 +810,9 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     ParseStringArrayNear(site_rules, "block_extra", block_extra);
   }
 
-  if (host == "localhost" || host == "127.0.0.1") {
+  // Focus virtual hosts + loopback — always allow (offline Math→ML, Bible, mirrors).
+  if (host == "localhost" || host == "127.0.0.1" || host == "calt.app" ||
+      host == "calt-learn.app" || host == "calt-data.app" || host == "calt-bible.app") {
     r.ok = true;
     r.action = "allow";
     r.reason = "allow_list";
@@ -717,7 +826,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     r.ok = true;
     r.action = "block";
     r.enforce = true;
-    r.reason = !bible_today ? "morning_bible" : "morning_plan";
+    r.reason = ritual_reason;
     r.matched = host;
     r.interstitial = true;
     return r;
@@ -725,6 +834,28 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
 
   // Work session: only the chosen sites. Allow-extra and free mode do not widen it.
   if (WorkSessionSiteDecision(path, url, &r)) return r;
+
+  // Porn is absolute while SoftLand is on — before allow_extra, ignores block_porn off.
+  if (LooksPorn(host)) {
+    r.ok = true;
+    r.action = "block";
+    r.enforce = true;
+    if (!incubating) r.reason = "porn";
+    r.matched = host;
+    r.interstitial = true;
+    return r;
+  }
+
+  // Grok, Reddit, Venice: direct block in every mode, including an allow_extra entry.
+  if (flags.block_sensitive && LooksSensitive(host)) {
+    r.ok = true;
+    r.action = "block";
+    r.enforce = true;
+    if (!incubating) r.reason = "sensitive";
+    r.matched = host;
+    r.interstitial = true;
+    return r;
+  }
 
   if (ListMatch(host, allow_extra)) {
     r.ok = true;
@@ -735,17 +866,8 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     return r;
   }
 
-  if (flags.block_porn && LooksPorn(host)) {
-    r.ok = true;
-    r.action = "block";
-    r.enforce = true;
-    if (!incubating) r.reason = "porn";
-    r.matched = host;
-    r.interstitial = true;
-    return r;
-  }
-
-  if (ListMatch(host, block_extra)) {
+  // After the study goal, only porn stays blocked. Explicit block_extra opens with everything else.
+  if (!study_complete && ListMatch(host, block_extra)) {
     r.ok = true;
     r.action = "block";
     r.enforce = true;
@@ -782,8 +904,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
       r.ok = true;
       r.action = "block";
       r.enforce = true;
-      if (morning_pending)
-        r.reason = !bible_today ? "morning_bible" : "morning_plan";
+      if (morning_pending) r.reason = ritual_reason;
       else if (!incubating)
         r.reason = "watch_list";
       r.matched = host;
@@ -904,31 +1025,23 @@ std::string SoftlandGateSnapshotJson() {
   if (!enabled) mode = "free";
 
   // Emergency keeps distraction blocks (porn/watch) via flags — use study flags for block_watch/porn
-  // while mode is free for allow path. SoftLandGetMode still blocks porn/block_extra before free allow.
+  // while mode is free for allow path. SoftLandGetMode still blocks porn before free allow.
 
   ModeFlags flags = FlagsForMode(body, mode);
   bool free_mode = (mode == "free" && !incubating) || !enabled;
   bool locked = enabled && !free_mode;
 
   std::string goals = ExtractObject(body, "goals");
-  bool bible_done = false;
-  bool plan_confirmed = false;
-  bool planning_enabled = false;
   bool goal_met = false;
   int daily_focus = 0;
-  std::string bible_date, plan_date;
   if (!goals.empty()) {
-    JsonBoolNear(goals, "bible_done", &bible_done);
-    JsonBoolNear(goals, "plan_confirmed", &plan_confirmed);
     JsonBoolNear(goals, "goal_met", &goal_met);
     JsonIntNear(goals, "daily_focus_minutes", &daily_focus);
-    JsonStringNear(goals, "bible_done_for_date", &bible_date);
-    JsonStringNear(goals, "plan_confirmed_for_date", &plan_date);
-    if (!JsonBoolNear(goals, "planning_enabled", &planning_enabled)) planning_enabled = false;
   }
-  const bool bible_today = bible_done && bible_date == now.ymd;
-  const bool plan_today =
-      !planning_enabled || (plan_confirmed && plan_date == now.ymd);
+  const DayRitual ritual = ReadDayRitual(goals, now);
+  const bool bible_today = ritual.bible_today;
+  const bool plan_today = ritual.plan_today;
+  const bool planning_enabled = true;
 
   // Live productive minutes from enforcer day_rollup.json (same folder as policy).
   int productive_minutes = 0;
@@ -946,10 +1059,14 @@ std::string SoftlandGateSnapshotJson() {
       if (JsonBoolNear(rollup, "goal_met", &rollupGoal) && rollupGoal) goal_met = true;
     }
   }
+  // True only when SoftLand/day_rollup set a real focus target (not the fallback).
+  const bool has_daily_goal = daily_focus > 0;
   if (daily_focus <= 0) daily_focus = 180;
   int remaining_minutes = daily_focus - productive_minutes;
   if (remaining_minutes < 0) remaining_minutes = 0;
   if (goal_met || reward_day || day_pass || free_win) remaining_minutes = 0;
+  // Locked page / Gate: hide goal UI when planning is off or no target was configured.
+  const bool show_daily_goal = has_daily_goal && planning_enabled;
 
   std::string site_rules = ExtractObject(body, "site_rules");
   std::string watch_domains = "[]";
@@ -965,7 +1082,7 @@ std::string SoftlandGateSnapshotJson() {
   }
 
   std::string morning_next = "open";
-  if (!bible_today)
+  if (ritual.pending && std::string(ritual.reason).find("bible") != std::string::npos)
     morning_next = "bible";
   else if (!plan_today)
     morning_next = "plan";
@@ -990,8 +1107,10 @@ std::string SoftlandGateSnapshotJson() {
     << "\"day_pass\":" << JsonBoolLit(day_pass) << ","
     << "\"chapter_goal_met\":" << JsonBoolLit(bible_today) << ","
     << "\"productive_minutes\":" << productive_minutes << ","
-    << "\"daily_goal_minutes\":" << daily_focus << ","
-    << "\"remaining_minutes\":" << remaining_minutes << ","
+    << "\"daily_goal_minutes\":" << (show_daily_goal ? daily_focus : 0) << ","
+    << "\"remaining_minutes\":" << (show_daily_goal ? remaining_minutes : 0) << ","
+    << "\"has_daily_goal\":" << JsonBoolLit(show_daily_goal) << ","
+    << "\"planning_enabled\":" << JsonBoolLit(planning_enabled) << ","
     << "\"suggested_links\":[],"
     << "\"current_block\":null,"
     << "\"morning\":{"
@@ -1007,15 +1126,45 @@ std::string SoftlandGateSnapshotJson() {
     << "\"mode\":\"" << JsonEscape(mode) << "\","
     << "\"mode_label\":\"" << JsonEscape(label) << "\","
     << "\"enforce\":" << JsonBoolLit(enabled) << ","
+    << "\"planning_enabled\":" << JsonBoolLit(planning_enabled) << ","
     << "\"block_watch_sites\":" << JsonBoolLit(block_watch) << ","
     << "\"block_porn\":" << JsonBoolLit(block_porn) << ","
+    << "\"block_sensitive\":" << JsonBoolLit(flags.block_sensitive) << ","
     << "\"block_social\":" << JsonBoolLit(block_social) << ","
     << "\"block_other\":" << JsonBoolLit(block_other) << ","
     << "\"block_keywords\":" << JsonBoolLit(block_keywords) << ","
     << "\"strict_allowlist\":" << JsonBoolLit(flags.strict_allowlist && enabled && !free_mode) << ","
     << "\"watch_domains\":" << watch_domains << ","
     << "\"allow_domains\":" << allow_domains << ","
-    << "\"block_domains\":" << block_domains
+    << "\"block_domains\":" << block_domains << ","
+    << "\"porn_domains\":[";
+  {
+    const auto& porn = BuiltinPornHosts();
+    for (size_t i = 0; i < porn.size(); ++i) {
+      if (i) o << ",";
+      o << "\"" << JsonEscape(porn[i]) << "\"";
+    }
+  }
+  o << "],"
+    << "\"force_porn_hosts\":[";
+  {
+    const auto& porn = BuiltinPornHosts();
+    for (size_t i = 0; i < porn.size(); ++i) {
+      if (i) o << ",";
+      o << "\"" << JsonEscape(porn[i]) << "\"";
+    }
+  }
+  o << "],"
+    << "\"porn_suffixes\":[\".xxx\",\".porn\",\".sex\",\".adult\"],"
+    << "\"sensitive_domains\":[";
+  {
+    const auto& sens = BuiltinSensitiveHosts();
+    for (size_t i = 0; i < sens.size(); ++i) {
+      if (i) o << ",";
+      o << "\"" << JsonEscape(sens[i]) << "\"";
+    }
+  }
+  o << "]"
     << "}"
     << "}";
   return o.str();

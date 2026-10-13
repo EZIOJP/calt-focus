@@ -10,6 +10,7 @@ struct EnforcerBadge {
   bool softland_or_armed = false;
   bool service_running = false;
   std::wstring last_kill_exe;
+  std::wstring last_kill_reason;
   std::wstring updated_at;  // ISO UTC from mirror
   bool ok = false;
   /** Status file readable and updated_at within ~45s (or missing age treated stale). */

@@ -14,7 +14,8 @@ bool DayLoopTaskDelete(long long id, int userId);
 
 /**
  * Confirm morning plan: SoftLand ON + Arm ON (study day).
- * Requires bible_done_for_date == today. Seeds kill list (incl. cursor until goal).
+ * Requires every Bible slot that is due (morning, afternoon from 12:00, evening from 17:00)
+ * and at least one planned minute. Seeds kill list (incl. cursor until goal).
  * No ledger credit. Returns error token or empty; *extraOut gateway fragment.
  */
 std::string DayLoopConfirmPlan(const std::wstring& behaviorDir, std::string* extraOut);
@@ -45,21 +46,28 @@ std::string DayLoopSetBedtime(const std::wstring& behaviorDir, const std::string
 /** Tick: bedtime_active; goal-met EOD free; optional dual-gate evaluate_close. */
 bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath);
 
-/** True when SoftLand goals.bible_done + bible_done_for_date == today. */
+/** True when every Bible slot that is due right now is done for today. */
 bool DayLoopBibleDoneToday(const std::string& softlandDocumentJson);
 
 /** True when SoftLand goals.plan_confirmed + plan_confirmed_for_date == today. */
 bool DayLoopPlanConfirmedToday(const std::string& softlandDocumentJson);
 
 /**
- * Morning ritual cleared: bible done today, and Confirm-plan done when planning_enabled.
+ * Morning ritual cleared: due Bible slots done, and today's plan confirmed.
  * Used so SoftLand site/schedule/mode edits work without a free day once the day is open.
  * Arm / kill-list still require ProductivityFreeDayOpen.
  */
 bool DayLoopMorningLockCleared(const std::string& softlandDocumentJson);
 
-/** Drop study-temp kills (cursor.exe) after free/reward/pass; keep games/social. */
+/** Drop study-temp kills (cursor.exe) after free/reward/pass. Games stay on the list. */
 bool DayLoopClearStudyTempKills(const std::wstring& behaviorDir);
+
+/**
+ * Study goal met today and the end-of-day free window is still open.
+ * Pauses Arm so games and other kill-list apps can run. Porn stays a site rule.
+ * False during incubation and emergency wind-down. Does not unlock settings edits.
+ */
+bool DayLoopStudyFreeOpen();
 
 /**
  * Emergency wind-down: confirm EMERGENCY → emergency_until = now+minutes (default 30).

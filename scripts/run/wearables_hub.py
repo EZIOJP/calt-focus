@@ -5,7 +5,8 @@ Focus wearables ingest hub — Amazfit / CALT Sync (:8765).
 Permanent sidecar (design lock): phone Zepp mini-program POSTs here.
 Watch RTOS C++ cannot talk to calt_enforcer C++ — BLE → phone JS → HTTP only.
 
-Also accepts google_fit / health_connect shaped bodies (see wearables_coerce.py).
+CALT Sync is the only health ingest. Google Fit, Health Connect, and bridge
+exports are refused.
 
   python scripts/run/wearables_hub.py
   scripts\\run\\start_wearables_hub.bat
@@ -37,32 +38,37 @@ if not BEHAVIOR.is_dir():
     BEHAVIOR = REPO / "data" / "behavior"
 
 DAYS_DIR = BEHAVIOR / "wearable_days"
+RAW_DIR = BEHAVIOR / "wearable_raw"
 LIFE_DAYS_DIR = BEHAVIOR / "life_days"
 SYNC_PATH = BEHAVIOR / "wearables_last_sync.json"
 TODAY_MIRROR = BEHAVIOR / "wearable_day.json"
+PING_PATH = BEHAVIOR / "wearables_ping.json"
 LIFE_TODAY = BEHAVIOR / "life_today.json"
+SLEEP_WINDOWS = BEHAVIOR / "sleep_windows.json"
 PLAN_BLOCKS = BEHAVIOR / "plan_blocks.json"
 
-_HUB_VERSION = "1.0.0-focus"
+_HUB_VERSION = "1.1.0-focus"
 _WATCH_SOURCES = frozenset(
     {
         "mini_program",
+        "calt_sync",
+        "amazfit_calt_sync",
+        "calt_zepp",
+        "calt_zepp_raw",
         "zepp",
         "amazfit",
-        "health_connect",
-        "hc",
-        "google_fit",
-        "bridge_export",
-        "zeppbridge",
     }
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 try:
-    from wearables_coerce import coerce_ingest_body, inventory_categories
+    from wearables_coerce import coerce_ingest_body, foreign_health_source, inventory_categories
 except ImportError:  # pragma: no cover
     def coerce_ingest_body(raw: dict[str, Any]) -> dict[str, Any]:
         return dict(raw) if isinstance(raw, dict) else {}
+
+    def foreign_health_source(raw: dict[str, Any] | None) -> str | None:
+        return None
 
     def inventory_categories(payload: dict[str, Any] | None) -> dict[str, Any]:
         return {"present": [], "count": 0, "details": {}, "capabilities": None}
@@ -120,6 +126,93 @@ def _write_json(path: Path, data: Any) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
     tmp.replace(path)
+
+
+def _notify_pc(title: str, body: str) -> None:
+    """Windows tray balloon so a watch ping is visible on the PC without FE open."""
+
+    def _run() -> None:
+        try:
+            import subprocess
+
+            t = (title or "CALT Sync").replace("'", "''")[:60]
+            b = (body or "ping").replace("'", "''")[:140]
+            ps = (
+                "Add-Type -AssemblyName System.Windows.Forms; "
+                "Add-Type -AssemblyName System.Drawing; "
+                "$n = New-Object System.Windows.Forms.NotifyIcon; "
+                "$n.Icon = [System.Drawing.SystemIcons]::Information; "
+                f"$n.BalloonTipTitle = '{t}'; "
+                f"$n.BalloonTipText = '{b}'; "
+                "$n.Visible = $true; "
+                "$n.ShowBalloonTip(5000); "
+                "Start-Sleep -Seconds 6; "
+                "$n.Dispose()"
+            )
+            flags = 0
+            if sys.platform == "win32":
+                flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            subprocess.Popen(
+                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                creationflags=flags,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception as exc:  # pragma: no cover
+            print(f"  toast failed: {exc}", flush=True)
+
+    threading.Thread(target=_run, name="calt-toast", daemon=True).start()
+
+
+def record_ping(
+    *,
+    source: str = "watch",
+    message: str = "Watch ping",
+    extra: dict[str, Any] | None = None,
+    toast: bool = True,
+) -> dict[str, Any]:
+    at = _now_iso()
+    payload: dict[str, Any] = {
+        "ok": True,
+        "at": at,
+        "id": secrets.token_hex(8),
+        "source": str(source or "watch")[:64],
+        "message": str(message or "Watch ping")[:160],
+    }
+    if isinstance(extra, dict):
+        for k, v in extra.items():
+            if k in payload:
+                continue
+            payload[k] = v
+    _write_json(PING_PATH, payload)
+    sync = _read_json(SYNC_PATH)
+    sync["last_ping_at"] = at
+    sync["last_ping_id"] = payload["id"]
+    sync["last_ping_source"] = payload["source"]
+    sync["last_ping_message"] = payload["message"]
+    sync["updated_at"] = at
+    _write_json(SYNC_PATH, sync)
+    if toast:
+        _notify_pc("CALT Sync", f"{payload['message']} · {payload['source']}")
+    return payload
+
+
+def _save_raw_dump(day: str, body: dict[str, Any], kind: str = "raw") -> Path:
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%H%M%S")
+    path = RAW_DIR / f"{day}_{stamp}_{kind}.json"
+    _write_json(
+        path,
+        {
+            "received_at": _now_iso(),
+            "kind": kind,
+            "local_date": day,
+            "body": body,
+        },
+    )
+    latest = RAW_DIR / f"{day}_latest.json"
+    _write_json(latest, {"received_at": _now_iso(), "kind": kind, "path": str(path), "body": body})
+    return path
 
 
 def _lan_ips() -> list[str]:
@@ -309,6 +402,99 @@ def _score_to_quality(score: int | None) -> int:
     return max(1, min(5, int(round(score / 20)) or 1))
 
 
+def write_sleep_windows(day: str, payload: dict[str, Any] | None, summary: dict[str, Any] | None) -> None:
+    """Calendar sleep blocks — real start/end when known; else bedtime-anchored overnight."""
+    from datetime import timedelta
+
+    sleep = (payload or {}).get("sleep") if isinstance((payload or {}).get("sleep"), dict) else {}
+    windows: list[dict[str, Any]] = []
+    for w in sleep.get("windows") or []:
+        if isinstance(w, dict) and w.get("start") and w.get("end"):
+            windows.append(
+                {
+                    "date": day,
+                    "start": str(w["start"])[:19],
+                    "end": str(w["end"])[:19],
+                    "minutes": int(w.get("minutes") or 0) or None,
+                }
+            )
+    if not windows and sleep.get("start_iso") and sleep.get("end_iso"):
+        windows.append(
+            {
+                "date": day,
+                "start": str(sleep["start_iso"])[:19],
+                "end": str(sleep["end_iso"])[:19],
+                "minutes": _as_int(sleep.get("total_min")),
+            }
+        )
+    if not windows:
+        start_m = _as_int(sleep.get("start_min"))
+        end_m = _as_int(sleep.get("end_min"))
+        total = _as_int(sleep.get("total_min"))
+        hours = (summary or {}).get("sleep_hours")
+        if start_m is not None and end_m is not None and end_m != start_m:
+            # Zepp often sends absolute minutes from local_date midnight (>1440).
+            # Do not clamp to 0..1439 — that becomes a fake 23:59 all-day bar.
+            y, mo, d = (int(x) for x in day.split("-"))
+            base = datetime(y, mo, d, 0, 0, 0)
+            if start_m >= 1440 or end_m >= 1440:
+                start = base + timedelta(minutes=start_m)
+                end = base + timedelta(minutes=end_m)
+            elif end_m <= start_m:
+                end = base + timedelta(minutes=end_m)
+                start = base + timedelta(minutes=start_m) - timedelta(days=1)
+            else:
+                start = base + timedelta(minutes=start_m)
+                end = base + timedelta(minutes=end_m)
+            mins = int((end - start).total_seconds() // 60)
+            if mins <= 0 and total:
+                mins = int(total)
+            windows.append(
+                {
+                    "date": end.strftime("%Y-%m-%d"),
+                    "start": start.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": end.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "minutes": mins,
+                }
+            )
+        elif (total and total > 0) or (isinstance(hours, (int, float)) and hours > 0):
+            mins = int(total or round(float(hours) * 60))
+            mins = max(1, min(16 * 60, mins))
+            y, mo, d = (int(x) for x in day.split("-"))
+            start = datetime(y, mo, d, 23, 0, 0) - timedelta(days=1)
+            end = start + timedelta(minutes=mins)
+            windows.append(
+                {
+                    "date": day,
+                    "start": start.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "end": end.strftime("%Y-%m-%dT%H:%M:%S"),
+                    "minutes": mins,
+                }
+            )
+    # Naps as extra windows
+    for nap in sleep.get("naps") or []:
+        if not isinstance(nap, dict):
+            continue
+        if nap.get("start") and nap.get("end"):
+            windows.append(
+                {
+                    "date": day,
+                    "start": str(nap["start"])[:19],
+                    "end": str(nap["end"])[:19],
+                    "minutes": _as_int(nap.get("minutes") or nap.get("total_min")),
+                }
+            )
+    _write_json(
+        SLEEP_WINDOWS,
+        {
+            "schema_version": 1,
+            "source": (summary or {}).get("source") or (payload or {}).get("source") or "calt_zepp",
+            "updated_at": (summary or {}).get("synced_at"),
+            "windows": windows,
+        },
+    )
+
+
 def wearable_to_life(day: str, summary: dict[str, Any] | None, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Map Fit/HC/watch dump → Life Tracker daily row (Focus mirrors)."""
     s = summary or {}
@@ -334,7 +520,7 @@ def wearable_to_life(day: str, summary: dict[str, Any] | None, payload: dict[str
     return {
         "date": day,
         "empty": empty,
-        "source": s.get("source") or p.get("source") or "google_fit",
+        "source": s.get("source") or p.get("source") or "calt_zepp",
         "sleep_hours": sleep_hours if sleep_hours is not None else 0,
         "sleep_quality": _score_to_quality(sleep_score),
         "exercise_minutes": exercise if exercise is not None else 0,
@@ -486,10 +672,26 @@ def build_status() -> dict[str, Any]:
 _lock = threading.Lock()
 
 
-def ingest(body: dict[str, Any]) -> dict[str, Any]:
+def ingest(body: dict[str, Any], *, keep_raw: bool = True, toast: bool = True) -> dict[str, Any]:
+    raw_body = body if isinstance(body, dict) else {}
+    foreign = foreign_health_source(raw_body)
+    if foreign:
+        return {
+            "ok": False,
+            "detail": (
+                f"Refused {foreign}. CALT Sync is the only health ingest "
+                "(watch Dump & Send → :8765)."
+            ),
+        }
     with _lock:
-        coerced = coerce_ingest_body(body if isinstance(body, dict) else {})
-        day = str(coerced.get("local_date") or _today_local())[:10]
+        coerced = coerce_ingest_body(raw_body)
+        day = str(coerced.get("local_date") or raw_body.get("local_date") or _today_local())[:10]
+        raw_path = None
+        if keep_raw and raw_body:
+            try:
+                raw_path = str(_save_raw_dump(day, raw_body, kind="ingest"))
+            except Exception as exc:  # pragma: no cover
+                print(f"  raw dump failed: {exc}", flush=True)
         prior = _load_day(day)
         dump_id = coerced.get("dump_id")
         chunk_id = coerced.get("chunk_id") or (coerced.get("meta") or {}).get("chunk_id")
@@ -511,15 +713,44 @@ def ingest(body: dict[str, Any]) -> dict[str, Any]:
                 merged["chunk_id"] = chunk_id
             if checksum:
                 merged["checksum"] = checksum
+            if raw_path:
+                merged["last_raw_path"] = raw_path
             _save_day(day, merged)
         sync = _read_json(SYNC_PATH)
         sync = _patch_sync_from_day(sync, day, merged, duplicate=duplicate)
+        if raw_path:
+            sync["last_raw_path"] = raw_path
         _write_json(SYNC_PATH, sync)
         summary = _day_summary(day, merged, sync)
         _write_json(TODAY_MIRROR, summary)
+        write_sleep_windows(day, merged, summary)
         life = wearable_to_life(day, summary, merged)
         _save_life(day, life)
         hours = summary.get("sleep_hours")
+        steps = summary.get("steps")
+        chunk_meta = coerced.get("chunk") if isinstance(coerced.get("chunk"), dict) else {}
+        if not chunk_meta and isinstance(raw_body.get("chunk"), dict):
+            chunk_meta = raw_body["chunk"]
+        part = chunk_meta.get("part") if chunk_meta else coerced.get("chunk_part")
+        total = chunk_meta.get("total") if chunk_meta else coerced.get("chunk_total")
+        is_final = True
+        if part is not None and total is not None:
+            try:
+                is_final = int(part) >= int(total)
+            except (TypeError, ValueError):
+                is_final = True
+        if toast and not duplicate and is_final:
+            bits = [day]
+            if isinstance(steps, (int, float)) and steps:
+                bits.append(f"{int(steps)} steps")
+            if isinstance(hours, (int, float)) and hours:
+                bits.append(f"{hours}h sleep")
+            record_ping(
+                source=str(merged.get("source") or "calt_zepp"),
+                message="Watch sync OK · " + " · ".join(bits),
+                extra={"kind": "ingest", "local_date": day, "duplicate": False},
+                toast=True,
+            )
         return {
             "ok": True,
             "duplicate": duplicate,
@@ -529,6 +760,7 @@ def ingest(body: dict[str, Any]) -> dict[str, Any]:
             "wearable_day": summary,
             "life": life,
             "last_sync": sync,
+            "raw_path": raw_path,
         }
 
 
@@ -658,13 +890,28 @@ class Handler(BaseHTTPRequestHandler):
                         "ok": True,
                         "service": "wearables.zepp",
                         "hub": "focus",
+                        "version": _HUB_VERSION,
                         "last_sync": _read_json(SYNC_PATH),
+                        "last_ping": _read_json(PING_PATH) or None,
+                    },
+                )
+                return
+
+            if path.endswith("/ping") or path == "/api/wearables/zepp/ping":
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "last_ping": _read_json(PING_PATH) or None,
+                        "last_sync": _read_json(SYNC_PATH) or None,
                     },
                 )
                 return
 
             if path.endswith("/status") or path == "/api/wearables/zepp/status":
-                self._json(200, build_status())
+                st = build_status()
+                st["last_ping"] = _read_json(PING_PATH) or None
+                self._json(200, st)
                 return
 
             if "/day/" in path:
@@ -713,6 +960,53 @@ class Handler(BaseHTTPRequestHandler):
             self._json(code, payload)
             return
 
+        if path in (
+            "/api/wearables/zepp/ping",
+            "/api/wearables/zepp/ping/",
+        ):
+            if not _auth_ok(self):
+                self._json(401, {"ok": False, "detail": "Invalid wearable ingest key"})
+                return
+            try:
+                body = self._read_body(max_bytes=8_000)
+            except ValueError as e:
+                self._json(413, {"ok": False, "detail": str(e)})
+                return
+            except json.JSONDecodeError:
+                body = {}
+            src = str((body or {}).get("source") or "amazfit_calt_sync")[:64]
+            msg = str((body or {}).get("message") or "Watch ping")[:160]
+            ping = record_ping(source=src, message=msg, extra={"via": "POST /ping"}, toast=True)
+            self._json(200, {"ok": True, "ping": ping, "hub": "focus", "version": _HUB_VERSION})
+            return
+
+        if path in (
+            "/api/wearables/zepp/raw",
+            "/api/wearables/zepp/raw/",
+        ):
+            if not _auth_ok(self):
+                self._json(401, {"ok": False, "detail": "Invalid wearable ingest key"})
+                return
+            try:
+                body = self._read_body()
+            except ValueError as e:
+                self._json(413, {"ok": False, "detail": str(e)})
+                return
+            except json.JSONDecodeError:
+                self._json(400, {"ok": False, "detail": "invalid JSON"})
+                return
+            # Watch sends raw sensor blob; Focus hub coerces + mirrors.
+            if isinstance(body, dict) and "source" not in body:
+                body = {**body, "source": "calt_zepp_raw"}
+            try:
+                result = ingest(body if isinstance(body, dict) else {}, keep_raw=True, toast=True)
+                result["mode"] = "raw_focus_process"
+            except Exception as e:  # pragma: no cover
+                self._json(500, {"ok": False, "detail": str(e)})
+                return
+            self._json(200 if result.get("ok") else 400, result)
+            return
+
         if path in ("/api/wearables/zepp", "/api/wearables/zepp/"):
             if not _auth_ok(self):
                 self._json(401, {"ok": False, "detail": "Invalid wearable ingest key"})
@@ -730,7 +1024,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:  # pragma: no cover
                 self._json(500, {"ok": False, "detail": str(e)})
                 return
-            self._json(200, result)
+            self._json(200 if result.get("ok") else 400, result)
             return
 
         self._json(404, {"ok": False, "detail": "not found"})
@@ -770,6 +1064,7 @@ def _start_https(host: str, tls_port: int) -> ThreadingHTTPServer | None:
 def main() -> int:
     BEHAVIOR.mkdir(parents=True, exist_ok=True)
     DAYS_DIR.mkdir(parents=True, exist_ok=True)
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
     LIFE_DAYS_DIR.mkdir(parents=True, exist_ok=True)
     host = hub_host()
     port = hub_port()

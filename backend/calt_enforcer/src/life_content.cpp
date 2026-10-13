@@ -1170,6 +1170,51 @@ bool PublishBibleDevotionMirror(const std::wstring& behaviorDir, const std::wstr
   return WriteBehaviorMirrorFile(behaviorDir, L"bible_devotion.json", body);
 }
 
+bool SetGoalsDateField(const char* key, bool done, const std::wstring& behaviorDir) {
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return false;
+  std::string needle = "\"goals\"";
+  size_t p = s.document_json.find(needle);
+  if (p == std::string::npos) return false;
+  size_t brace = s.document_json.find('{', p);
+  if (brace == std::string::npos) return false;
+  int depth = 0;
+  size_t end = brace;
+  for (; end < s.document_json.size(); ++end) {
+    if (s.document_json[end] == '{') ++depth;
+    else if (s.document_json[end] == '}') {
+      --depth;
+      if (depth == 0) {
+        ++end;
+        break;
+      }
+    }
+  }
+  std::string goalsObj = s.document_json.substr(brace, end - brace);
+  const std::string today = ProductivityLocalDate();
+  const std::string dateLit = done ? ("\"" + today + "\"") : "null";
+  if (!ProductivityReplaceJsonValue(goalsObj, key, dateLit)) {
+    if (goalsObj.size() > 2) {
+      goalsObj.insert(goalsObj.size() - 1, std::string(",\"") + key + "\":" + dateLit);
+    }
+  }
+  if (!ProductivityReplaceJsonValue(s.document_json, "goals", goalsObj)) return false;
+  s.updated_at.clear();
+  if (!ProductivitySaveSoftland(s)) return false;
+  PublishSoftlandMirror(behaviorDir, s);
+  ProductivityBumpSeq();
+  return true;
+}
+
+bool LifeBibleDevotionSlotOpen(const std::string& slot) {
+  if (slot != "afternoon" && slot != "evening") return true;
+  SYSTEMTIME st{};
+  GetLocalTime(&st);
+  const int minutes = st.wHour * 60 + st.wMinute;
+  if (slot == "afternoon") return minutes >= 12 * 60;
+  return minutes >= 17 * 60;
+}
+
 bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
                            const std::wstring& bibleDataDir, const std::wstring& behaviorDir,
                            std::string* outJson) {
@@ -1195,6 +1240,7 @@ bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
     PublishDevotionMirrorBestEffort(bibleDataDir, behaviorDir, userId);
     return true;
   }
+  if (done && !LifeBibleDevotionSlotOpen(slot)) return false;
   LifeBibleEnsureToday(userId, bibleDataDir);
   std::string day = LocalDateYmd();
   std::string doc;
@@ -1202,6 +1248,9 @@ bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
   std::string flag = slot == "afternoon" ? "afternoon_done" : "evening_done";
   SetJsonBoolField(&doc, flag.c_str(), done);
   SaveDayRow(userId, day, doc);
+  const char* dateKey =
+      slot == "afternoon" ? "bible_afternoon_for_date" : "bible_evening_for_date";
+  if (!SetGoalsDateField(dateKey, done, behaviorDir)) return false;
 
   if (done) {
     std::string reader;

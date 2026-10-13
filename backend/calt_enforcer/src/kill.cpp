@@ -89,10 +89,11 @@ void AppendKillLog(const std::wstring& exe, DWORD pid) {
 }
 
 // Tray balloon even when Focus is not running (hidden notify icon).
-void ShowKillToast(const std::wstring& exe) {
+void ShowKillToast(const std::wstring& exe, const wchar_t* toastSuffix) {
   static HWND hwnd = nullptr;
   static NOTIFYICONDATAW nid{};
   static bool added = false;
+  static DWORD lastToastMs = 0;
   if (!hwnd) {
     hwnd = CreateWindowExW(0, L"STATIC", L"CALTEnforcerToast", 0, 0, 0, 0, 0, HWND_MESSAGE,
                            nullptr, GetModuleHandleW(nullptr), nullptr);
@@ -110,17 +111,23 @@ void ShowKillToast(const std::wstring& exe) {
     if (Shell_NotifyIconW(NIM_ADD, &nid)) added = true;
   }
   if (!added) return;
+  // Rate-limit balloons: kill loop is ~1.5s and respawning apps were spamming the tray.
+  constexpr DWORD kToastCooldownMs = 60000;
+  const DWORD nowMs = GetTickCount();
+  if (lastToastMs && (nowMs - lastToastMs) < kToastCooldownMs) return;
+  lastToastMs = nowMs;
   nid.uFlags = NIF_INFO | NIF_ICON | NIF_TIP;
   nid.dwInfoFlags = NIIF_WARNING;
   wcsncpy_s(nid.szInfoTitle, L"CALT blocked an app", _TRUNCATE);
-  std::wstring body = L"Closed: " + exe + L" — hard block is armed.";
+  const wchar_t* why = (toastSuffix && toastSuffix[0]) ? toastSuffix : L"hard block is armed.";
+  std::wstring body = L"Closed: " + exe + L" — " + why;
   wcsncpy_s(nid.szInfo, body.c_str(), _TRUNCATE);
   Shell_NotifyIconW(NIM_MODIFY, &nid);
 }
 
 }  // namespace
 
-KillResult KillMatchingExes(const std::vector<std::wstring>& exes) {
+KillResult KillMatchingExes(const std::vector<std::wstring>& exes, const wchar_t* toastSuffix) {
   KillResult result;
   if (exes.empty()) return result;
 
@@ -157,7 +164,7 @@ KillResult KillMatchingExes(const std::vector<std::wstring>& exes) {
         result.last_exe = base;
         result.last_pid = pe.th32ProcessID;
         AppendKillLog(base, pe.th32ProcessID);
-        ShowKillToast(base);
+        ShowKillToast(base, toastSuffix);
       }
       CloseHandle(h);
     } while (Process32NextW(snap, &pe));

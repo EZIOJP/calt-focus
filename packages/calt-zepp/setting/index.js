@@ -83,11 +83,6 @@ AppSettingsPage({
           value: get('base_url', 'http://192.168.0.110:8765'),
           onChange: (val) => storage.setItem('base_url', String(val || '').trim()),
         }),
-        TextInput({
-          label: 'API URL optional (:8000 — blank = auto)',
-          value: get('api_url', ''),
-          onChange: (val) => storage.setItem('api_url', String(val || '').trim()),
-        }),
         Text(
           {
             style: {
@@ -102,8 +97,7 @@ AppSettingsPage({
           },
           [
             'Use your PC LAN IP — localhost will NOT work from the phone. ' +
-              'Hub preferred; if tracker is down, Sync auto-tries http://<same-IP>:8000. ' +
-              'Verify: phone browser → /health on :8765 or :8000.',
+              'Verify: phone browser → http://<PC-LAN-IP>:8765/health.',
           ],
         ),
         TextInput({

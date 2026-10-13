@@ -103,10 +103,41 @@ bool ProcessBasenameRunning(const wchar_t* exeBase) {
   return found;
 }
 
+std::wstring ReadPathFile(const std::wstring& path) {
+  FILE* f = nullptr;
+#if defined(_MSC_VER)
+  _wfopen_s(&f, path.c_str(), L"rb");
+#else
+  f = _wfopen(path.c_str(), L"rb");
+#endif
+  if (!f) return L"";
+  char buf[1024];
+  size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+  fclose(f);
+  if (!n) return L"";
+  buf[n] = 0;
+  while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r' || buf[n - 1] == ' ')) buf[--n] = 0;
+  if (!n) return L"";
+  int need = MultiByteToWideChar(CP_UTF8, 0, buf, (int)n, nullptr, 0);
+  if (need <= 0) need = MultiByteToWideChar(CP_ACP, 0, buf, (int)n, nullptr, 0);
+  if (need <= 0) return L"";
+  std::wstring out((size_t)need, L'\0');
+  if (!MultiByteToWideChar(CP_UTF8, 0, buf, (int)n, &out[0], need)) {
+    MultiByteToWideChar(CP_ACP, 0, buf, (int)n, &out[0], need);
+  }
+  return out;
+}
+
 std::wstring ResolveFocusExePath() {
   wchar_t* envFocus = _wgetenv(L"CALT_FOCUS_EXE");
   if (envFocus && *envFocus && GetFileAttributesW(envFocus) != INVALID_FILE_ATTRIBUTES) {
     return envFocus;
+  }
+  // Written by stack redeploy so the service always finds the UI next to itself.
+  const std::wstring pathFile = Join(ExeDir(), L"focus_exe.path");
+  const std::wstring fromFile = ReadPathFile(pathFile);
+  if (!fromFile.empty() && GetFileAttributesW(fromFile.c_str()) != INVALID_FILE_ATTRIBUTES) {
+    return fromFile;
   }
   const std::wstring sibling = Join(ExeDir(), L"calt_focus.exe");
   if (GetFileAttributesW(sibling.c_str()) != INVALID_FILE_ATTRIBUTES) return sibling;
@@ -183,14 +214,20 @@ void TickFocusWatchdog(bool armed, bool softland_enabled, FocusWatchState& state
     return;
   }
 
+  // Inherit repo root into Focus so dist-focus + data resolve when launched from ProgramData.
+  const std::wstring repoFromFile = ReadPathFile(Join(ExeDir(), L"calt_repo.path"));
+  if (!repoFromFile.empty()) SetEnvironmentVariableW(L"CALT_REPO", repoFromFile.c_str());
+  SetEnvironmentVariableW(L"CALT_FOCUS_EXE", exe.c_str());
+
   STARTUPINFOW si{};
   si.cb = sizeof(si);
   PROCESS_INFORMATION pi{};
   std::wstring cmd = L"\"" + exe + L"\"";
   std::vector<wchar_t> buf(cmd.begin(), cmd.end());
   buf.push_back(L'\0');
-  if (CreateProcessW(nullptr, buf.data(), nullptr, nullptr, FALSE, 0, nullptr, DirOf(exe).c_str(),
-                     &si, &pi)) {
+  const std::wstring cwd = repoFromFile.empty() ? DirOf(exe) : repoFromFile;
+  if (CreateProcessW(nullptr, buf.data(), nullptr, nullptr, FALSE, 0, nullptr, cwd.c_str(), &si,
+                     &pi)) {
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
     ++launches_in_window;

@@ -68,40 +68,19 @@ function networkHint(detail, host) {
     return [
       `Phone cannot reach ${host || 'PC'}.`,
       '1) Same Wi‑Fi as PC',
-      '2) Base URL = http://<PC-LAN-IP>:8765 (hub) or :8000 (API)',
-      '3) Desktop tracker OR run.bat API up',
-      '4) Open http://<IP>:8765/health or :8000/health in phone browser',
+      '2) Base URL = http://<PC-LAN-IP>:8765',
+      '3) PC receiver running (start_calt_sync_host.bat)',
+      '4) Open http://<IP>:8765/health in the phone browser',
     ].join(' ')
   }
   return ''
 }
 
-/** Hub :8765 first, then same-host FastAPI :8000 (or explicit api_url). */
+/** Focus hub only. Base URL from phone CALT Sync settings. */
 function candidateBases() {
-  const seen = {}
-  const out = []
-  const push = (norm, label) => {
-    if (!norm || !norm.ok || !norm.base) return
-    if (seen[norm.base]) return
-    seen[norm.base] = true
-    out.push({ ...norm, label: label || 'hub' })
-  }
-
-  push(resolveBase(), 'hub')
-
-  const apiRaw = String(settingsGet('api_url', '')).trim()
-  if (apiRaw) {
-    push(normalizeBaseUrl(apiRaw), 'api')
-  } else {
-    const hub = resolveBase()
-    if (hub.ok && hub.host) {
-      const hostOnly = String(hub.host).replace(/:\d+$/, '')
-      if (hostOnly && !/localhost|127\.0\.0\.1/i.test(hostOnly)) {
-        push(normalizeBaseUrl(`http://${hostOnly}:8000`), 'api')
-      }
-    }
-  }
-  return out
+  const hub = resolveBase()
+  if (!hub || !hub.ok || !hub.base) return []
+  return [{ ...hub, label: 'hub' }]
 }
 
 async function postWithFallback(path, opts) {
@@ -295,10 +274,43 @@ async function pingHealth() {
   }
 
   out.ok = out.healthOk
+  out.pingNotified = false
+  out.pingId = null
+
+  // After health OK, POST /ping so Focus hub writes a mirror + PC tray toast.
+  if (out.healthOk) {
+    const p = await postWithFallback('/api/wearables/zepp/ping', {
+      label: 'ping',
+      method: 'POST',
+      headers: authHeaders(token, true),
+      body: JSON.stringify({
+        source: 'amazfit_calt_sync',
+        message: 'Watch ping',
+        at,
+      }),
+      attempts: 2,
+    })
+    out.pingNotified = !!(p.ok && p.data && p.data.ok)
+    out.pingId = p.data && p.data.ping ? p.data.ping.id : null
+    out.base = p.base || out.base
+    out.host = p.host || out.host
+    if (!out.pingNotified) {
+      const msg = p.error
+        ? `notify ${p.error}`
+        : `notify HTTP ${p.status}`
+      out.errors.push(msg)
+      // Health worked — still treat as soft OK if notify route is old hub.
+      if (p.status === 404) {
+        out.errors.push('hub missing /ping — start start_calt_sync_host.bat')
+      }
+    }
+  }
+
   out.diag = [
     `host=${out.host}`,
     `via=${h.label || '?'}`,
     `health=${out.healthOk ? 'OK' : 'FAIL'}`,
+    `notify=${out.pingNotified ? 'OK' : 'FAIL'}`,
     ...(h.tried || []),
     ...out.errors.slice(0, 2),
   ].join(' · ')
@@ -310,7 +322,9 @@ async function pingHealth() {
   appendLog({
     at,
     ok: out.ok,
-    summary: out.ok ? `TEST OK · ${out.host} (${h.label || 'hub'})` : `TEST FAIL · ${out.errors[0] || 'error'}`,
+    summary: out.ok
+      ? `PING OK · ${out.host}${out.pingNotified ? ' · PC notified' : ' · health only'}`
+      : `PING FAIL · ${out.errors[0] || 'error'}`,
     errors: out.errors,
     steps: null,
     sleep_min: null,
@@ -419,7 +433,7 @@ async function syncAll(health, opts) {
 
   const body = {
     schema: 2,
-    source: 'mini_program',
+    source: 'calt_sync',
     dump: (health && health.dump) || 'processed_v2',
     dump_id: dumpId,
     checksum,
@@ -608,6 +622,55 @@ AppSideService({
           .catch((e) =>
             ctx.response({
               data: { ok: false, error: errDetail(e), diag: errDetail(e) },
+            }),
+          )
+        return
+      }
+
+      // Raw dump: phone posts sensor blob to /raw; Focus hub coerces + mirrors.
+      if (method === 'SYNC_RAW') {
+        const health = (params && params.health) || {}
+        const token = String(settingsGet('ingest_token', 'calt-local-wearables'))
+        postWithFallback('/api/wearables/zepp/raw', {
+          label: 'raw',
+          method: 'POST',
+          headers: authHeaders(token, true),
+          body: JSON.stringify({
+            ...health,
+            source: health.source || 'calt_zepp_raw',
+            local_date: (params && params.localDate) || health.local_date,
+            tz_offset_min:
+              (params && params.tz_offset_min) != null
+                ? params.tz_offset_min
+                : health.tz_offset_min,
+          }),
+          attempts: 2,
+        })
+          .then((res) => {
+            const ok = !!(res.ok && res.data && res.data.ok)
+            ctx.response({
+              data: {
+                healthOk: ok,
+                ok,
+                errors: ok ? [] : [res.error || `HTTP ${res.status}`],
+                summary: ok ? 'raw OK · Focus processing' : 'raw FAIL',
+                diag: ok ? `host=${res.host}` : res.error || String(res.status),
+                host: res.host,
+                base: res.base,
+                serverEcho: res.data || null,
+                wroteLife: !!(res.data && res.data.life),
+              },
+            })
+          })
+          .catch((e) =>
+            ctx.response({
+              data: {
+                healthOk: false,
+                ok: false,
+                errors: [errDetail(e)],
+                summary: 'raw FAIL',
+                diag: errDetail(e),
+              },
             }),
           )
         return

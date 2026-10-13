@@ -30,6 +30,12 @@ and SoftLand / msg-host code is structurally forbidden from setting
 `hard_block_armed`. That split is a **safety** decision (annoying vs
 destructive), not a leftover from the old Python/extension split.
 
+**Edge without Gate:** While SoftLand is on (and not free/reward),
+`calt_enforcer` closes `msedge.exe` if `gate_heartbeat.json` is missing or
+older than ~3 minutes (two-strike + startup grace). Heartbeat is written by
+`calt_msg_host` on ping / get_mode / track_tab. This is SoftLand companion
+enforcement — not Arm. Focus WebView2 (`msedgewebview2.exe`) is not closed.
+
 Site block is **stateful**: the same URL is allowed or blocked depending on
 *mode*. Mode is not “study vs unlocked” — it is a **three-step override**:
 
@@ -93,12 +99,13 @@ not one engine:
 - **Study-only** (`watch_extra` + built-in distractors) stays out of this board
   (Settings / engine defaults). They open in SoftLand `free` mode unless
   incubation is on.
-- **Block** sites stay blocked after unlock (rule 3 beats free). **Block** apps
-  stay killable while Armed — focus/goal met does **not** disarm Arm.
+- **Block** sites and kill-list apps open after the study goal is met. Porn stays
+  blocked. Until that goal, **Block** sites stay blocked and Armed apps stay killable.
 - **Allow** always wins on the SoftLand host ladder (including SoftLand porn
   heuristic). It does **not** punch through the hosts-file device block.
-- Safe short copy for that board: *“Block stays after focus unlock; Allow always
-  wins in Site block. Apps = Arm kill list. Device porn (hosts) is separate.”*
+- Safe short copy for that board: *“After the study goal, only porn stays blocked.
+  Until then, Block stays. Allow always wins in Site block. Apps = Arm kill list.
+  Device porn (hosts) is separate.”*
   Do not say “Allow always wins over porn” without meaning the SoftLand
   heuristic only.
 
@@ -205,9 +212,10 @@ unknown reasons.
 
 Consequences worth saying out loud, because they surprise people:
 
-- **SoftLand porn heuristic and `block_extra` beat free mode.** Rules 2 and 3
-  come before rule 4, so a reward day does not open them. That is the intended
-  asymmetry. (Hosts-file porn is separate and never opens.)
+- **Porn stays blocked after the study goal.** The heuristic and the hosts file
+  do not open. `block_extra` does open once today's study goal free window is
+  active, so the only site block left is porn. A reward day still leaves
+  `block_extra` closed. Emergency wind-down and incubation keep their tighter rules.
 - **`watch_extra` is study-only.** A reward day, a free window or a `free`
   schedule window lets everything on the watch list through (rule 4 fires
   first). If you want a site blocked *even on a reward day*, it belongs in
@@ -218,9 +226,11 @@ Consequences worth saying out loud, because they surprise people:
   matched was the watch list — the urgent reason is not overwritten by a
   lesser one. Incubation re-closes watch/built-in distractors even if free was
   already earned.
-- **"Goal met → only porn + hard blocks left"** is true only if “porn” means
-  the SoftLand heuristic (plus `block_extra`). Hosts-file domains stay dead.
-  Arm kill list is untouched by SoftLand goal state.
+- **Study goal met → only porn stays blocked.** Watch, social, games sites, and
+  `block_extra` open. Hosts-file porn stays dead. Arm pauses for that window, so
+  games and the other kill-list apps can run. The kill list itself is not cleared,
+  and editing it still needs a reward day or day pass. Incubation and emergency
+  wind-down keep the kills.
 
 ### The built-in watch list
 
@@ -237,10 +247,17 @@ The only way to unblock one of these in study mode is to put it in
 ### The SoftLand porn heuristic (not hosts)
 
 Heuristic, not a list: host ends in `.xxx` / `.porn` / `.sex`, or contains
-`porn`, `xvideos` or `pornhub`. It is on by default in **both** study and free
-mode. It is **not** the same thing as the hosts-file porn block (see
-[Hosts porn block](#hosts-porn-block)). SoftLand Allow can override this
-heuristic; SoftLand Allow **cannot** override hosts.
+`porn`, `xvideos`, `pornhub`, or `perchance` (`perchance.org`, `perchance.ai`).
+It is on by default in **both** study and free mode. It is **not** the same
+thing as the hosts-file porn block (see [Hosts porn block](#hosts-porn-block)).
+SoftLand Allow can override this heuristic; SoftLand Allow **cannot** override hosts.
+
+### Sensitivity
+
+`block_sensitive` (default on, including free) blocks hosts that are not tubes
+but routinely surface adult content: `grok.com`, `grok.x.ai`, `reddit.com`,
+`redd.it`, `venice.ai`. An `allow_extra` entry still opens that host.
+Turn it off with `mode_flags.<mode>.block_sensitive: false`.
 
 ### Mode flags
 
@@ -250,6 +267,7 @@ heuristic; SoftLand Allow **cannot** override hosts.
 | Flag | Study default | Free default | Actually used? |
 |------|---------------|--------------|----------------|
 | `block_porn` | on | on | **Yes** — rule 2 |
+| `block_sensitive` | on | on | **Yes** — Grok, Reddit, Venice, including free |
 | `block_watch_sites` | on | off | **Yes** — rule 5 |
 | `block_social` | on | off | No — social sites are covered by the built-in watch list |
 | `block_keywords` | on | on | No — no keyword rule exists in the decide path |
@@ -294,6 +312,97 @@ explicit product change later.
 
 ---
 
+## App time limits
+
+A third app control, separate from the Arm kill list. Arm closes every exe on the
+list the whole time it is on. A time limit lets that exe run until today's
+foreground minutes are used, then closes it until local midnight.
+
+- SoT: `data/productivity/behavior/app_limits.json` (`enabled`, `limits[]` of
+  `{exe, daily_minutes}`). The enforcer rewrites `usage[]` on the same file
+  (used / remaining / blocked) for the Settings panel.
+- Gateway: `app_limits.set`. UI: Settings → Blocks → Apps → Time limits.
+- Kill loop (`app_limits.cpp`, same ~1.5s tick as Arm) sums today's
+  `tracked_sessions` for that exe and adds the open window from
+  `fg_live.json` (written by the tracker so a long session is not invisible
+  until it flushes). When `enabled` and used seconds ≥ daily minutes, that exe
+  is terminated. Toast reason is `time_up`.
+- **Does not read Arm.** Limits enforce while Disarmed. A free window, reward
+  day, or pass does not give the minutes back.
+- **Earned balance no longer buys app time.** `softland.spend_free` returns
+  `spend_retired`. The study-goal free window pauses Arm, so games and apps on
+  the kill list can open. A shorter free window (the 1-hour closeout, a plan
+  free block) still opens sites only. Time limits still close an app once its
+  own minutes are spent.
+
+---
+
+## Work session
+
+Dashboard → **Work session**. The user picks a few programs and websites, then
+starts the session (25 / 50 / 90 minutes, or until they stop).
+
+- SoT: `data/productivity/behavior/work_session.json`. Gateway: `session.set`.
+- Idle draft saves (`active: false` while no session is live) keep the payload
+  `apps` / `sites` so Home Allow/Block can update the allowlist without starting.
+  Ending a live session still preserves the lists that were in force.
+- While `active` (and `ends_at` is still ahead, if set):
+  - The foreground program is closed unless it is on `apps`, a shell process
+    CALT always leaves alone (Explorer, the Focus app), or a browser when at
+    least one site was chosen.
+  - Sites: only `sites` plus `localhost`. Allow-extra and free mode do not add
+    hosts. An empty site list closes the rest of the web. Enforced by
+    `calt_msg_host` (`session_block` / `session_site`), including when Site
+    block is off.
+- Morning Bible / Confirm still blocks the web before the session list applies.
+- Time limits still close an allowed app once its own minutes are gone.
+- **Does not use the site ladder.** Browsers are refused at save
+  (`browser_exe`). Protected processes (`explorer.exe`, `calt_focus.exe`, …)
+  are refused (`protected_exe`).
+- Missing usage data fails open (the app stays open). A bad limit file is
+  skipped for that tick.
+- Budgets persist across days. The counter itself is "today" only, so it
+  starts over at local midnight without a separate reset command.
+
+---
+
+## When rules and the plan can change
+
+A **free day** (reward day claimed today) or a **day pass** spent today is the
+only time the user can change Arm, site rules, and device block. Hitting the
+daily goal opens sites until midnight. It does not open those editors.
+
+Plan blocks and routines are also open during the **initial planning of a new
+day** — until today's plan is confirmed. That is Confirm plan, or auto-confirm
+once Bible is done and today has at least one planned minute. After that, the
+same edits need a free day or day pass. Sleep (bed / wake) stays open.
+
+On a free day or day pass, SoftLand runs in free mode until midnight, and **Arm
+pauses** so games and apps on the kill list can open. The daily goal minutes
+setting is left alone — SoftLand shows zero remaining because the day is already
+unlocked. A study-goal free window does the same for play: sites open except
+porn, and Arm pauses until midnight. Time limits still close an app once its
+own minutes are spent. Editing Arm, site rules, and the plan still needs the
+free day or day pass.
+
+Gated writes return `free_day_required`:
+
+- Arm on/off and the kill list (`arm.set`)
+- App time limits (`app_limits.set`)
+- Site rules, schedules, goals, mode flags, and the site-block switch
+- Device block save / apply / remove
+- Plan blocks and routines (`plan.upsert`, `plan.delete`, `plan.clear_day`,
+  `routine.apply`, and the other plan edits) — after today's plan is confirmed.
+  While the new day is still being planned, these stay open.
+- Starting a work session (`session.set` with `active: true`)
+
+Still open on a normal day: confirming today's plan, Bible, journal, checking
+off a task, running a block that is already on the plan, saving sleep, building
+today's plan while it is not confirmed yet, and **ending** a work session.
+Ending does not rewrite the session's program or site list.
+
+---
+
 ## Hosts porn block (Device lock)
 
 A third, independent thing, easy to confuse with the SoftLand porn heuristic.
@@ -325,17 +434,19 @@ owns that end-to-end.
 
 ### Focus day loop (2026-09-11; finalize 2026-10-03)
 
-Morning (Focus shell, offline SoftLand + Arm):
+Morning (Focus React SPA, offline SoftLand + Arm) — see also [`docs/FE_FLOWS.md`](FE_FLOWS.md):
 
 ```text
 New calendar day (DayLoopTick)
   → clear sticky bible/plan/goal flags; clear stale free_until / goal_free_granted_date
-  → SoftLand get_mode: non-allow hosts → morning_bible / morning_plan
-  → Focus MorningBibleOverlay until bible_done_for_date == today
-  → Confirm plan → SoftLand ON + Arm ON
+  → SoftLand get_mode: non-allow hosts → morning_bible / afternoon_bible / evening_bible / morning_plan
+  → Focus stays on /bible until the due slot is marked (morning; afternoon from 12:00; evening from 17:00)
+  → Planning is required: Confirm plan (≥1 non-free min) → SoftLand ON + Arm ON
+    No plan yet → planning stays open, Arm stays off (yesterday's enforcer does not stay active)
+  → Prefer Home work session (Allow + Start) for custom focus blocks
   → Seed kill list (games/social presets + cursor.exe) if empty / missing cursor
   → Sites + cursor blocked until productive minutes ≥ daily_focus
-  → DayLoopMaybeGrantGoalFree → free_until EOD; drop cursor.exe from kills (games/social stay)
+  → DayLoopMaybeGrantGoalFree → free_until EOD; drop cursor.exe; pause Arm (porn stays)
 ```
 
 **Cursor trade-off:** Cursor is on the kill list until goal met, so Cursor itself
@@ -348,7 +459,7 @@ Landing: `DayLoopLanding` — tasks, SoftLand/Site-block mode, planned vs tracke
 
 **Dual-gate 1h free** (`day.evaluate_close`): checkboxes done (or zero tasks) **and** tracked ≥ 50% of today’s planned non-free block minutes → `free_until = now+60m` once per day. No SoftLand time-extend on incomplete tasks. **No plan carry-forward** — `plan.import_from_date` / `plan.roll_forward` return `carry_disabled`; shutdown may drop or leave-on-today only.
 
-**Confirm plan** requires bible done today **and** ≥1 non-free planned minute today (`plan_required`). SoftLand stays **on** for the morning host gate; **Arm stays off** until Confirm (DayLoopTick disarms when `plan_confirmed_for_date ≠ today`). **Follow** (`ApplyActivePlanToSoftland`) runs only when `plan_confirmed_for_date == today`.
+**Confirm plan** is required. Due Bible slots (morning always, afternoon from 12:00, evening from 17:00) **and** ≥1 non-free planned minute (`plan_required` / `bible_required`). `planning_enabled` is forced on. An empty confirm is reopened and does not keep a goal-free window. Arm stays off until Confirm. SoftLand stays **on** for the host gate. **Follow** (`ApplyActivePlanToSoftland`) runs only when `plan_confirmed_for_date == today`.
 
 **Bedtime:** `softland.set_bedtime` → tick sets `bedtime_active` → Focus `BedtimeOverlay`. **Emergency:** `softland.emergency_winddown` (confirm `EMERGENCY`) opens web minus distraction lists; Arm keeps game kills.
 

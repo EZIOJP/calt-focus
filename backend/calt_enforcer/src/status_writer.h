@@ -6,6 +6,7 @@ struct EnforcerStatusSnapshot {
   unsigned long pid = 0;
   std::string last_kill;       // human line
   std::string last_kill_exe;   // basename
+  std::string last_kill_reason;  // "arm" | "time_up" | empty
   bool lock_present = false;
   bool service_running = true;  // this process is the enforcer
   bool armed = false;

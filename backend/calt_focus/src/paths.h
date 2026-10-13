@@ -18,7 +18,10 @@ std::wstring SettingsUrl();
 std::wstring CalendarUrl();
 std::wstring PlanUrl();
 std::wstring BibleUrl();
+std::wstring RoadmapUrl();
+std::wstring JpRoadmapDir();
 std::wstring WebViewUserDataDir();
 
 // Virtual host used with WebView2 SetVirtualHostNameToFolderMapping(dist).
 inline constexpr wchar_t kCaltVirtualHost[] = L"calt.app";
+inline constexpr wchar_t kCaltLearnHost[] = L"calt-learn.app";
