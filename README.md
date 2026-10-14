@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/examples/calt_focus_title.png" alt="CALT Focus" width="440" />
+  <img src="docs/examples/calt_focus_title.png" alt="CALT Focus" width="720" />
 </p>
 
 **Your day, on purpose.**
