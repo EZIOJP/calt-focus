@@ -44,13 +44,17 @@ Wake up
 Planning stays on. Yesterday’s plan does not roll into today.
 
 ```mermaid
-flowchart LR
+flowchart TD
   A[Bible] --> B[Confirm plan]
-  B --> C[Work]
+  B -->|work day| C[Work]
+  B -->|free day / pass / reward| G[Enjoy · rest]
   C --> D{Goal met?}
-  D -->|yes| E[Free time]
   D -->|not yet| C
-  E --> F[Bedtime]
+  D -->|yes| E[Free mode]
+  E --> F[Free time]
+  F -.->|still free| F
+  G --> H[Bedtime]
+  F --> H
 ```
 
 ---
