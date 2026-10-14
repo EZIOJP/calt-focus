@@ -1,16 +1,15 @@
-# Example exports & infographics
+# Example exports & charts
 
-Owner-sample artifacts for the product README — not fixtures for tests.
+Product README samples from real owner data (not test fixtures).
 
 | File | What |
 |------|------|
-| `august_2026_sample_export.json` | Rollup from `productivity.db` `tracked_sessions` (+ planner / rewards) for **2026-08** |
-| `august_2026_day_metrics.csv` | Per-day actual / focus-ish / distract minutes |
-| `infographic_*.svg` | Cute postcards embedded in the root README |
+| `august_2026_sample_export.json` | August 2026 rollup from desktop tracking |
+| `august_2026_day_metrics.csv` | Per-day minutes |
+| `infographic_*.svg` | Wide charts embedded in the root README (~900px) |
 
 **Notes**
 
-- Window titles were never included; categories and app-level totals in the DB stay category-first in the postcard.
-- “Focus-ish” = Study / IDE / Coursework / AI·ML / coding-adjacent categories (see JSON `note`).
-- Sleep bars use **October** Zepp → `calt_sync_host` mirrors; August did not have watch ingest yet.
-- Regenerate from the live DB with a short Python pass if you want a newer month (same shape as Settings export).
+- Window titles omitted; categories only.  
+- “Focus work” = study / IDE / coursework / AI-adjacent categories.  
+- Sleep chart uses October watch sync (August had desktop tracking only).  

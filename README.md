@@ -1,216 +1,138 @@
 # CALT Focus
 
-**Local-first productivity OS for your PC** — plan the day, keep SoftLand and Arm honest, read Scripture in morning / afternoon / evening slots, track work, and unlock free time by earning it.
+**Your day, on purpose.**
 
-CALT Focus is a **standalone Windows product**. It does not need Study (GRE/notes) or a Python SoftLand server. Everything that blocks sites, kills apps, tracks time, and gates the morning ritual runs as native C++ on this machine.
-
----
-
-## What it is for
-
-Most blockers are either “annoying websites” or “kill Steam.” Focus keeps those as **two separate weapons**, then wraps them in a **day loop** so the morning is intentional:
-
-1. **Bible** — morning always; afternoon from 12:00; evening from 17:00  
-2. **Plan** — confirm at least one planned minute  
-3. **Work** — Home session Allow list + Start / End  
-4. **Earn unlocks** — daily focus minutes, reward days, day passes, earned ledger  
-
-Until due Bible slots and today’s plan are clear, Focus stays on the ritual surfaces and SoftLand keeps non-allow sites blocked. After Confirm, SoftLand + Arm couple for the day — still as **separate switches**.
-
-**SoftLand ON ≠ Arm.** Turning site blocking on never arms process kills. That split is intentional: a wrong site verdict self-corrects on the next navigation; a wrong kill is destructive.
+A Windows app that helps you start with Scripture, plan the day, stay on task, and unlock free time when you’ve earned it — all on your PC, no cloud account required.
 
 ---
 
-## The day at a glance
+## In one minute
+
+Most tools either block websites **or** kill apps. CALT Focus does both as **two separate switches**, then wraps them in a simple daily rhythm:
+
+1. **Bible** — morning, then afternoon (from noon), then evening (from 5pm)  
+2. **Plan** — confirm today’s calendar (at least one planned minute)  
+3. **Work** — start a focus session with an Allow list  
+4. **Unlock** — hit your goal, claim a reward day, or spend a day pass  
+
+Until today’s Bible slots and plan are done, Focus keeps you on those screens and site blocking stays strict. After you confirm the plan, site block and app Arm can run together — still as **separate** controls.
+
+**Site block ON does not Arm apps.** A wrong blocked page is a refresh away; a wrong kill is not. That split is the product.
+
+---
+
+## A typical day
 
 ```text
-New day
-  → SoftLand on, Arm off
-  → Morning Bible → Confirm plan (≥1 planned minute)
-  → SoftLand + Arm couple for the day
-  → Afternoon Bible due from 12:00 · Evening from 17:00
-  → Hit focus goal / chores → free windows, reward, or day pass
-  → Bedtime overlay · optional EMERGENCY wind-down
+Wake up
+  → Site block on · Arm off
+  → Morning Bible → Confirm today’s plan
+  → Site block + Arm couple for the day
+  → Afternoon Bible · Evening Bible when those hours arrive
+  → Hit your focus goal or chores → free time / reward / pass
+  → Bedtime · type EMERGENCY only if you need a wind-down
 ```
 
-| Unlock path | What it does |
-|-------------|--------------|
-| **Daily focus goal** | Productive minutes → free until end of day (porn heuristic still on) |
-| **Check unlock** | Tasks done + ≥50% of planned non-free → +60 minutes once |
-| **Reward day** | Qualifying streak → claim a free day (type `REWARD`) |
-| **Day pass** | Limited weekly passes (type `PASS`) |
-| **Earned minutes** | Bible / plan / goal chores → spend in 15‑minute chunks |
+| How you unlock | What you get |
+|----------------|--------------|
+| **Daily focus goal** | Free browsing until end of day (adult filters still on) |
+| **Check unlock** | +60 minutes once when chores + plan progress line up |
+| **Reward day** | A full free day after a qualifying streak (type `REWARD`) |
+| **Day pass** | A limited weekly pass (type `PASS`) |
+| **Earned minutes** | Small credits from Bible / plan / goal — spend in 15‑minute chunks |
 
-Planning cannot be turned off. Plans do **not** carry forward from yesterday.
+Planning stays on. Yesterday’s plan does not roll into today.
 
 ```mermaid
 flowchart LR
-  A[☀️ Bible] --> B[📝 Confirm plan]
-  B --> C[💻 Work session]
-  C --> D{Goal / chores?}
-  D -->|yes| E[🎁 Free · reward · pass]
+  A[Bible] --> B[Confirm plan]
+  B --> C[Work]
+  C --> D{Goal met?}
+  D -->|yes| E[Free time]
   D -->|not yet| C
-  E --> F[🌙 Bedtime]
+  E --> F[Bedtime]
 ```
 
 ---
 
-## A month in the life (real owner data)
+## Two blockers — keep them separate
 
-Postcards from **this** machine — August 2026 desktop tracking + a later October watch dump. Window titles stripped; categories kept. Full tidy export: [`docs/examples/`](docs/examples/).
+| | **Site block** | **Arm** |
+|--|----------------|---------|
+| Stops | Websites in the browser | Desktop apps |
+| Good for | YouTube, rabbit holes, distraction sites | Games, chat apps on the kill list |
+| Cannot | Kill Steam | Block a URL |
+| Mode-aware | Yes — schedules, free windows, incubation | Yes — free time pauses kills |
 
-### August 2026 · desktop tracking
+**Device lock** (hosts-file adult domains) is a third, always-on layer when you enable it — independent of Allow lists and free windows.
+
+Deep rules: [`docs/BLOCKING_RULES.md`](docs/BLOCKING_RULES.md).
+
+---
+
+## What you get
+
+| Area | Highlights |
+|------|------------|
+| **Home** | Day glance, Confirm plan, work session Allow + Start/End, unlock check |
+| **Calendar & Plan** | Day/week/month, drag blocks, routines, sleep windows, actuals overlay |
+| **Bible & Journal** | Reader + morning/afternoon/evening devotion · mark done · journal autosave |
+| **Settings** | Overview · Blocks (sites/apps/filters) · Unlock · Productive · More |
+| **Gate** | Edge extension for site decisions + tab time |
+| **Health** | Amazfit/Zepp sync → sleep, steps, HR on the Health tab |
+| **Tray** | Open Home / Plan / Bible / Settings · Reload UI · Quit only when disarmed |
+
+Typed confirms in Settings: `UNLOCK` · `REWARD` · `PASS` · `DEVICE LOCK`.
+
+---
+
+## A month in the life
+
+Real numbers from this PC — **August 2026** desktop tracking, plus **October** watch sleep after Health sync. Titles stripped; categories kept. Raw files: [`docs/examples/`](docs/examples/).
+
+### August · time on the PC
 
 | | |
 |--|--|
-| **245h** tracked across **21** days | **10,490** sessions |
-| **~149h** study / IDE / coursework / AI-ish | **~47h** games · YouTube · streaming |
-| Top slice | Study 44h · Cursor/IDE 42h · Coursework 31h · Gaming 21h · AI/ML 20h |
-| Rewards ledger | 5 qualifying days recorded in August (plus uses) |
+| **245 hours** across **21** days | **10,490** sessions |
+| **~149h** focus work | study · code · coursework · AI |
+| **~47h** play / video | games · YouTube · streaming |
+| Peak hours | late morning **10–11** (also strong **8–9**) |
+| Rewards | 5 qualifying August days in the ledger |
 
-![August month postcard](docs/examples/infographic_august_month.svg)
+![August overview](docs/examples/infographic_august_month.svg)
 
-![August category ribbon](docs/examples/infographic_august_mix.svg)
+![August categories](docs/examples/infographic_august_mix.svg)
 
-![August focus-ish day bars](docs/examples/infographic_august_focus_days.svg)
+![August daily focus](docs/examples/infographic_august_focus_days.svg)
 
-Peak hours on the PC were late morning (**10–11**), with solid **8–9** blocks too — classic “open the laptop and go” energy.
+### Sleep · watch → PC
 
-### Sleep & Health (watch → PC)
+Once the watch syncs, Health shows nights like this (October sample):
 
-August sleep wasn’t on the Amazfit path yet. Once **CALT Sync** landed, Health mirrors look like this (October sample from `life_history_14.json`):
+![October sleep](docs/examples/infographic_october_sleep.svg)
 
-| Night | Sleep | Steps (same day) |
-|-------|------:|-----------------:|
+| Night | Sleep | Steps |
+|-------|------:|------:|
 | Oct 9 | 6.4h | 708 |
 | Oct 10 | 8.4h | 437 |
 | Oct 11 | 9.7h | 539 |
 | Oct 12 | 6.6h | 676 |
 | Oct 14–15 | 7.5h | 2000 |
 
-![October wearable sleep](docs/examples/infographic_october_sleep.svg)
+### Export your own
 
-### Take your own export
+**Settings → More → Export** writes JSON + CSV under `data/productivity/behavior/`.
 
-Settings → **More** → Export writes:
-
-- `data/productivity/behavior/productivity_export.json`
-- `data/productivity/behavior/productivity_export.csv`
-
-Repo demo copies (August rollup + day CSV):
-
-- [`docs/examples/august_2026_sample_export.json`](docs/examples/august_2026_sample_export.json)
-- [`docs/examples/august_2026_day_metrics.csv`](docs/examples/august_2026_day_metrics.csv)
+Demo copies: [`august_2026_sample_export.json`](docs/examples/august_2026_sample_export.json) · [`august_2026_day_metrics.csv`](docs/examples/august_2026_day_metrics.csv)
 
 ---
 
-## Two blockers (do not merge them)
-
-| | **Site block (SoftLand)** | **Arm** |
-|--|---------------------------|---------|
-| Blocks | Websites in the browser | Desktop apps (OS kill list) |
-| Switch | SoftLand / “Site block” | Arm / “Armed” |
-| Engine | Gate extension → `calt_msg_host` | `calt_enforcer` kill loop |
-| Can block YouTube? | Yes | No |
-| Can kill Steam? | Never | Yes |
-| Mode-aware? | Yes (schedule → free → incubation) | Yes (free / study-free pauses kills) |
-
-There is also **Device lock** (Windows `hosts` for porn domains) — independent of SoftLand allowlists and free windows. Settings UI groups Sites / Apps / Filters under **Blocks**; that is UX grouping, not one engine.
-
-Full rule book: [`docs/BLOCKING_RULES.md`](docs/BLOCKING_RULES.md).
-
----
-
-## Features
-
-### Home
-- Day glance: productive minutes, Bible, plan, SoftLand / Arm status  
-- **Confirm plan** CTA when the morning ritual is due  
-- **Work session** — Allow apps/sites, Start / End focus block  
-- **Check unlock** when dual-gate chores are met  
-- Jarvis / local LLM chip for status, suggestions, and in-app commands  
-
-### Plan & Calendar
-- Day / week / month calendar with create, drag, delete  
-- Routines, sleep windows, goals blocks  
-- Active plan can drive SoftLand mode after Confirm  
-- Desktop + browser actuals overlay on the calendar  
-
-### Bible & Journal
-- Built-in reader + **morning / afternoon / evening** devotion slots  
-- Mark chapter done clears the SoftLand Bible gate for that slot  
-- Change reading / assign chapter for today  
-- Journal with autosave (today + history)  
-
-### Settings
-| Section | What you control |
-|---------|------------------|
-| **Overview** | What’s on, day flow, jump cards |
-| **Blocks** | SoftLand sites (Allow / Watch / Block), Arm kill list, filters |
-| **Unlock** | Daily goal, reward / day pass, Arm arming |
-| **Productive** | What minutes count + classification |
-| **More** | Look, planning, export, LLM / Jarvis, email report, Quit, Watch ↔ PC |
-
-Confirm phrases (typed): `UNLOCK`, `REWARD`, `PASS`, `DEVICE LOCK`.  
-Every control mapped: [`docs/SETTINGS.md`](docs/SETTINGS.md).
-
-### Gate (browser)
-- Edge extension talks to `calt_msg_host` for SoftLand decide + tab tracking  
-- Scored / layered blocking, NSFW image scan (WASM), appeals  
-- Without a fresh Gate heartbeat, Edge can be closed while SoftLand is on (Focus WebView is not)  
-
-### Health & wearables
-- Amazfit / Zepp **CALT Sync** → phone → `calt_sync_host` on `:8765`  
-- Life / Health UI from last dump (`life_days`, wearable mirrors)  
-- Setup: [`docs/WEARABLES.md`](docs/WEARABLES.md) · watch package [`packages/calt-zepp`](packages/calt-zepp)  
-
-### Math → ML
-- Offline roadmap UI (`/math`) with progress in SQLite via enforcer `roadmap.*`  
-
-### Shell & tray
-- `calt_focus.exe` — WebView2 UI + system tray (not Electron / Qt)  
-- Tray: Open Home / Calendar / Plan / Settings / Bible, Reload UI, Update stack  
-- **Quit refused** while SoftLand is on or Arm is armed  
-
-### Remote & extras
-- Optional Telegram remote for status / light commands  
-- Local LLM host / OpenJarvis for Suggest + free chat  
-- Email daily report (mailto) from Settings → More  
-
----
-
-## How the stack fits together
-
-```text
-calt_focus.exe          Tray + WebView2 (React UI from dist-focus/)
-        │ reads           behavior/*.json mirrors  (calt-data.app)
-        │ writes          enforcer_cmd named pipe
-        ▼
-calt_enforcer.exe       SoftLand SoT, Arm kills, day loop, plan, Bible, sessions
-        ▲
-calt_msg_host.exe  ◄──  Gate extension (get_mode, track_tab, SoftLand decide)
-
-calt_sync_host.exe      Wearables ingest :8765 (optional)
-```
-
-| Idea | Detail |
-|------|--------|
-| **SoT** | `data/productivity/productivity.db` |
-| **Fast reads** | JSON mirrors under `data/productivity/behavior/` |
-| **Writes** | Focus → pipe → enforcer gateway (no Python for arm/kill/track/status) |
-| **UI ship** | React SPA → `dist-focus/`; design HMR on Study sibling `:5180` |
-
-Agent / contributor context: [`AGENTS.md`](AGENTS.md).  
-Click-test flows: [`docs/FE_FLOWS.md`](docs/FE_FLOWS.md).
-
----
-
-## Quick start
+## Install (Windows)
 
 ```bat
 scripts\build\build_native_enforcer.bat
 powershell -File scripts\install\install_native_enforcer.ps1
-:: Admin once for the CALTEnforcer service
 ```
 
 ```bat
@@ -218,48 +140,37 @@ npm run build:focus
 scripts\run\run_calt_desktop.bat
 ```
 
-Install Gate from `extensions/calt-gate-extension` (unpacked in Edge). After UI sync, tray **Reload UI**.
+Load the Gate extension from `extensions/calt-gate-extension` in Edge (unpacked). Use the tray to open Focus and **Reload UI** after UI updates.
 
-| Script area | Purpose |
-|-------------|---------|
-| `scripts\build\` | Enforcer, Focus shell, msg-host |
-| `scripts\install\` | Service + native messaging |
-| `scripts\run\` | Desktop, sync host, stop helpers |
+Watch setup: [`docs/WEARABLES.md`](docs/WEARABLES.md).
 
 ---
 
-## Repo layout
+## How it fits together
 
 ```text
-backend/           calt_enforcer · calt_focus · calt_msg_host · calt_sync_host
-dist-focus/        Shipped React UI (WebView)
-extensions/        Gate + SelfTracker
-frontend/          Thin Focus entry + Math→ML roadmap
-packages/calt-zepp Amazfit / Zepp sync app
-data/productivity  DB + behavior mirrors + bible corpus
-docs/              Settings, blocking rules, flows, wearables
-scripts/           build · install · run
+CALT Focus app          Window + tray (WebView UI)
+        │ reads           local day / plan / status files
+        │ writes          commands to the enforcer
+        ▼
+Enforcer service        Site rules · Arm kills · day loop · tracking
+        ▲
+Gate (Edge)      ────── soft decisions + tab tracking
+
+Sync host (optional)    Watch / Health ingest on the LAN
 ```
 
----
-
-## Naming cheat sheet
-
-| You see in UI | Code / SoT (keep forever) |
-|---------------|---------------------------|
-| Site block / Blocker (sites) | `softland_enabled`, `softland_*` |
-| Arm / Blocker (apps) | `hard_block_armed`, kill list `exes` |
-| Device porn lock | `device_block.*` → Windows hosts |
+Everything important lives on disk: SQLite + small JSON mirrors. No account. No remote SoftLand brain.
 
 ---
 
 ## Docs
 
-| Doc | Audience |
-|-----|----------|
-| [BLOCKING_RULES.md](docs/BLOCKING_RULES.md) | Exact SoftLand / Arm / unlock rules |
-| [SETTINGS.md](docs/SETTINGS.md) | Every Settings control → FE → enforcer |
-| [FE_FLOWS.md](docs/FE_FLOWS.md) | Screen flows + live vs backend-only |
-| [WEARABLES.md](docs/WEARABLES.md) | Watch → PC sync |
-| [examples/](docs/examples/) | Real August export + SVG postcards |
-| [AGENTS.md](AGENTS.md) | How to work in this repo |
+| Doc | What |
+|-----|------|
+| [BLOCKING_RULES.md](docs/BLOCKING_RULES.md) | Exact site / Arm / unlock rules |
+| [SETTINGS.md](docs/SETTINGS.md) | Every Settings control |
+| [FE_FLOWS.md](docs/FE_FLOWS.md) | Screen flows |
+| [WEARABLES.md](docs/WEARABLES.md) | Watch → PC |
+| [examples/](docs/examples/) | Sample export + charts |
+| [AGENTS.md](AGENTS.md) | Contributor notes |
