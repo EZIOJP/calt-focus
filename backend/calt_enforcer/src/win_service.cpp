@@ -19,6 +19,8 @@
 #include "tracker_agent.h"
 
 #include <windows.h>
+#include <sddl.h>
+#include <tlhelp32.h>
 
 #include <cstdio>
 #include <memory>
@@ -121,15 +123,94 @@ void TickKills(const std::wstring& dbPath, EnforcerSnapshot& snapOut) {
   }
 }
 
+bool ProcessLooksLikeTrackerAgent(DWORD pid) {
+  // Tracker agent is always our child in the interactive session; parent check is
+  // stronger than cmdline (WMI often blank for Session-0).
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) return false;
+  PROCESSENTRY32W pe{};
+  pe.dwSize = sizeof(pe);
+  bool isAgent = false;
+  const DWORD self = GetCurrentProcessId();
+  if (Process32FirstW(snap, &pe)) {
+    do {
+      if (pe.th32ProcessID != pid) continue;
+      // Agent parent is the service loop process.
+      if (pe.th32ParentProcessID == self) isAgent = true;
+      break;
+    } while (Process32NextW(snap, &pe));
+  }
+  CloseHandle(snap);
+  return isAgent;
+}
+
+/** Evict console/build enforcers that steal the cmd pipe from the service. */
+void EvictPeerEnforcerListeners() {
+  const DWORD self = GetCurrentProcessId();
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) return;
+  PROCESSENTRY32W pe{};
+  pe.dwSize = sizeof(pe);
+  if (Process32FirstW(snap, &pe)) {
+    do {
+      if (pe.th32ProcessID == self) continue;
+      if (_wcsicmp(pe.szExeFile, L"calt_enforcer.exe") != 0) continue;
+      if (ProcessLooksLikeTrackerAgent(pe.th32ProcessID)) continue;
+      HANDLE h = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
+      if (!h) continue;
+      TerminateProcess(h, 1);
+      CloseHandle(h);
+    } while (Process32NextW(snap, &pe));
+  }
+  CloseHandle(snap);
+}
+
+HANDLE CreateOwnerMutex() {
+  SECURITY_ATTRIBUTES sa{};
+  PSECURITY_DESCRIPTOR sd = nullptr;
+  // Global\ must be openable by LocalSystem (service) and interactive users (console).
+  if (ConvertStringSecurityDescriptorToSecurityDescriptorW(
+          L"D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;IU)(A;;GA;;;AU)", SDDL_REVISION_1, &sd, nullptr) &&
+      sd) {
+    sa.nLength = sizeof(sa);
+    sa.lpSecurityDescriptor = sd;
+    sa.bInheritHandle = FALSE;
+  }
+  // Global — Local\ is per-session, so Session-0 service + Session-1 console both
+  // "won" and dual-listened on calt_enforcer_cmd (Focus → enforcer_unreachable).
+  HANDLE m = CreateMutexW(sd ? &sa : nullptr, FALSE, L"Global\\CALT_EnforcerSingleOwner");
+  if (sd) LocalFree(sd);
+  return m;
+}
+
+bool AcquireOwnerMutex(HANDLE* outMu, bool serviceSession) {
+  *outMu = nullptr;
+  for (int attempt = 0; attempt < 3; ++attempt) {
+    HANDLE m = CreateOwnerMutex();
+    if (!m) return false;
+    DWORD wait = WaitForSingleObject(m, 0);
+    if (wait == WAIT_OBJECT_0 || wait == WAIT_ABANDONED) {
+      *outMu = m;
+      return true;
+    }
+    CloseHandle(m);
+    // Service owns the pipe — evict a console rogue that started while we were down.
+    if (!serviceSession) return false;
+    EvictPeerEnforcerListeners();
+    Sleep(250);
+  }
+  return false;
+}
+
 }  // namespace
 
 int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, volatile bool* stop) {
-  // Single owner: two interactive enforcers both Tick() and double-write sessions.
-  HANDLE ownerMu = CreateMutexW(nullptr, FALSE, L"Local\\CALT_EnforcerSingleOwner");
-  if (!ownerMu) return 1;
-  DWORD wait = WaitForSingleObject(ownerMu, 0);
-  if (wait != WAIT_OBJECT_0 && wait != WAIT_ABANDONED) {
-    CloseHandle(ownerMu);
+  // Single owner across sessions. Dual listeners make Focus hang on the cmd pipe.
+  DWORD sessionId = 0;
+  ProcessIdToSessionId(GetCurrentProcessId(), &sessionId);
+  const bool serviceSession = (sessionId == 0);
+  HANDLE ownerMu = nullptr;
+  if (!AcquireOwnerMutex(&ownerMu, serviceSession) || !ownerMu) {
     return 2;  // another enforcer already owns tracking
   }
 
