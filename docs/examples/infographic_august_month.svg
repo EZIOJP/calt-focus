@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="268" viewBox="0 0 560 268" role="img" aria-label="August 2026 · a real Focus month">
+  <rect width="560" height="268" rx="18" fill="#f7f1e8"/>
+  <circle cx="524" cy="28" r="10" fill="#c45c26" opacity="0.85"/>
+  <circle cx="508" cy="40" r="6" fill="#2a6f6f" opacity="0.7"/>
+  <text x="24" y="28" fill="#2c2416" font-size="16" font-weight="600" font-family="Georgia, serif">August 2026 · a real Focus month</text>
+  <text x="24" y="48" fill="#8a7f6e" font-size="12" font-family="Georgia, serif">desktop tracking postcard</text>
+  
+  <text x="24" y="70" fill="#2c2416" font-size="28" font-family="Georgia, serif">245.2h</text>
+  <text x="24" y="92" fill="#8a7f6e" font-size="12" font-family="ui-sans-serif,system-ui">tracked in August · 10,490 sessions · 21 days</text>
+  <text x="280" y="70" fill="#2a6f6f" font-size="22" font-family="Georgia, serif">149.2h</text>
+  <text x="280" y="92" fill="#8a7f6e" font-size="12">study / code / AI-ish</text>
+  <text x="420" y="70" fill="#c45c26" font-size="22" font-family="Georgia, serif">47.0h</text>
+  <text x="420" y="92" fill="#8a7f6e" font-size="12">games · youtube · stream</text>
+  <text x="24" y="118" fill="#8a7f6e" font-size="12" font-family="Georgia, serif">where the hours went ♥</text>
+  <rect x="40" y="90" width="48" height="110" rx="8" fill="#2a6f6f"/><text x="64" y="84" text-anchor="middle" fill="#2c2416" font-size="11" font-family="ui-sans-serif,system-ui">44.3h</text><text x="64" y="218" text-anchor="middle" fill="#8a7f6e" font-size="10" font-family="ui-sans-serif,system-ui">Study</text><rect x="110" y="96" width="48" height="104" rx="8" fill="#5b7c5a"/><text x="134" y="90" text-anchor="middle" fill="#2c2416" font-size="11" font-family="ui-sans-serif,system-ui">42.1h</text><text x="134" y="218" text-anchor="middle" fill="#8a7f6e" font-size="10" font-family="ui-sans-serif,system-ui">IDE</text><rect x="180" y="124" width="48" height="76" rx="8" fill="#6b4c7a"/><text x="204" y="118" text-anchor="middle" fill="#2c2416" font-size="11" font-family="ui-sans-serif,system-ui">30.7h</text><text x="204" y="218" text-anchor="middle" fill="#8a7f6e" font-size="10" font-family="ui-sans-serif,system-ui">Coursework</text><rect x="250" y="140" width="48" height="60" rx="8" fill="#c45c26"/><text x="274" y="134" text-anchor="middle" fill="#2c2416" font-size="11" font-family="ui-sans-serif,system-ui">24.4h</text><text x="274" y="218" text-anchor="middle" fill="#8a7f6e" font-size="10" font-family="ui-sans-serif,system-ui">Other</text><rect x="320" y="148" width="48" height="52" rx="8" fill="#b08968"/><text x="344" y="142" text-anchor="middle" fill="#2c2416" font-size="11" font-family="ui-sans-serif,system-ui">21.2h</text><text x="344" y="218" text-anchor="middle" fill="#8a7f6e" font-size="10" font-family="ui-sans-serif,system-ui">Gaming</text><rect x="390" y="150" width="48" height="50" rx="8" fill="#8a7f6e"/><text x="414" y="144" text-anchor="middle" fill="#2c2416" font-size="11" font-family="ui-sans-serif,system-ui">20.3h</text><text x="414" y="218" text-anchor="middle" fill="#8a7f6e" font-size="10" font-family="ui-sans-serif,system-ui">AI / ML</text>
+  <text x="24" y="248" fill="#8a7f6e" font-size="11" font-family="ui-sans-serif,system-ui">Owner sample · categories from tracked_sessions · titles stripped</text>
+
+</svg>

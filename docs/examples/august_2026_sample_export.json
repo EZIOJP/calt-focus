@@ -1,0 +1,397 @@
+{
+  "export_version": "focus-example-1.0",
+  "note": "Sanitized demo export derived from owner tracked_sessions for August 2026. Personal window titles removed.",
+  "source": "productivity.db tracked_sessions + planner_blocks + reward_credits",
+  "range": {
+    "start": "2026-08-03",
+    "end": "2026-08-31",
+    "days_with_tracking": 21
+  },
+  "summary": {
+    "session_count": 10490,
+    "actual_hours": 245.2,
+    "focusish_hours": 149.2,
+    "distract_hours": 47.0,
+    "top_categories": [
+      {
+        "category": "Study (Browser)",
+        "hours": 44.3
+      },
+      {
+        "category": "IDE / Code Editor",
+        "hours": 42.1
+      },
+      {
+        "category": "Coursework (Browser)",
+        "hours": 30.7
+      },
+      {
+        "category": "Other (Browser)",
+        "hours": 24.4
+      },
+      {
+        "category": "Gaming",
+        "hours": 21.2
+      },
+      {
+        "category": "AI / ML",
+        "hours": 20.3
+      },
+      {
+        "category": "Video (YouTube)",
+        "hours": 16.5
+      },
+      {
+        "category": "Other",
+        "hours": 12.2
+      }
+    ],
+    "reward_credits": 8,
+    "inferred_sleep_nights": 3,
+    "inferred_sleep_avg_hours": 8.7
+  },
+  "by_day": [
+    {
+      "date": "2026-08-03",
+      "weekday": "mon",
+      "actual_minutes": 313,
+      "focusish_minutes": 66,
+      "distract_minutes": 22,
+      "session_count": 266,
+      "planned_minutes": 120,
+      "block_count": 3
+    },
+    {
+      "date": "2026-08-04",
+      "weekday": "tue",
+      "actual_minutes": 952,
+      "focusish_minutes": 230,
+      "distract_minutes": 478,
+      "session_count": 741,
+      "planned_minutes": 130,
+      "block_count": 3
+    },
+    {
+      "date": "2026-08-05",
+      "weekday": "wed",
+      "actual_minutes": 2094,
+      "focusish_minutes": 1595,
+      "distract_minutes": 76,
+      "session_count": 1358,
+      "planned_minutes": 280,
+      "block_count": 7
+    },
+    {
+      "date": "2026-08-06",
+      "weekday": "thu",
+      "actual_minutes": 886,
+      "focusish_minutes": 483,
+      "distract_minutes": 189,
+      "session_count": 993,
+      "planned_minutes": 280,
+      "block_count": 7
+    },
+    {
+      "date": "2026-08-07",
+      "weekday": "fri",
+      "actual_minutes": 710,
+      "focusish_minutes": 689,
+      "distract_minutes": 0,
+      "session_count": 114,
+      "planned_minutes": 280,
+      "block_count": 7
+    },
+    {
+      "date": "2026-08-08",
+      "weekday": "sat",
+      "actual_minutes": 1839,
+      "focusish_minutes": 1119,
+      "distract_minutes": 423,
+      "session_count": 1168,
+      "planned_minutes": 468,
+      "block_count": 13
+    },
+    {
+      "date": "2026-08-09",
+      "weekday": "sun",
+      "actual_minutes": 1273,
+      "focusish_minutes": 592,
+      "distract_minutes": 273,
+      "session_count": 1565,
+      "planned_minutes": 180,
+      "block_count": 5
+    },
+    {
+      "date": "2026-08-10",
+      "weekday": "mon",
+      "actual_minutes": 947,
+      "focusish_minutes": 861,
+      "distract_minutes": 44,
+      "session_count": 610,
+      "planned_minutes": 350,
+      "block_count": 10
+    },
+    {
+      "date": "2026-08-11",
+      "weekday": "tue",
+      "actual_minutes": 283,
+      "focusish_minutes": 256,
+      "distract_minutes": 13,
+      "session_count": 251,
+      "planned_minutes": 450,
+      "block_count": 12
+    },
+    {
+      "date": "2026-08-12",
+      "weekday": "wed",
+      "actual_minutes": 608,
+      "focusish_minutes": 423,
+      "distract_minutes": 71,
+      "session_count": 411,
+      "planned_minutes": 305,
+      "block_count": 9
+    },
+    {
+      "date": "2026-08-13",
+      "weekday": "thu",
+      "actual_minutes": 408,
+      "focusish_minutes": 382,
+      "distract_minutes": 18,
+      "session_count": 354,
+      "planned_minutes": 330,
+      "block_count": 8
+    },
+    {
+      "date": "2026-08-14",
+      "weekday": "fri",
+      "actual_minutes": 420,
+      "focusish_minutes": 356,
+      "distract_minutes": 61,
+      "session_count": 158,
+      "planned_minutes": 220,
+      "block_count": 5
+    },
+    {
+      "date": "2026-08-15",
+      "weekday": "sat",
+      "actual_minutes": 392,
+      "focusish_minutes": 137,
+      "distract_minutes": 206,
+      "session_count": 379,
+      "planned_minutes": 60,
+      "block_count": 2
+    },
+    {
+      "date": "2026-08-16",
+      "weekday": "sun",
+      "actual_minutes": 599,
+      "focusish_minutes": 68,
+      "distract_minutes": 489,
+      "session_count": 290,
+      "planned_minutes": 510,
+      "block_count": 14
+    },
+    {
+      "date": "2026-08-17",
+      "weekday": "mon",
+      "actual_minutes": 1052,
+      "focusish_minutes": 491,
+      "distract_minutes": 212,
+      "session_count": 340,
+      "planned_minutes": 452,
+      "block_count": 14
+    },
+    {
+      "date": "2026-08-18",
+      "weekday": "tue",
+      "actual_minutes": 853,
+      "focusish_minutes": 646,
+      "distract_minutes": 128,
+      "session_count": 502,
+      "planned_minutes": 160,
+      "block_count": 4
+    },
+    {
+      "date": "2026-08-19",
+      "weekday": "wed",
+      "actual_minutes": 273,
+      "focusish_minutes": 168,
+      "distract_minutes": 2,
+      "session_count": 338,
+      "planned_minutes": 0,
+      "block_count": 0
+    },
+    {
+      "date": "2026-08-25",
+      "weekday": "tue",
+      "actual_minutes": 23,
+      "focusish_minutes": 0,
+      "distract_minutes": 0,
+      "session_count": 33,
+      "planned_minutes": 0,
+      "block_count": 0
+    },
+    {
+      "date": "2026-08-29",
+      "weekday": "sat",
+      "actual_minutes": 0,
+      "focusish_minutes": 0,
+      "distract_minutes": 0,
+      "session_count": 1,
+      "planned_minutes": 0,
+      "block_count": 0
+    },
+    {
+      "date": "2026-08-30",
+      "weekday": "sun",
+      "actual_minutes": 352,
+      "focusish_minutes": 280,
+      "distract_minutes": 15,
+      "session_count": 312,
+      "planned_minutes": 269,
+      "block_count": 8
+    },
+    {
+      "date": "2026-08-31",
+      "weekday": "mon",
+      "actual_minutes": 431,
+      "focusish_minutes": 112,
+      "distract_minutes": 102,
+      "session_count": 306,
+      "planned_minutes": 330,
+      "block_count": 10
+    }
+  ],
+  "inferred_sleep_from_desktop_gaps": [
+    {
+      "date": "2026-08-17",
+      "hours": 8.01,
+      "asleep_after": "17:44",
+      "awake_at": "01:45"
+    },
+    {
+      "date": "2026-08-19",
+      "hours": 7.93,
+      "asleep_after": "18:55",
+      "awake_at": "02:51"
+    },
+    {
+      "date": "2026-08-30",
+      "hours": 10.16,
+      "asleep_after": "15:53",
+      "awake_at": "02:03"
+    }
+  ],
+  "hour_heatmap_minutes": {
+    "0": 361,
+    "1": 482,
+    "2": 763,
+    "3": 767,
+    "4": 673,
+    "5": 690,
+    "6": 783,
+    "7": 739,
+    "8": 1199,
+    "9": 1025,
+    "10": 1534,
+    "11": 1503,
+    "12": 301,
+    "13": 214,
+    "14": 758,
+    "15": 144,
+    "16": 129,
+    "17": 290,
+    "18": 667,
+    "19": 180,
+    "20": 270,
+    "21": 404,
+    "22": 335,
+    "23": 499
+  },
+  "rewards": [
+    {
+      "local_date": "2026-08-15",
+      "kind": "qualified",
+      "recorded_at": "2026-09-11T08:54:48"
+    },
+    {
+      "local_date": "2026-08-15",
+      "kind": "used",
+      "recorded_at": "2026-09-11T08:54:48"
+    },
+    {
+      "local_date": "2026-08-16",
+      "kind": "qualified",
+      "recorded_at": "2026-09-11T08:54:48"
+    },
+    {
+      "local_date": "2026-08-16",
+      "kind": "used",
+      "recorded_at": "2026-09-11T08:54:48"
+    },
+    {
+      "local_date": "2026-08-17",
+      "kind": "used",
+      "recorded_at": "2026-09-11T08:54:48"
+    },
+    {
+      "local_date": "2026-08-18",
+      "kind": "qualified",
+      "recorded_at": "2026-09-11T08:54:48"
+    },
+    {
+      "local_date": "2026-08-30",
+      "kind": "qualified",
+      "recorded_at": "2026-09-11T08:54:48"
+    },
+    {
+      "local_date": "2026-08-31",
+      "kind": "qualified",
+      "recorded_at": "2026-09-11T08:54:48"
+    }
+  ],
+  "october_wearable_sleep_sample": [
+    {
+      "date": "2026-10-09",
+      "sleep_hours": 6.38,
+      "steps": 708,
+      "hr_resting": null,
+      "source": "calt_sync"
+    },
+    {
+      "date": "2026-10-10",
+      "sleep_hours": 8.42,
+      "steps": 437,
+      "hr_resting": 65,
+      "source": "calt_zepp"
+    },
+    {
+      "date": "2026-10-11",
+      "sleep_hours": 9.73,
+      "steps": 539,
+      "hr_resting": null,
+      "source": "calt_sync"
+    },
+    {
+      "date": "2026-10-12",
+      "sleep_hours": 6.57,
+      "steps": 676,
+      "hr_resting": 68,
+      "source": "calt_zepp"
+    },
+    {
+      "date": "2026-10-14",
+      "sleep_hours": 7.5,
+      "steps": 2000,
+      "hr_resting": null,
+      "source": "calt_manual"
+    },
+    {
+      "date": "2026-10-15",
+      "sleep_hours": 7.5,
+      "steps": 2000,
+      "hr_resting": null,
+      "source": "calt_manual"
+    }
+  ]
+}
