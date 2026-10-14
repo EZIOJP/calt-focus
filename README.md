@@ -1,8 +1,14 @@
-# CALT Focus
+<p align="center">
+  <img src="docs/examples/calt_focus_title.png" alt="CALT Focus" width="440" />
+</p>
 
 **Your day, on purpose.**
 
 A Windows app that helps you start with Scripture, plan the day, stay on task, and unlock free time when you’ve earned it — all on your PC, no cloud account required.
+
+<p align="center">
+  <img src="docs/examples/infographic_august_month.svg" alt="A month on CALT Focus — August 2026" width="900" />
+</p>
 
 ---
 
@@ -35,7 +41,7 @@ Wake up
 
 | How you unlock | What you get |
 |----------------|--------------|
-| **Daily focus goal** | Free browsing until end of day (adult filters still on) |
+| **Daily focus goal** | Free browsing until end of day |
 | **Check unlock** | +60 minutes once when chores + plan progress line up |
 | **Reward day** | A full free day after a qualifying streak (type `REWARD`) |
 | **Day pass** | A limited weekly pass (type `PASS`) |
@@ -68,7 +74,7 @@ flowchart TD
 | Cannot | Kill Steam | Block a URL |
 | Mode-aware | Yes — schedules, free windows, incubation | Yes — free time pauses kills |
 
-**Device lock** (hosts-file adult domains) is a third, always-on layer when you enable it — independent of Allow lists and free windows.
+**Device lock** is an optional hard lock on Windows — separate from Allow lists and free windows.
 
 Deep rules: [`docs/BLOCKING_RULES.md`](docs/BLOCKING_RULES.md).
 
@@ -81,7 +87,7 @@ Deep rules: [`docs/BLOCKING_RULES.md`](docs/BLOCKING_RULES.md).
 | **Home** | Day glance, Confirm plan, work session Allow + Start/End, unlock check |
 | **Calendar & Plan** | Day/week/month, drag blocks, routines, sleep windows, actuals overlay |
 | **Bible & Journal** | Reader + morning/afternoon/evening devotion · mark done · journal autosave |
-| **Settings** | Overview · Blocks (sites/apps/filters) · Unlock · Productive · More |
+| **Settings** | Overview · Blocks (sites / apps) · Unlock · Productive · More |
 | **Gate** | Edge extension for site decisions + tab time |
 | **Health** | Amazfit/Zepp sync → sleep, steps, HR on the Health tab |
 | **Tray** | Open Home / Plan / Bible / Settings · Reload UI · Quit only when disarmed |
@@ -103,8 +109,6 @@ Real numbers from this PC — **August 2026** desktop tracking, plus **October**
 | **~47h** play / video | games · YouTube · streaming |
 | Peak hours | late morning **10–11** (also strong **8–9**) |
 | Rewards | 5 qualifying August days in the ledger |
-
-![August overview](docs/examples/infographic_august_month.svg)
 
 ![August categories](docs/examples/infographic_august_mix.svg)
 
@@ -164,7 +168,7 @@ Gate (Edge)      ────── soft decisions + tab tracking
 Sync host (optional)    Watch / Health ingest on the LAN
 ```
 
-Everything important lives on disk: SQLite + small JSON mirrors. No account. No remote SoftLand brain.
+Everything important lives on disk: SQLite + small JSON mirrors. No account required.
 
 ---
 

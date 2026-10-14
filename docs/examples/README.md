@@ -4,6 +4,7 @@ Product README samples from real owner data (not test fixtures).
 
 | File | What |
 |------|------|
+| `calt_focus_title.png` | Contour sticker wordmark at the top of the README |
 | `august_2026_sample_export.json` | August 2026 rollup from desktop tracking |
 | `august_2026_day_metrics.csv` | Per-day minutes |
 | `infographic_*.svg` | Wide charts embedded in the root README (~900px) |
