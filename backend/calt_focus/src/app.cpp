@@ -5,6 +5,7 @@
 
 #include "paths.h"
 #include "status_badge.h"
+#include "telegram_remote.h"
 
 #include <dwmapi.h>
 #include <objbase.h>
@@ -33,6 +34,11 @@ constexpr WPARAM SHELL_OPEN_SETTINGS = 4;
 constexpr WPARAM SHELL_POPUP_TRAY = 5;
 constexpr WPARAM SHELL_RESTART_ENFORCER = 6;
 constexpr WPARAM SHELL_WAKE_BIBLE = 7;
+constexpr WPARAM SHELL_OPEN_ROADMAP = 8;
+constexpr WPARAM SHELL_OPEN_OPENJARVIS = 9;
+constexpr WPARAM SHELL_UPDATE_UI = 10;
+constexpr WPARAM SHELL_UPDATE_STACK = 11;
+constexpr WPARAM SHELL_APPLY_UPDATE = 12;
 
 UINT g_taskbar_created = 0;
 
@@ -170,11 +176,18 @@ int FocusApp::Run(HINSTANCE instance) {
   RefreshTrayTip();
   PushStatusTick();
 
+  // Telegram remote (disabled by default) — long-poll if config enabled.
+  {
+    TelegramRemoteConfig tg = TelegramRemoteLoad();
+    if (tg.enabled && !tg.bot_token.empty()) TelegramRemoteApply(tg);
+  }
+
   MSG msg{};
   while (GetMessageW(&msg, nullptr, 0, 0) > 0) {
     TranslateMessage(&msg);
     DispatchMessageW(&msg);
   }
+  TelegramRemoteStop();
 
   if (tip_timer_) {
     KillTimer(msg_hwnd_, tip_timer_);
@@ -307,6 +320,21 @@ LRESULT FocusApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
       case SHELL_WAKE_BIBLE:
         WakeOpenBibleGate();
         return 0;
+      case SHELL_OPEN_ROADMAP:
+        OpenRoadmap();
+        return 0;
+      case SHELL_OPEN_OPENJARVIS:
+        OpenOpenJarvis();
+        return 0;
+      case SHELL_UPDATE_UI:
+        UpdateUi();
+        return 0;
+      case SHELL_UPDATE_STACK:
+        UpdateStack();
+        return 0;
+      case SHELL_APPLY_UPDATE:
+        ApplyPendingUpdate();
+        return 0;
       default:
         break;
     }
@@ -429,6 +457,36 @@ void FocusApp::OpenRoadmap() {
   ShowFocusWindow(true);
   if (webview_ && webview_->Ready()) {
     webview_->Navigate(url);
+  }
+}
+
+void FocusApp::OpenOpenJarvis() {
+  // Whitelist only — never ShellExecute arbitrary paths from the WebView.
+  wchar_t localApp[MAX_PATH]{};
+  if (!GetEnvironmentVariableW(L"LOCALAPPDATA", localApp, MAX_PATH)) {
+    if (tray_) tray_->ShowBalloon(L"CALT Focus", L"OpenJarvis: LOCALAPPDATA missing.");
+    return;
+  }
+  const std::wstring candidates[] = {
+      std::wstring(localApp) + L"\\OpenJarvis\\openjarvis-desktop.exe",
+      std::wstring(localApp) + L"\\Programs\\OpenJarvis\\openjarvis-desktop.exe",
+  };
+  for (const auto& exe : candidates) {
+    if (GetFileAttributesW(exe.c_str()) == INVALID_FILE_ATTRIBUTES) continue;
+    const std::wstring dir = exe.substr(0, exe.find_last_of(L"\\/"));
+    HINSTANCE h = ShellExecuteW(nullptr, L"open", exe.c_str(), nullptr, dir.c_str(), SW_SHOWNORMAL);
+    if (reinterpret_cast<INT_PTR>(h) > 32) {
+      if (tray_) {
+        tray_->ShowBalloon(L"CALT Focus",
+                           L"OpenJarvis launched (sidekick). SoftLand / Arm stay native.");
+      }
+      return;
+    }
+  }
+  if (tray_) {
+    tray_->ShowBalloon(
+        L"CALT Focus",
+        L"OpenJarvis not installed. Install desktop app to %LOCALAPPDATA%\\OpenJarvis\\");
   }
 }
 

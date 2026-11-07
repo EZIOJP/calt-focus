@@ -283,19 +283,20 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 
 When **Require Confirm plan** is off (default): Bible still runs; Confirm-plan overlay is hidden. After Bible, DayLoop auto-confirms and couples SoftLand+Arm only once today has at least one non-free planned minute. Until then the new day stays in planning and Arm stays off — yesterday's enforcer does not stay active past midnight. Apply, Clear, and New routines work in that window. After the plan confirms, those edits need a free day or day pass. Sleep save stays open. SoftLand decide treats the plan gate as satisfied. Prefer Home **work sessions** as the daily focus loop; Plan/routines stay optional.
 
-### 7.3b LLM host — `FocusLlmHostPanel`
+### 7.3b Focus AI brain — `FocusLlmHostPanel`
 
 | Control | Persist | Backend | Class |
 |---------|---------|---------|-------|
-| Use LLM for session Suggest + Jarvis | `localStorage` `calt:focus-llm-host:v1` | Hosted `/v1/chat/completions` (Qwen/Ollama / OpenRouter / custom) | Local |
-| Preset Qwen / OpenRouter / Custom | same | Default: Ollama `http://127.0.0.1:11434/v1` + `qwen2.5:3b` | Local |
-| Base URL, model, Bearer (OpenRouter `sk-or-…`) | same | Keys stay in this browser / on the host you run | Local |
-| OpenRouter attribution | `HTTP-Referer` + `X-OpenRouter-Title` (+ legacy `X-Title`) | Optional rankings headers | Local |
-| Test host | GET `{base}/models` | Ping only (OpenRouter needs Bearer) | Diagnostic |
+| Use LLM for session Suggest + Jarvis | `localStorage` `calt:focus-llm-host:v1` | OpenAI-compatible `/v1/chat/completions` | Local |
+| Preset OpenJarvis / Ollama / OpenRouter / Custom | same | **Default: OpenJarvis** `http://127.0.0.1:8000/v1` + `qwen3.5:4b` | Local |
+| Base URL, model, Bearer (OpenRouter `sk-or-…`) | same | Keys stay in this browser / host | Local |
+| Test host | GET `{base}/models` (+ OpenJarvis `/health`) | Diagnostic | Local |
 
-**Indication:** `FocusAiStatusChip` in Settings LiveStatusStrip, Home mode header, Suggest rail, and LLM/Jarvis panels (Qwen / OpenRouter / off + optional ping).
+**Indication:** `FocusAiStatusChip` (OpenJarvis / Ollama / OpenRouter / off). Suggest + Jarvis call this host; SoftLand/Arm/Gate never do. Stock Ollama-only prefs migrate once to OpenJarvis; a one-shot re-enable turns a stuck AI-off back on. Jarvis chat auto-enables the brain if toggled off. In `calt_focus`, LLM HTTP is **native WinHTTP** (`llm_http` bridge) so WebView CORS cannot block `:8000`. See `services/llm_host/README.md`.
 
-Work session **Suggest** (Home allow/block rail) and **Jarvis** briefs/free chat call that host; on failure Suggest uses heuristics and Jarvis uses a canned/error line. See `services/llm_host/README.md`. Legacy 9Router prefs auto-migrate to local Qwen.
+### 7.3c2 OpenJarvis — `FocusOpenJarvisPanel`
+
+Settings → More: **Use as Focus AI brain** (points prefs at `:8000/v1`), model chips from `/v1/models`, desktop launch via `open_openjarvis`. **Auto-start API** runs background `jarvis start` (no GUI) via native `openjarvis_host` bridge when `:8000` is down. Auto-load / idle-unload use Ollama `:11434` keep_alive. Jarvis commands: `serve`, `model`, `load`, `unload`, `classify`. Classification approve → enforcer `classify.upsert_app_rule`.
 
 ### 7.3c Jarvis — `FocusJarvisPanel`
 
@@ -311,12 +312,26 @@ Study voice_agent spirit (`jarvis` | `normal`). Default **Jarvis** picks Microso
 | Test voice / Stop | — | Speak sample / cancel | Local |
 | Auto morning brief | same | Once/day on Home | Local |
 | Run brief | LLM host chat or canned | No Study `:8000` | Local |
-| Command box | same UI | `focusCommands` → mirrors / enforcer / email report | Local |
+| Command box | same UI | `focusCommands` → mirrors / enforcer / email report / `pc_power` | Local |
 | Mic (PTT) | same UI | Edge Web Speech (`focusStt`) | Local |
 
 Study voice_agent used **faster-whisper** (Python) when installed, else SpeechRecognition. Focus uses **Web Speech** in WebView2 (no Python STT process).
 
-Commands: `help`, `brief`, `status`, `report`, `speak on|off`, `voice jarvis|normal`, `session end`, `softland on`, `softland off UNLOCK`, `pass`. SoftLand off still requires typed `UNLOCK` (server-enforced).
+Commands: `help`, `brief`, `status`, `report`, `speak on|off`, `voice jarvis|normal`, `session end`, `softland on`, `softland off UNLOCK`, `pass`, `lock`, `sleep`, `shutdown CONFIRM`, `shutdown cancel`. SoftLand off still requires typed `UNLOCK` (server-enforced). Power ops run in `calt_focus` (`pc_power` bridge) — interactive session, not the enforcer service.
+
+### 7.3c3 Telegram remote — `FocusTelegramRemotePanel`
+
+Phone / internet control via Telegram Bot API long-poll inside **`calt_focus`** (no inbound port, not Study `:8000`, not enforcer).
+
+| Control | Persist | Backend | Class |
+|---------|---------|---------|-------|
+| Enable bot | `%USERPROFILE%\.calt\telegram_remote.json` | Native poller | Local+Internet |
+| Bot token | same (masked in status) | `@BotFather` token | Secret |
+| Allow next chat | `link_next` then `/start` or `link` | Allowlist `allowed_chat_ids` | Local |
+| Free chat | `allow_chat` | OpenJarvis `:8000` via WinHTTP | Local |
+| Power commands | `allow_power` | `pc_power` lock/sleep/shutdown | Local |
+
+Commands from Telegram (and desktop Jarvis): `help`, `status`, `summary`, `brief`, `plan`, `todos`, `export [days] [json|csv]`, `softland on|off UNLOCK`, `pass`, `winddown`, `session end`, `close browsers`, `close app name.exe`, `lock`, `sleep`, `shutdown CONFIRM`, `shutdown 5m CONFIRM`, `shutdown cancel`. **Arm hard-block is not exposed remotely.** Empty allowlist ignores strangers until **Allow next chat**. Rate-limit ~1 cmd/sec. Disabled by default. Close-apps never kills Focus/enforcer/WebView2/explorer.
 
 Home also shows day-loop **Goals · todos** (`day.task_*`) plus Plan **side todos** (`productivity:goals:v1` `extraGoals`).
 
@@ -386,7 +401,10 @@ Focus desktop only. No bypass — points to SoftLand UNLOCK + Disarm, then tray 
 |---------|------|-------|
 | 7d / 30d / 90d / Year chips | Parent state on `ProductivityPage` | UI |
 | From / To dates + `ExportRangeCalendar` | Parent state | UI |
-| JSON / CSV (long) / CSV (wide) | Study `downloadProductivityWeekExport` `:8000` — v1.4 tidy `tables` + session rows; long CSV is multi-table (`# table:…`) | Study-only |
+| JSON / CSV (long) / CSV (wide) | Focus: enforcer `productivity.export` → `behavior/productivity_export.{json,csv}`; desktop saves via native `behavior_file` copy to Downloads (calt-data fetch is fallback). Study: `:8000` `/api/planner/export/last-7-days` | Focus-native |
+| Import SoftLand lists | File picker → `softland.patch_site_rules` from JSON `site_rules` / policy backup | Focus-native |
+| Reveal last export | Native `behavior_file` reveal on `productivity_export.json` | Focus-native |
+| Update check / Update UI / stack / Apply | `focus_shell` → tray UpdateUi / UpdateStack / ApplyPendingUpdate; reads `pending_update.json` | Focus-native |
 
 ### 7.8 Setup card
 
@@ -438,7 +456,7 @@ Design host `:5180` without WebView → gated sections behave read-only.
 3. **Productive scoring** — much of the rich category UI is Study `:8000` era; Focus offline path is thinner.
 4. **Kill-list edits** — authoritative UI is Blocks → Apps (`arm.set`), not Unlock’s leftover chips.
 5. **Secrets in `enforcer_policy.json`** — unlock password/phrase stored in plaintext today.
-6. **Export / demo / classification** — still Study API where noted. **Wearables** → Focus `:8765` hub (not Study `:8000`).
+6. **Demo / classification** — still Study API where noted. **Export** is Focus-native (`productivity.export`). **Wearables** → Focus `:8765` hub (not Study `:8000`).
 7. **Mode label vs decide** — Overview chip can disagree with full SoftLand decide ladder (schedules / morning).
 8. **Device Status in Focus** — may reflect settings mirror more than live hosts parse.
 
