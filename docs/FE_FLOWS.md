@@ -74,9 +74,9 @@ New day
 
 | Flow | Steps | React surface | Gateway / engine | Status | How to verify |
 |------|-------|---------------|------------------|--------|---------------|
-| Home glance | Productive / bible / plan + Confirm + session | `HomeModeBoard`, `GlanceBar`, `focusStatusBus` | `day.loop_snapshot` + mirrors | **Live** | Numbers match `day_rollup` + SoftLand goals |
+| Home glance | Productive / bible / plan + Confirm + session; SoftLand list **status** only | `HomeModeBoard`, `GlanceBar`, `focusStatusBus` | `day.loop_snapshot` + mirrors | **Live** | Numbers match `day_rollup` + SoftLand goals; edit lists → Settings → Blocks |
 | Calendar CRUD / DnD | Day/week/month | `PlannerCalendar.tsx` | `plan.list/upsert/delete` | **Live** | Create / drag / delete round-trip to `plan_blocks.json` |
-| Plan tab | Routines, range, goals blocks | `ProductivityPage` tab=plan | `routine.*` / `plan.*` | **Live** | LLM propose week disabled in Focus (Study-only) |
+| Plan tab | Routines, range, goals (no Blocker editors) | `ProductivityPage` tab=plan | `routine.*` / `plan.*` | **Live** | LLM propose week disabled in Focus; Sites/Apps → Settings → Blocks |
 | Bible reader | Corpus `/calt-bible/` + devotion | `BibleReaderPage.tsx` | `bible.devotion.*` | **Live** | Mark done syncs morning gate |
 | Journal | Today entry + autosave | `JournalPage.tsx` | `journal.upsert` / `summary` / `log` | **Live** | Debounce 1.5s + blur / hide |
 | Settings SoftLand lists | allow/watch/block + enable | `SoftLandSiteRulesPanel`, Settings | `softland.patch_*` / `set_enabled` | **Live** | Lists need free day; UNLOCK to turn SoftLand off |
