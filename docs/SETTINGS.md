@@ -207,7 +207,8 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 | Day pass | Button → type `PASS` | `day.grant_pass` | Quota (2/week); Bible done; free until EOD | Unlock |
 | Gate / progress | Ring / status | Read mirrors | day rollup / SoftLand | Display |
 | Study Loop gate | Checkbox | Study `:8000` | — | **Study-only** (hidden in Focus) |
-| Auto-block Gaming / hard_block_exes chips | Shown in some variants | **Not the Focus write path for Arm list** | Use Blocks → Apps | Prefer Apps tab |
+| Auto-block Gaming / hard_block_exes chips | **Study-only** (hidden in Focus Unlock) | Study scoring helpers — **not** Arm kill list | Use Blocks → Apps for OS kills | Prefer Apps tab |
+| Blocks deep links | Sites / Apps chips | Nav only | — | Nav |
 
 ### 5.2 Now — SoftLand & Arm — `FocusControlPanel`
 
@@ -223,7 +224,21 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 | Anti-tamper | Checkbox | `arm.set` | Extra kill list when locked | Arm |
 | Protect uninstall | Checkbox | Written on `arm.set` | **Little/no consumer** | Mostly dead |
 | Arm / Disarm | Buttons | `arm.set` `hard_block_armed` | Kill loop + unlock confirm | Arm |
-| Kill list preview | Chips + link to Blocks | Read `enforcer_policy` | — | Display |
+| Kill list preview | Chips + link to **Settings → Blocks → Apps** (`section=apps`) | Read `enforcer_policy` | — | Display |
+
+**Activation:** Arm / SoftLand toggles are configuration UI. Do not treat shipping this panel as “turn the enforcer on.” Default install stays disarmed until the user explicitly Arms.
+
+---
+
+## 5.3 Where lists do *not* live (cleanup)
+
+| Surface | Before | After |
+|---------|--------|-------|
+| Home (`HomeModeBoard`) | Editable SoftLand watch/block lists | Status counts + link → Blocks → Sites |
+| Plan → Goals (`BlockerPanel`) | Full Sites + Arm kill editors | Deep links → Blocks → Sites / Apps |
+| Unlock leftover exe chips | Looked like Arm list; Focus save path ignored them | Hidden in Focus; Study scoring-only remains |
+
+Confirm plan / Check unlock / reward / pass stay as **day-loop actions** (Home / Plan / Unlock), not list editors.
 
 ---
 
@@ -243,10 +258,10 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 
 | Panel | Presentation | Path | Class |
 |-------|--------------|------|-------|
-| `DesktopManagedBanner` | Banner → Overview | Nav | Copy |
-| `SessionOverridePanel` | Pick session → mark productive / clear | Study PATCH tracked sessions | Study-only |
+| `DesktopManagedBanner` | Banner → Overview | Nav | Copy (**hidden in Focus**) |
+| `SessionOverridePanel` | Pick session → mark productive / clear | Study PATCH tracked sessions | Study-only (**hidden in Focus**) |
 | `ActivitiesPanel` | Day table, uncategorized filter | Focus: `day_activities.json` mirror; Study: activities API | Focus-native |
-| `ClassificationReview` | Scan / approve / reject LLM suggestions | Study classification API | Study-only |
+| `ClassificationReview` | Scan / approve / reject LLM suggestions | Study classification API | Study-only (**hidden in Focus**) |
 
 ---
 
@@ -436,11 +451,12 @@ Design host `:5180` without WebView → gated sections behave read-only.
 1. **SoftLand ON ≠ Arm** — always show both; never imply one toggle does both.
 2. **Dead SoftLand flags** — social/keywords/other/strict hidden (copy explains they did nothing).
 3. **Productive scoring** — much of the rich category UI is Study `:8000` era; Focus offline path is thinner.
-4. **Kill-list edits** — authoritative UI is Blocks → Apps (`arm.set`), not Unlock’s leftover chips.
+4. **Kill-list edits** — authoritative UI is Blocks → Apps (`arm.set`). Home / Plan Goals / Unlock no longer host duplicate editors in Focus.
 5. **Secrets in `enforcer_policy.json`** — unlock password/phrase stored in plaintext today.
-6. **Export / demo / classification** — still Study API where noted. **Wearables** → Focus `:8765` hub (not Study `:8000`).
+6. **Export / demo / classification** — still Study API where noted; classification + session override **hidden in Focus**. **Wearables** → Focus `:8765` hub (not Study `:8000`).
 7. **Mode label vs decide** — Overview chip can disagree with full SoftLand decide ladder (schedules / morning).
 8. **Device Status in Focus** — may reflect settings mirror more than live hosts parse.
+9. **Do not auto-activate** — shipping Settings cleanup must not set `hard_block_armed` or SoftLand on by default.
 
 ---
 

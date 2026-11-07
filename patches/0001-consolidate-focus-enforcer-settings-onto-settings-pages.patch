@@ -1,0 +1,746 @@
+From e1de0af1707de99295d832280d94752ffef4b631 Mon Sep 17 00:00:00 2001
+From: Cursor Agent <cursoragent@cursor.com>
+Date: Sat, 7 Nov 2026 14:31:33 +0000
+Subject: [PATCH] Consolidate Focus enforcer list editors onto Settings pages.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Remove SoftLand/Arm editors from Home and Plan Goals, fix Unlock deep links,
+and hide Study-only Productive panels in the Focus shell. Configuration only —
+does not activate SoftLand or Arm.
+---
+ src/components/productivity/BlockerPanel.tsx  |   5 +
+ .../productivity/FocusControlPanel.tsx        |  22 +-
+ src/components/productivity/HomeModeBoard.tsx | 312 ++++--------------
+ .../productivity/ProductivityGoalsPanel.tsx   |  30 +-
+ .../productivity/ProductivityPolicyPanel.tsx  | 141 ++++----
+ .../productivity/ProductivitySettingsTab.tsx  |  37 ++-
+ 6 files changed, 206 insertions(+), 341 deletions(-)
+
+diff --git a/src/components/productivity/BlockerPanel.tsx b/src/components/productivity/BlockerPanel.tsx
+index dc2aee5..b267e84 100644
+--- a/src/components/productivity/BlockerPanel.tsx
++++ b/src/components/productivity/BlockerPanel.tsx
+@@ -1,3 +1,8 @@
++/**
++ * @deprecated Focus Plan → Goals no longer mounts this panel.
++ * SoftLand site lists + Arm kill list editors live under Settings → Blocks
++ * (`SoftLandSiteRulesPanel`, `AppKillRulesPanel`). Kept for reference / Study experiments.
++ */
+ import { useCallback, useEffect, useState } from "react";
+ import { Plus, Save, Shield } from "lucide-react";
+ import SoftLandSiteRulesPanel from "./SoftLandSiteRulesPanel";
+diff --git a/src/components/productivity/FocusControlPanel.tsx b/src/components/productivity/FocusControlPanel.tsx
+index 3aa083d..a5ac0f7 100644
+--- a/src/components/productivity/FocusControlPanel.tsx
++++ b/src/components/productivity/FocusControlPanel.tsx
+@@ -702,14 +702,16 @@ export function FocusControlPanel() {
+               <span className="text-xs text-muted-foreground">Kill list (from policy)</span>
+               <a
+                 className="rounded-lg border border-sky-500/40 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-100 hover:bg-sky-500/20"
+-                href="/productivity?tab=settings#rules"
++                href="/productivity?tab=settings&section=apps"
+               >
+-                Edit in Blocking rules →
++                Edit in Settings → Apps →
+               </a>
+             </div>
+             <div className="flex flex-wrap gap-1.5 min-h-[2rem]">
+               {exes.length === 0 ? (
+-                <span className="text-[11px] text-muted-foreground">Empty — add exes under #rules before Arm.</span>
++                <span className="text-[11px] text-muted-foreground">
++                  Empty — add exes under Settings → Blocks → Apps before Arm.
++                </span>
+               ) : (
+                 exes.map((exe) => (
+                   <span
+@@ -723,14 +725,17 @@ export function FocusControlPanel() {
+             </div>
+             <p className="text-[11px] text-muted-foreground">
+               CRUD + presets live only at{" "}
+-              <a className="underline text-sky-300/90" href="/productivity?tab=settings#rules">
+-                Settings → Blocking rules (#rules)
++              <a
++                className="underline text-sky-300/90"
++                href="/productivity?tab=settings&section=apps"
++              >
++                Settings → Blocks → Apps
+               </a>
+-              {" "}— Focus Arms the saved list (no second editor).
++              {" "}— Unlock Arms the saved list (no second editor). SoftLand ON ≠ Armed.
+             </p>
+             {killListLocked ? (
+               <p className="text-[11px] text-amber-200/90">
+-                Locked while armed — unlock/disarm to edit the list at #rules.
++                Locked while armed — unlock/disarm to edit the list under Settings → Apps.
+               </p>
+             ) : null}
+           </div>
+@@ -824,7 +829,8 @@ export function FocusControlPanel() {
+           </div>
+           <p className="text-[11px] text-muted-foreground pt-1">
+             Writes <code className="text-foreground/80">data/productivity/behavior/enforcer_policy.json</code> —
+-            native reads it with Python killed. Prefer the Windows service for stay-alive.
++            <code className="text-foreground/80">calt_enforcer</code> reads it each tick. Configuration only here —
++            do not Arm unless you mean to start OS kills. SoftLand ON ≠ Armed.
+           </p>
+         </div>
+       </SectionBar>
+diff --git a/src/components/productivity/HomeModeBoard.tsx b/src/components/productivity/HomeModeBoard.tsx
+index 67f5482..1d924e1 100644
+--- a/src/components/productivity/HomeModeBoard.tsx
++++ b/src/components/productivity/HomeModeBoard.tsx
+@@ -1,10 +1,8 @@
+-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
++import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+ import { endOfDay, startOfDay } from "date-fns";
+ import {
+   Check,
+-  ChevronDown,
+   Loader2,
+-  Plus,
+   Shield,
+   Target,
+   Trash2,
+@@ -20,7 +18,7 @@ import {
+   fetchPlannerBlocks,
+   type PlannerBlock,
+ } from "../../api/plannerClient";
+-import { enforcerNativeCmd, isFocusEnforcerBridgeAvailable } from "../../lib/enforcerNativeCmd";
++import { isFocusEnforcerBridgeAvailable } from "../../lib/enforcerNativeCmd";
+ import { invalidateFocusStatusBus } from "../../lib/focusStatusBus";
+ import { useFocusStatus } from "../../hooks/useFocusStatus";
+ import { isFocusDesktopShell } from "../../utils/focusDesktopShell";
+@@ -41,13 +39,6 @@ function asList(v: unknown): string[] {
+   return v.map((x) => String(x || "").trim().toLowerCase()).filter(Boolean);
+ }
+ 
+-function normalizeDomain(raw: string): string {
+-  let s = raw.trim().toLowerCase().replace(/^https?:\/\//, "");
+-  s = s.split("/")[0] || "";
+-  if (s.startsWith("www.")) s = s.slice(4);
+-  return s;
+-}
+-
+ function pickActiveBlock(blocks: PlannerBlock[], now: Date): PlannerBlock | null {
+   const open = blocks.filter(
+     (b) => b.status !== "done" && b.status !== "cancelled" && b.status !== "rolled",
+@@ -166,173 +157,6 @@ function modeTone(mode: string): { glow: string } {
+   return { glow: "text-foreground" };
+ }
+ 
+-type BlockCardProps = {
+-  title: string;
+-  subtitle?: string;
+-  accent: "sky" | "rose";
+-  icon: ReactNode;
+-  domains: string[];
+-  listCount: number;
+-  canEdit: boolean;
+-  draft: string;
+-  onDraft: (v: string) => void;
+-  onAdd: () => void;
+-  onRemove: (host: string) => void;
+-  saving: boolean;
+-};
+-
+-function BlockCard({
+-  title,
+-  subtitle,
+-  accent,
+-  icon,
+-  domains,
+-  listCount,
+-  canEdit,
+-  draft,
+-  onDraft,
+-  onAdd,
+-  onRemove,
+-  saving,
+-}: BlockCardProps) {
+-  const userTouched = useRef(false);
+-  const [open, setOpen] = useState(domains.length === 0);
+-
+-  useEffect(() => {
+-    if (userTouched.current) return;
+-    setOpen(domains.length === 0);
+-  }, [domains.length]);
+-
+-  const border =
+-    accent === "rose"
+-      ? "border-rose-400/25 hover:border-rose-400/40"
+-      : "border-sky-400/25 hover:border-sky-400/40";
+-  const chip =
+-    accent === "rose"
+-      ? "bg-rose-500/15 text-rose-100"
+-      : "bg-sky-500/15 text-sky-100";
+-
+-  return (
+-    <div
+-      className={cn(
+-        "rounded-2xl border bg-muted/15 overflow-hidden",
+-        border,
+-        accent === "rose" ? "border-l-[3px] border-l-rose-400/70" : "border-l-[3px] border-l-sky-400/70",
+-      )}
+-    >
+-      <button
+-        type="button"
+-        className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+-        onClick={() => {
+-          userTouched.current = true;
+-          setOpen((v) => !v);
+-        }}
+-        aria-expanded={open}
+-      >
+-        <span className={cn("flex size-8 items-center justify-center rounded-lg shrink-0", chip)}>
+-          {icon}
+-        </span>
+-        <span className="min-w-0 flex-1">
+-          <span className="flex flex-wrap items-center gap-2">
+-            <span className="text-sm font-semibold text-foreground">{title}</span>
+-            <span className="rounded-full border border-border/40 px-2 py-0.5 text-[10px] text-muted-foreground tabular-nums">
+-              {listCount} on list
+-            </span>
+-            <span
+-              className={cn(
+-                "rounded-full px-2 py-0.5 text-[10px] font-medium",
+-                listCount > 0 || accent === "rose"
+-                  ? "bg-emerald-500/15 text-emerald-100"
+-                  : "bg-muted/40 text-muted-foreground",
+-              )}
+-            >
+-              {listCount > 0 || accent === "rose" ? "On" : "Off"}
+-            </span>
+-          </span>
+-          {subtitle ? (
+-            <span className="mt-0.5 block text-[11px] text-muted-foreground">{subtitle}</span>
+-          ) : null}
+-        </span>
+-        <ChevronDown
+-          className={cn(
+-            "size-4 shrink-0 text-muted-foreground transition-transform duration-200",
+-            open && "rotate-180",
+-          )}
+-          aria-hidden
+-        />
+-      </button>
+-
+-      {open ? (
+-        <div className="border-t border-border/30 px-4 py-3 space-y-3">
+-          <div className="flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+-            <span>
+-              Listed sites{" "}
+-              <strong className="text-foreground/90 tabular-nums">{listCount}</strong>
+-            </span>
+-            <span>
+-              Blocks today{" "}
+-              <strong className="text-foreground/90 tabular-nums">—</strong>
+-              <span className="opacity-70"> (native counter soon)</span>
+-            </span>
+-          </div>
+-
+-          <ul className="max-h-40 space-y-1 overflow-y-auto">
+-            {domains.map((host) => (
+-              <li
+-                key={host}
+-                className="flex items-center gap-2 rounded-lg border border-border/40 bg-background/40 px-2.5 py-1.5 text-xs"
+-              >
+-                <span className="min-w-0 flex-1 truncate font-mono text-foreground/90">{host}</span>
+-                {canEdit ? (
+-                  <button
+-                    type="button"
+-                    className="text-muted-foreground hover:text-rose-300"
+-                    aria-label={`Remove ${host}`}
+-                    onClick={() => onRemove(host)}
+-                    disabled={saving}
+-                  >
+-                    <Trash2 className="size-3.5" />
+-                  </button>
+-                ) : null}
+-              </li>
+-            ))}
+-            {!domains.length ? (
+-              <li className="text-[11px] text-muted-foreground px-0.5">No custom hosts yet.</li>
+-            ) : null}
+-          </ul>
+-
+-          {canEdit ? (
+-            <div className="flex gap-2">
+-              <input
+-                value={draft}
+-                onChange={(e) => onDraft(e.target.value)}
+-                onKeyDown={(e) => {
+-                  if (e.key === "Enter") onAdd();
+-                }}
+-                placeholder="add.domain.com"
+-                className="min-w-0 flex-1 rounded-lg border border-white/15 bg-black/30 px-2.5 py-1.5 text-xs font-mono"
+-              />
+-              <button
+-                type="button"
+-                className="inline-flex items-center gap-1 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs hover:bg-white/10 disabled:opacity-50"
+-                onClick={onAdd}
+-                disabled={saving}
+-              >
+-                <Plus className="size-3.5" />
+-                Add
+-              </button>
+-            </div>
+-          ) : (
+-            <p className="text-[10px] text-muted-foreground">
+-              Plan confirmed — list locked for this day. Edit again before Confirm plan, or in Settings.
+-            </p>
+-          )}
+-        </div>
+-      ) : null}
+-    </div>
+-  );
+-}
+-
+ function DayBlocksTimeline({
+   day,
+   blocks,
+@@ -451,10 +275,7 @@ export default function HomeModeBoard({
+   const [active, setActive] = useState<PlannerBlock | null>(null);
+   const [dayBlocks, setDayBlocks] = useState<PlannerBlock[]>([]);
+   const [loading, setLoading] = useState(false);
+-  const [saving, setSaving] = useState(false);
+   const [hint, setHint] = useState<string | null>(null);
+-  const [draftWatch, setDraftWatch] = useState("");
+-  const [draftBlock, setDraftBlock] = useState("");
+   const [previewTasks, setPreviewTasks] = useState<
+     { id: number; title: string; done: boolean }[]
+   >(() => {
+@@ -475,8 +296,6 @@ export default function HomeModeBoard({
+   });
+   const previewSeeded = useRef(false);
+ 
+-  const canEditLists = !(loop?.plan_confirmed);
+-
+   // SoftLand + day-loop from shared bus (no per-panel pipe poll).
+   useEffect(() => {
+     if (!focus) return;
+@@ -556,46 +375,6 @@ export default function HomeModeBoard({
+     }
+   };
+ 
+-  const persistRules = useCallback(async (next: SiteRules) => {
+-    setRules(next);
+-    if (!isFocusEnforcerBridgeAvailable()) {
+-      setHint("List edits need calt_focus.exe (enforcer pipe). Design host is preview-only.");
+-      return;
+-    }
+-    setSaving(true);
+-    try {
+-      const res = await enforcerNativeCmd("softland.patch_site_rules", {
+-        allow_extra: next.allow_extra,
+-        watch_extra: next.watch_extra,
+-        block_extra: next.block_extra,
+-      });
+-      if (!res?.ok) setHint(String(res?.error || "Could not save SoftLand lists"));
+-      else {
+-        setHint(null);
+-        invalidateFocusStatusBus({ pipe: true });
+-      }
+-    } finally {
+-      setSaving(false);
+-    }
+-  }, []);
+-
+-  const addDomain = (key: "watch_extra" | "block_extra", raw: string, clear: () => void) => {
+-    if (!canEditLists) return;
+-    const host = normalizeDomain(raw);
+-    if (!host || !host.includes(".")) return;
+-    if (rules[key].includes(host)) {
+-      clear();
+-      return;
+-    }
+-    void persistRules({ ...rules, [key]: [...rules[key], host] });
+-    clear();
+-  };
+-
+-  const removeDomain = (key: "watch_extra" | "block_extra", host: string) => {
+-    if (!canEditLists) return;
+-    void persistRules({ ...rules, [key]: rules[key].filter((h) => h !== host) });
+-  };
+-
+   const goalName = useMemo(() => {
+     if (active?.title) return active.title;
+     const openTask = (loop?.tasks || []).find((t) => !t.done);
+@@ -840,7 +619,9 @@ export default function HomeModeBoard({
+                 >
+                   {t.title}
+                 </span>
+-                {!previewing && canEditLists && isFocusEnforcerBridgeAvailable() ? (
++                {!previewing &&
++                !loop?.plan_confirmed &&
++                isFocusEnforcerBridgeAvailable() ? (
+                   <button
+                     type="button"
+                     className="text-muted-foreground hover:text-rose-300"
+@@ -861,44 +642,65 @@ export default function HomeModeBoard({
+         </div>
+       </section>
+ 
+-      {/* Blocks */}
++      {/* Blocks — status only; editors live in Settings → Blocks */}
+       <section className="gloss-panel rounded-2xl border border-border/40 p-4 space-y-3">
+-        <div className="flex items-baseline justify-between gap-2 px-0.5">
++        <div className="flex flex-wrap items-start justify-between gap-2 px-0.5">
+           <div>
+             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+               Blocks
+             </p>
+-            <p className="mt-0.5 text-[11px] text-muted-foreground">SoftLand site lists for this day</p>
++            <p className="mt-0.5 text-[11px] text-muted-foreground">
++              SoftLand site lists — edit under Settings → Blocks → Sites
++            </p>
+           </div>
++          <a
++            href="/productivity?tab=settings&section=sites"
++            className="rounded-lg border border-sky-500/35 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-100 hover:bg-sky-500/20 shrink-0"
++          >
++            Edit lists →
++          </a>
+         </div>
+-        <div className="flex flex-col gap-3">
+-          <BlockCard
+-            title="Goal-oriented block"
+-            subtitle="Watch list — blocked in STUDY; opens in FREE"
+-            accent="sky"
+-            icon={<Target className="size-4" />}
+-            domains={rules.watch_extra}
+-            listCount={rules.watch_extra.length}
+-            canEdit={canEditLists}
+-            draft={draftWatch}
+-            onDraft={setDraftWatch}
+-            onAdd={() => addDomain("watch_extra", draftWatch, () => setDraftWatch(""))}
+-            onRemove={(h) => removeDomain("watch_extra", h)}
+-            saving={saving}
+-          />
+-          <BlockCard
+-            title="Distraction block"
+-            accent="rose"
+-            icon={<Shield className="size-4" />}
+-            domains={rules.block_extra}
+-            listCount={rules.block_extra.length}
+-            canEdit={canEditLists}
+-            draft={draftBlock}
+-            onDraft={setDraftBlock}
+-            onAdd={() => addDomain("block_extra", draftBlock, () => setDraftBlock(""))}
+-            onRemove={(h) => removeDomain("block_extra", h)}
+-            saving={saving}
+-          />
++        <div className="grid gap-2 sm:grid-cols-2">
++          <div className="rounded-xl border border-sky-400/25 border-l-[3px] border-l-sky-400/70 bg-muted/15 px-3.5 py-3">
++            <div className="flex items-center gap-2">
++              <span className="flex size-7 items-center justify-center rounded-lg bg-sky-500/15 text-sky-100">
++                <Target className="size-3.5" />
++              </span>
++              <div className="min-w-0">
++                <p className="text-xs font-semibold text-foreground">Watch</p>
++                <p className="text-[10px] text-muted-foreground">
++                  {rules.watch_extra.length} host{rules.watch_extra.length === 1 ? "" : "s"} · study
++                  blocked / free opens
++                </p>
++              </div>
++            </div>
++            {rules.watch_extra.length ? (
++              <p className="mt-2 truncate font-mono text-[10px] text-muted-foreground">
++                {rules.watch_extra.slice(0, 3).join(" · ")}
++                {rules.watch_extra.length > 3 ? "…" : ""}
++              </p>
++            ) : null}
++          </div>
++          <div className="rounded-xl border border-rose-400/25 border-l-[3px] border-l-rose-400/70 bg-muted/15 px-3.5 py-3">
++            <div className="flex items-center gap-2">
++              <span className="flex size-7 items-center justify-center rounded-lg bg-rose-500/15 text-rose-100">
++                <Shield className="size-3.5" />
++              </span>
++              <div className="min-w-0">
++                <p className="text-xs font-semibold text-foreground">Block</p>
++                <p className="text-[10px] text-muted-foreground">
++                  {rules.block_extra.length} host{rules.block_extra.length === 1 ? "" : "s"} · survives
++                  free
++                </p>
++              </div>
++            </div>
++            {rules.block_extra.length ? (
++              <p className="mt-2 truncate font-mono text-[10px] text-muted-foreground">
++                {rules.block_extra.slice(0, 3).join(" · ")}
++                {rules.block_extra.length > 3 ? "…" : ""}
++              </p>
++            ) : null}
++          </div>
+         </div>
+       </section>
+     </div>
+diff --git a/src/components/productivity/ProductivityGoalsPanel.tsx b/src/components/productivity/ProductivityGoalsPanel.tsx
+index a03e5e1..ae57e1a 100644
+--- a/src/components/productivity/ProductivityGoalsPanel.tsx
++++ b/src/components/productivity/ProductivityGoalsPanel.tsx
+@@ -1,5 +1,5 @@
+ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+-import { Check, ChevronDown, ChevronUp, Plus, Target, Trash2 } from "lucide-react";
++import { Check, ChevronDown, ChevronUp, Plus, Shield, Target, Trash2 } from "lucide-react";
+ import type { AdherenceSummary } from "../../api/plannerClient";
+ import type { StudyTask } from "../../api/plannerClient";
+ import {
+@@ -10,7 +10,6 @@ import { cn } from "../../app/components/ui/utils";
+ import { isFocusDesktopShell } from "../../utils/focusDesktopShell";
+ import { focusDataUrl } from "../../utils/focusDataUrl";
+ import { enforcerNativeCmd, isFocusEnforcerBridgeAvailable } from "../../lib/enforcerNativeCmd";
+-import BlockerPanel from "./BlockerPanel";
+ import { GoalsTodayPlanBlocks } from "./GoalsTodayPlanBlocks";
+ 
+ /** Fixed system reward — not user-edited copy */
+@@ -404,7 +403,32 @@ export function ProductivityGoalsPanel({
+         onOpenCalendar={onOpenCalendar}
+       />
+ 
+-      {isFocusDesktopShell() ? <BlockerPanel /> : null}
++      {isFocusDesktopShell() ? (
++        <section className="rounded-xl border border-border/50 bg-card/20 p-3 space-y-1.5">
++          <div className="flex items-center gap-2">
++            <Shield size={13} className="text-sky-300 shrink-0" aria-hidden />
++            <h4 className="text-[11px] font-semibold text-foreground">Blocker lists</h4>
++          </div>
++          <p className="text-[11px] text-muted-foreground leading-relaxed">
++            Site allow/watch/block and Arm kill lists live under Settings → Blocks. SoftLand ON ≠
++            Armed.
++          </p>
++          <div className="flex flex-wrap gap-2 pt-0.5">
++            <a
++              href="/productivity?tab=settings&section=sites"
++              className="rounded-lg border border-sky-500/35 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-100 hover:bg-sky-500/20"
++            >
++              Sites →
++            </a>
++            <a
++              href="/productivity?tab=settings&section=apps"
++              className="rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-100 hover:bg-rose-500/20"
++            >
++              Apps →
++            </a>
++          </div>
++        </section>
++      ) : null}
+ 
+       <section className="goals-todos space-y-2">
+         <div className="flex items-center justify-between gap-2">
+diff --git a/src/components/productivity/ProductivityPolicyPanel.tsx b/src/components/productivity/ProductivityPolicyPanel.tsx
+index 44bb409..7deb0c6 100644
+--- a/src/components/productivity/ProductivityPolicyPanel.tsx
++++ b/src/components/productivity/ProductivityPolicyPanel.tsx
+@@ -552,74 +552,91 @@ export function ProductivityPolicyPanel({ onSaved, variant = "all" }: Props) {
+               min · {formatHoursMins(policy.daily_goal_minutes ?? 240)}
+             </span>
+           </label>
+-          <label className="flex items-center gap-2">
+-            <input
+-              type="checkbox"
+-              checked={policy.hard_block_gaming !== false}
+-              onChange={(e) => setPolicy({ ...policy, hard_block_gaming: e.target.checked })}
+-            />
+-            Auto-block Gaming category
+-          </label>
+         </div>
+-        <div>
+-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+-            SoftLand game-bank exes (not OS kill list)
++        <div className="rounded-md border border-border/40 bg-background/30 p-2.5 space-y-1.5">
++          <p className="text-[11px] text-muted-foreground leading-relaxed">
++            OS kill list and SoftLand site lists live under{" "}
++            <strong className="text-foreground/80">Settings → Blocks</strong> (Sites / Apps). Unlock
++            Arms the saved app list — SoftLand ON ≠ Armed.
+           </p>
+-          <p className="text-[11px] text-muted-foreground mb-2">
+-            OS kill list lives on{" "}
+-            <a className="underline text-amber-200/90" href="?tab=settings&section=overview">
+-              Focus
+-            </a>{" "}
+-            /{" "}
+-            <a className="underline text-amber-200/90" href="#rules">
+-              Blocking rules
++          <div className="flex flex-wrap gap-2">
++            <a
++              className="rounded-lg border border-sky-500/35 bg-sky-500/10 px-2.5 py-1 text-[11px] text-sky-100 hover:bg-sky-500/20"
++              href="/productivity?tab=settings&section=sites"
++            >
++              Sites →
+             </a>
+-            . This list only feeds SoftLand / game-bank scoring.
+-          </p>
+-          <div className="flex flex-wrap gap-1.5 mb-2">
+-            {(policy.hard_block_exes || []).map((exe) => (
+-              <button
+-                key={exe}
+-                type="button"
+-                className="text-[10px] px-2 py-0.5 rounded border border-white/10 hover:border-rose-400/50"
+-                onClick={() =>
+-                  setPolicy({
+-                    ...policy,
+-                    hard_block_exes: (policy.hard_block_exes || []).filter((x) => x !== exe),
+-                  })
+-                }
+-                title="Remove"
+-              >
+-                {exe} ×
+-              </button>
+-            ))}
+-          </div>
+-          <div className="flex gap-2">
+-            <input
+-              value={newBlockExe}
+-              onChange={(e) => setNewBlockExe(e.target.value)}
+-              placeholder="e.g. discord.exe"
+-              className="flex-1 rounded border border-white/10 bg-black/30 px-2 py-1 text-xs"
+-            />
+-            <button
+-              type="button"
+-              className="px-2 py-1 rounded border border-white/15 text-xs"
+-              onClick={() => {
+-                const name = newBlockExe.trim();
+-                if (!name || !policy) return;
+-                const cur = policy.hard_block_exes || [];
+-                if (cur.some((x) => x.toLowerCase() === name.toLowerCase())) {
+-                  setNewBlockExe("");
+-                  return;
+-                }
+-                setPolicy({ ...policy, hard_block_exes: [...cur, name] });
+-                setNewBlockExe("");
+-              }}
++            <a
++              className="rounded-lg border border-rose-500/35 bg-rose-500/10 px-2.5 py-1 text-[11px] text-rose-100 hover:bg-rose-500/20"
++              href="/productivity?tab=settings&section=apps"
+             >
+-              Add
+-            </button>
++              Apps →
++            </a>
+           </div>
+         </div>
++        {!isFocusDesktopShell() ? (
++          <>
++            <label className="flex items-center gap-2 text-xs">
++              <input
++                type="checkbox"
++                checked={policy.hard_block_gaming !== false}
++                onChange={(e) => setPolicy({ ...policy, hard_block_gaming: e.target.checked })}
++              />
++              Auto-block Gaming category (Study scoring)
++            </label>
++            <div>
++              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
++                SoftLand game-bank exes (not OS kill list)
++              </p>
++              <p className="text-[11px] text-muted-foreground mb-2">
++                Study-only scoring helpers. OS kill list is Settings → Blocks → Apps.
++              </p>
++              <div className="flex flex-wrap gap-1.5 mb-2">
++                {(policy.hard_block_exes || []).map((exe) => (
++                  <button
++                    key={exe}
++                    type="button"
++                    className="text-[10px] px-2 py-0.5 rounded border border-white/10 hover:border-rose-400/50"
++                    onClick={() =>
++                      setPolicy({
++                        ...policy,
++                        hard_block_exes: (policy.hard_block_exes || []).filter((x) => x !== exe),
++                      })
++                    }
++                    title="Remove"
++                  >
++                    {exe} ×
++                  </button>
++                ))}
++              </div>
++              <div className="flex gap-2">
++                <input
++                  value={newBlockExe}
++                  onChange={(e) => setNewBlockExe(e.target.value)}
++                  placeholder="e.g. discord.exe"
++                  className="flex-1 rounded border border-white/10 bg-black/30 px-2 py-1 text-xs"
++                />
++                <button
++                  type="button"
++                  className="px-2 py-1 rounded border border-white/15 text-xs"
++                  onClick={() => {
++                    const name = newBlockExe.trim();
++                    if (!name || !policy) return;
++                    const cur = policy.hard_block_exes || [];
++                    if (cur.some((x) => x.toLowerCase() === name.toLowerCase())) {
++                      setNewBlockExe("");
++                      return;
++                    }
++                    setPolicy({ ...policy, hard_block_exes: [...cur, name] });
++                    setNewBlockExe("");
++                  }}
++                >
++                  Add
++                </button>
++              </div>
++            </div>
++          </>
++        ) : null}
+         </>
+         )}
+       </div>
+diff --git a/src/components/productivity/ProductivitySettingsTab.tsx b/src/components/productivity/ProductivitySettingsTab.tsx
+index 7a48b58..08a32cb 100644
+--- a/src/components/productivity/ProductivitySettingsTab.tsx
++++ b/src/components/productivity/ProductivitySettingsTab.tsx
+@@ -43,16 +43,25 @@ export function ProductivitySettingsTab(props: ProductivitySettingsTabProps) {
+   const focusShell = isFocusDesktopShell();
+   const productiveExtra = (
+     <div className="space-y-4">
+-      <DesktopManagedBanner feature="Session override & classification" />
+-      <div className="rounded-2xl border border-border/50 bg-card/30 p-4 sm:p-6">
+-        <SessionOverridePanel
+-          timeline={props.timeline}
+-          onSaved={() => {
+-            props.onLoad();
+-            props.bumpPlanner();
+-          }}
+-        />
+-      </div>
++      {!focusShell ? (
++        <>
++          <DesktopManagedBanner feature="Session override & classification" />
++          <div className="rounded-2xl border border-border/50 bg-card/30 p-4 sm:p-6">
++            <SessionOverridePanel
++              timeline={props.timeline}
++              onSaved={() => {
++                props.onLoad();
++                props.bumpPlanner();
++              }}
++            />
++          </div>
++        </>
++      ) : (
++        <p className="text-[11px] text-muted-foreground leading-relaxed px-0.5">
++          Session override and LLM classification stay in Study. Focus shows today’s activity mirror
++          below — SoftLand / Arm lists stay under Blocks.
++        </p>
++      )}
+       <div className="rounded-2xl border border-border/50 bg-card/30 p-4 sm:p-6">
+         <ActivitiesPanel
+           day={props.plannerDayApi}
+@@ -60,9 +69,11 @@ export function ProductivitySettingsTab(props: ProductivitySettingsTabProps) {
+           refreshKey={props.plannerRefresh}
+         />
+       </div>
+-      <div className="rounded-2xl border border-border/50 bg-card/30 p-4 sm:p-6">
+-        <ClassificationReview trackerNoData={props.trackerNoData} />
+-      </div>
++      {!focusShell ? (
++        <div className="rounded-2xl border border-border/50 bg-card/30 p-4 sm:p-6">
++          <ClassificationReview trackerNoData={props.trackerNoData} />
++        </div>
++      ) : null}
+     </div>
+   );
+ 
+-- 
+2.43.0
+
