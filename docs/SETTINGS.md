@@ -405,6 +405,9 @@ Focus desktop only. No bypass — points to SoftLand UNLOCK + Disarm, then tray 
 | Import SoftLand lists | File picker → `softland.patch_site_rules` from JSON `site_rules` / policy backup | Focus-native |
 | Reveal last export | Native `behavior_file` reveal on `productivity_export.json` | Focus-native |
 | Update check / Update UI / stack / Apply | `focus_shell` → tray UpdateUi / UpdateStack / ApplyPendingUpdate; reads `pending_update.json` | Focus-native |
+| Body care — sit/stand | `localStorage` `calt:bodycare:prefs` + Notification | Focus-native |
+| Body care — eye rest | Same prefs; 20–20–20 nudges | Focus-native |
+| Body care — attention reader | Opt-in webcam via face-tracker (lazy); no SoftLand coupling | Focus-native |
 
 ### 7.8 Setup card
 

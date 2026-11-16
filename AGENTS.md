@@ -5,10 +5,12 @@ Standalone **Productivity** product. No Study GRE/notes/math. No SoftLand brain 
 | Owns | Tech |
 |------|------|
 | SoftLand, Arm, Plan, Calendar, Settings, Bible, Journal, Gate | C++ enforcer + msg-host + `calt_focus` WebView2 |
+| Wearables | ZeppBridge pull preferred; CALT Sync `:8765` optional |
+| Body care | Sit/stand + eye rest + opt-in attention reader (client) |
 | Focus UI | React SPA → `dist-focus/` (build/sync from Study sibling) |
 | SoT | `data/productivity/productivity.db` + behavior mirrors |
 
-**Locks:** `softland_enabled` ≠ `hard_block_armed`. Zero Python for arm/kill/track/status. No Electron / Qt. No Cold Turkey code. No HTML shell UI.
+**Locks:** `softland_enabled` ≠ `hard_block_armed`. Zero Python for arm/kill/track/status. No Electron / Qt. No Cold Turkey code. No HTML shell UI. Product lock: [`docs/FOCUS_PRODUCT.md`](docs/FOCUS_PRODUCT.md).
 
 **Build:** `scripts\build\build_native_enforcer.bat` · `npm run build:focus` / `sync:focus-ui` · install under `scripts\install\`
 
