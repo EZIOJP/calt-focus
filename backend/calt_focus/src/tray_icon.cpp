@@ -124,7 +124,6 @@ void TrayIcon::PopupMenu() {
   AppendMenuW(menu, MF_STRING, ID_OPEN, L"Open Focus");
   AppendMenuW(menu, MF_STRING, ID_CALENDAR, L"Open Calendar");
   AppendMenuW(menu, MF_STRING, ID_PLAN, L"Open Plan");
-  AppendMenuW(menu, MF_STRING, ID_ROADMAP, L"Open Math \x2192 ML");
   AppendMenuW(menu, MF_STRING, ID_SETTINGS, L"Open Settings");
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, ID_RUN, L"Ensure enforcer + open");
@@ -134,13 +133,10 @@ void TrayIcon::PopupMenu() {
   AppendMenuW(menu, MF_STRING, ID_UPDATE_UI, L"Update UI (rebuild + reload)");
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
-  AppendMenuW(adv, MF_STRING, ID_API, L"Start Study API (:8000)");
-  AppendMenuW(adv, MF_STRING, ID_FE, L"Start Study Frontend (Vite :5173)");
-  AppendMenuW(adv, MF_STRING, ID_STACK, L"Start Study API + Vite");
-  AppendMenuW(adv, MF_SEPARATOR, 0, nullptr);
+  // Rebuild only — no Study API / Vite / Math (product lock).
   AppendMenuW(adv, MF_STRING, ID_UPDATE_STACK, L"Update stack (UI + natives + rules)");
   AppendMenuW(adv, MF_STRING, ID_APPLY_UPDATE, L"Apply pending update && restart");
-  AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(adv), L"Advanced (Study / rebuild)");
+  AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(adv), L"Rebuild");
 
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
   AppendMenuW(menu, MF_STRING, ID_QUIT, L"Quit");

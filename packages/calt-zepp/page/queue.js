@@ -174,6 +174,16 @@ export function queueSnapshot(health, opts) {
     const currentSleep = hasSleep(current)
 
     const stamped = Object.assign({}, health)
+    // Resuming a partially-sent dump for this exact day? Keep dump_id + captured_at
+    // stable so remaining chunks land under the SAME dump — otherwise Retry after a
+    // failed part mints a new dump_id (fresh captured_at) and silently splits one
+    // logical dump across two identities (breaks duplicate/resume guarantees).
+    const resume = loadChunkResume()
+    const resuming = resume && resume.day === day && resume.nextPart > 0
+    if (resuming && current && current.dump_id) {
+      stamped.dump_id = current.dump_id
+      if (current.captured_at) stamped.captured_at = current.captured_at
+    }
     if (!stamped.captured_at) stamped.captured_at = new Date().toISOString()
     if (!stamped.local_date) stamped.local_date = day
     if (stamped.tz_offset_min == null) {
@@ -193,15 +203,25 @@ export function queueSnapshot(health, opts) {
       calorie: stamped.calorie,
     })
 
+    // Prefer richer sleep: never replace a staged dump with a sentinel/empty one.
+    const richerSleep = (a, b) => {
+      const score = (s) => {
+        if (!s) return 0
+        let n = Number(s.total_min) > 0 ? Number(s.total_min) : 0
+        if (s.end_min != null && Number(s.end_min) >= 0) n += 40
+        if (Array.isArray(s.stages) && s.stages.length) n += s.stages.length * 8
+        if (s.start_at) n += 15
+        return n
+      }
+      return score(a) >= score(b) ? a : b
+    }
     if (force || !current) {
       if (force || incomingSleep || incomingFull) {
-        if (force && !incomingSleep && currentSleep) {
-          stamped.sleep = current.sleep
-        }
+        if (currentSleep) stamped.sleep = richerSleep(stamped.sleep, current.sleep)
         queue[day] = stamped
       }
     } else if (incomingFull && current.dump !== 'processed_v1') {
-      if (!incomingSleep && currentSleep) stamped.sleep = current.sleep
+      if (currentSleep) stamped.sleep = richerSleep(stamped.sleep, current.sleep)
       queue[day] = stamped
     } else if (incomingSleep && !currentSleep) {
       queue[day] = stamped

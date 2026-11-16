@@ -1,0 +1,22 @@
+{
+  "name": "calt-gate-extension",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/generate_host_seed.mjs && node scripts/build.mjs",
+    "watch": "node scripts/build.mjs && node --watch scripts/build.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fetch-models": "node scripts/fetch_nsfw_models.mjs"
+  },
+  "dependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
+    "nsfwjs": "^4.2.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "vitest": "^3.0.5"
+  }
+}

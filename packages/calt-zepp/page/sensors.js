@@ -92,7 +92,46 @@ function normalizeNaps(raw) {
   return out
 }
 
-function collectSleep(full) {
+function shiftLocalDate(day, deltaDays) {
+  const parts = String(day || '').slice(0, 10).split('-')
+  const y = Number(parts[0])
+  const m = Number(parts[1])
+  const d = Number(parts[2])
+  if (!y || !m || !d) return String(day || '').slice(0, 10)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() + deltaDays)
+  const yy = dt.getFullYear()
+  const mm = `${dt.getMonth() + 1}`.padStart(2, '0')
+  const dd = `${dt.getDate()}`.padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+/** Map Zepp minute timeline → local ISO stamp on/around wake `localDate`. */
+function sleepInstantAt(localDate, timelineMin, endTimelineMin) {
+  const raw = asInt(timelineMin, null)
+  const end = asInt(endTimelineMin, raw)
+  if (raw == null || raw < 0 || end == null || end < 0) return null
+  let originShift = 0
+  if (end >= 1440 || raw >= 1440) {
+    originShift = -Math.floor(Math.max(end, raw) / 1440)
+  } else if (raw > end) {
+    originShift = -1
+  }
+  const absFromLocal = raw + originShift * 1440
+  const dayOffset = Math.floor(absFromLocal / 1440)
+  let clock = absFromLocal - dayOffset * 1440
+  if (clock < 0) clock += 1440
+  const date = shiftLocalDate(localDate, dayOffset)
+  const hh = `${Math.floor(clock / 60)}`.padStart(2, '0')
+  const mm = `${clock % 60}`.padStart(2, '0')
+  return {
+    date,
+    clock_min: clock,
+    at: `${date}T${hh}:${mm}:00`,
+  }
+}
+
+function collectSleep(full, localDate) {
   const sleepSensor = new Sleep()
   safe(() => sleepSensor.updateInfo(), null)
   safe(() => sleepSensor.updateInfo(), null)
@@ -126,14 +165,42 @@ function collectSleep(full) {
   const totalMin = asInt(info.totalTime, 0)
   const napMin = naps.reduce((a, n) => a + (n.length || 0), 0)
 
+  let startMin = asInt(info.startTime, null)
+  let endMin = asInt(info.endTime, null)
+  // Firmware sentinel: endTime=-1 / empty session — do not invent 00:00–06:00.
+  if (endMin != null && endMin < 0) endMin = null
+  if (startMin != null && startMin < 0) startMin = null
+  if (startMin === 0 && endMin == null && !(totalMin > 0) && !stages.length) startMin = null
+
+  const day = localDate || watchClock().local_date
+  const startInst = startMin != null && endMin != null ? sleepInstantAt(day, startMin, endMin) : null
+  const endInst = endMin != null ? sleepInstantAt(day, endMin, endMin) : null
+
+  // Stamp stage wall clocks when we have a continuous or wrap timeline.
+  if (full && stages.length && endMin != null) {
+    stages = stages.map((s) => {
+      const a = sleepInstantAt(day, s.start, endMin)
+      const b = sleepInstantAt(day, s.stop, endMin)
+      return {
+        ...s,
+        start_at: a ? a.at : null,
+        stop_at: b ? b.at : null,
+      }
+    })
+  }
+
   return {
     score: info.score,
     total_min: totalMin > 0 ? totalMin : null,
     deep_min: info.deepTime != null ? asInt(info.deepTime, null) : null,
     light_min: info.lightTime != null ? asInt(info.lightTime, null) : null,
     rem_min: info.remTime != null ? asInt(info.remTime, null) : null,
-    start_min: info.startTime,
-    end_min: info.endTime,
+    start_min: startMin,
+    end_min: endMin,
+    start_at: startInst ? startInst.at : null,
+    end_at: endInst ? endInst.at : null,
+    start_clock_min: startInst ? startInst.clock_min : null,
+    end_clock_min: endInst ? endInst.clock_min : null,
     stages,
     naps,
     nap_min: napMin > 0 ? napMin : 0,
@@ -342,12 +409,15 @@ function collectDeviceMeta() {
  */
 export function buildHealthSnapshot(mode) {
   const full = mode !== 'lean'
-  const sleep = safe(() => collectSleep(full), {
+  const clock = watchClock()
+  const sleep = safe(() => collectSleep(full, clock.local_date), {
     score: null,
     total_min: null,
     deep_min: null,
     start_min: null,
     end_min: null,
+    start_at: null,
+    end_at: null,
     stages: [],
     naps: [],
     nap_min: 0,
@@ -469,7 +539,6 @@ export function buildHealthSnapshot(mode) {
     capabilities.fat_burn = fat_burn.minutes != null
   } catch (_) {}
 
-  const clock = watchClock()
   const rich =
     full &&
     ((heart && heart.today_min && heart.today_min.length) ||

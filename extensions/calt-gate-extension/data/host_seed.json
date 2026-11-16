@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "suffixes": [".xxx", ".adult", ".porn", ".sex"],
+  "host_labels": ["porn", "xvideos", "xnxx", "xhamster", "youporn", "redtube", "hentai", "onlyfans", "chaturbate", "spankbang", "eporner", "porntrex", "rule34", "nhentai", "fansly", "sxyprn", "sxyporn", "thothub", "hanime", "gelbooru", "danbooru", "hitomi", "e621", "fapello", "missav", "daftsex", "hypnotube", "hclips", "perchance"],
+  "tiers": {
+    "PORN_STRICT": [
+      "pornhub.com", "pornhub.org", "pornhub.net", "xvideos.com", "xvideos2.com", "xvideos.es",
+      "xnxx.com", "xnxx.tv", "xhamster.com", "xhamster2.com", "xhamster3.com", "redtube.com",
+      "youporn.com", "tube8.com", "spankbang.com", "chaturbate.com", "onlyfans.com", "porn.com",
+      "sex.com", "hentaihaven.xxx", "hentaicity.com", "nhentai.net", "rule34.xxx", "erome.com",
+      "v3.erome.com", "eromecdn.com", "eporner.com", "hqporner.com", "porntrex.com", "beeg.com",
+      "txxx.com", "redgifs.com", "imagefap.com", "motherless.com", "fapello.com", "missav.com",
+      "jable.tv", "thisvid.com", "sxyprn.com", "sxyprn.net", "sxyporn.com", "thothub.to",
+      "thothub.lol", "thothub.org", "hanime.tv", "hitomi.la", "gelbooru.com", "e621.net",
+      "realbooru.com", "hypnotube.com", "hclips.com", "daftsex.com", "xlecx.one", "perchance.org",
+      "perchance.ai", "fansly.com", "manyvids.com", "stripchat.com", "bongacams.com",
+      "livejasmin.com", "pornhd.com", "youjizz.com", "tnaflix.com", "drtuber.com", "sunporno.com",
+      "nuvid.com", "porn300.com", "danbooru.donmai.us", "rule34.paheal.net"
+    ],
+    "SENSITIVE": [
+      "grok.com", "grok.x.ai", "x.ai", "accounts.x.ai", "reddit.com", "redd.it", "venice.ai"
+    ],
+    "WATCH": [
+      "youtube.com", "youtu.be", "netflix.com", "primevideo.com", "hotstar.com", "disneyplus.com",
+      "hulu.com", "twitch.tv", "crunchyroll.com", "sonyliv.com", "zee5.com"
+    ],
+    "SOCIAL": [
+      "instagram.com", "x.com", "twitter.com", "tiktok.com", "facebook.com", "discord.com"
+    ],
+    "SEARCH": [
+      "google.com", "bing.com", "duckduckgo.com", "search.brave.com", "ecosia.org",
+      "startpage.com", "kagi.com", "search.yahoo.com", "yahoo.com"
+    ],
+    "TRUSTED": [
+      "localhost", "127.0.0.1", "calt.app", "calt-learn.app", "calt-data.app", "calt-bible.app",
+      "claude.ai", "anthropic.com", "chatgpt.com", "openai.com",
+      "gemini.google.com", "aistudio.google.com", "accounts.google.com", "myaccount.google.com",
+      "gstatic.com", "apis.google.com", "googleusercontent.com",
+      "github.com", "githubusercontent.com",
+      "gitlab.com", "stackoverflow.com", "stackexchange.com", "wikipedia.org",
+      "developer.mozilla.org", "mdn.io", "colab.research.google.com", "scaler.com",
+      "docs.google.com", "drive.google.com", "notion.so", "arxiv.org", "python.org", "npmjs.com", "cursor.com",
+      "vscode.dev", "huggingface.co", "kaggle.com",
+      "numpy.org", "pandas.pydata.org", "scipy.org", "scikit-learn.org", "matplotlib.org",
+      "pytorch.org", "tensorflow.org", "keras.io", "jax.dev", "polars.tech", "pydata.org",
+      "wolframalpha.com", "desmos.com", "math.stackexchange.com", "geeksforgeeks.org",
+      "cppreference.com", "brilliant.org", "khanacademy.org", "leetcode.com",
+      "irctc.co.in", "makemytrip.com", "goibibo.com", "cleartrip.com", "ixigo.com",
+      "yatra.com", "spicejet.com", "goindigo.in", "airindia.com", "kayak.com"
+    ],
+    "UGC": [
+      "imgur.com", "pinterest.com", "tumblr.com", "web.telegram.org", "discord.com",
+      "media.discordapp.net", "cdn.discordapp.com"
+    ]
+  }
+}

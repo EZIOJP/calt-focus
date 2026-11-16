@@ -1,0 +1,23 @@
+{
+  "must_lock": [
+    { "url": "https://www.pornhub.com/", "mode": "free", "expect": "LOCK", "hard": "porn_strict" },
+    { "url": "https://xvideos.com/video", "mode": "study", "expect": "LOCK" },
+    { "url": "https://reddit.com/r/all", "mode": "free", "softlandEnabled": true, "expect": "LOCK", "hard": "sensitive" },
+    { "url": "https://www.bing.com/search?q=milf", "mode": "free", "expect": "LOCK", "hard": "adult_search_query" },
+    { "url": "https://youtube.com/watch?v=1", "mode": "study", "expect": "LOCK", "hard": "watch_study" }
+  ],
+  "must_allow": [
+    { "url": "https://claude.ai/chat/abc", "mode": "free", "expect": "ALLOW" },
+    { "url": "https://github.com/foo/bar", "mode": "study", "expect": "ALLOW" },
+    { "url": "https://www.bing.com/search?q=%2Cilj&gs_lcrp=milf", "mode": "free", "expect": "ALLOW" },
+    { "url": "https://www.google.com/search?q=porn+addiction+help", "mode": "free", "expect": "ALLOW" },
+    { "url": "https://www.bing.com/search?q=breast+cancer", "mode": "free", "expect": "ALLOW" }
+  ],
+  "traps": [
+    { "url": "https://essex.gov.uk/", "mode": "free", "expect": "ALLOW", "note": "Essex" },
+    { "url": "https://scunthorpe.gov.uk/", "mode": "free", "expect": "ALLOW", "note": "Scunthorpe" },
+    { "url": "https://example.com/analysis", "mode": "free", "expect": "ALLOW", "note": "analysis" },
+    { "url": "https://example.com/sextant", "mode": "free", "expect": "ALLOW", "note": "sextant" },
+    { "url": "https://claude.ai/chat/x", "mode": "free", "contentScore": 24, "contentAction": "lock", "expect": "ALLOW", "note": "claude porn-block chat" }
+  ]
+}

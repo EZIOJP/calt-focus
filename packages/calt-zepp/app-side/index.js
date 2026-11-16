@@ -406,22 +406,40 @@ async function syncAll(health, opts) {
 
   const headers = authHeaders(token, true)
 
-  const sleepPayload =
-    health && health.sleep
-      ? {
-          score: health.sleep.score,
-          total_min: health.sleep.total_min,
-          deep_min: health.sleep.deep_min,
-          light_min: health.sleep.light_min,
-          rem_min: health.sleep.rem_min,
-          start_min: health.sleep.start_min,
-          end_min: health.sleep.end_min,
-          stages: health.sleep.stages || [],
-          naps: health.sleep.naps || [],
-          nap_min: health.sleep.nap_min || 0,
-          sleeping_status: health.sleep.sleeping_status,
-        }
+  // Omit empty stages/naps so chunk merges cannot wipe a richer prior dump.
+  const sleepStages =
+    health && health.sleep && Array.isArray(health.sleep.stages) && health.sleep.stages.length
+      ? health.sleep.stages
       : undefined
+  const sleepNaps =
+    health && health.sleep && Array.isArray(health.sleep.naps) && health.sleep.naps.length
+      ? health.sleep.naps
+      : undefined
+  const sleepHasSignal =
+    health &&
+    health.sleep &&
+    (health.sleep.total_min > 0 ||
+      (health.sleep.end_min != null && Number(health.sleep.end_min) >= 0) ||
+      (sleepStages && sleepStages.length))
+  const sleepPayload = sleepHasSignal
+    ? {
+        score: health.sleep.score,
+        total_min: health.sleep.total_min,
+        deep_min: health.sleep.deep_min,
+        light_min: health.sleep.light_min,
+        rem_min: health.sleep.rem_min,
+        start_min: health.sleep.start_min,
+        end_min: health.sleep.end_min,
+        start_at: health.sleep.start_at || null,
+        end_at: health.sleep.end_at || null,
+        start_clock_min: health.sleep.start_clock_min,
+        end_clock_min: health.sleep.end_clock_min,
+        stages: sleepStages,
+        naps: sleepNaps,
+        nap_min: health.sleep.nap_min || 0,
+        sleeping_status: health.sleep.sleeping_status,
+      }
+    : undefined
 
   const dumpId =
     (health && health.dump_id) ||

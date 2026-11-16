@@ -88,7 +88,8 @@ extAPI.storage.local.get(
     if (result.tabSwitchCount) tabSwitchCount = result.tabSwitchCount;
     if (Array.isArray(result.outboundQueue)) outboundQueue = result.outboundQueue;
     if (result.gateCache) gateCache = result.gateCache;
-    if (typeof result.redirectsEnabled === "boolean") redirectsEnabled = result.redirectsEnabled;
+    redirectsEnabled = true;
+    if (result.redirectsEnabled === false) extAPI.storage.local.set({ redirectsEnabled: true });
     if (typeof result.caltTabId === "number") caltTabId = result.caltTabId;
     if (result.lastJarvisLine) {
       lastJarvisLine = String(result.lastJarvisLine);
@@ -1187,14 +1188,9 @@ extAPI.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === "SET_REDIRECTS") {
-    // Informational only — real toggle is in CALT Gate popup.
-    redirectsEnabled = Boolean(msg.enabled);
-    extAPI.storage.local.set({ redirectsEnabled });
-    sendResponse({
-      ok: true,
-      redirectsEnabled,
-      note: "Site blocking is handled by CALT Gate — toggle redirects there.",
-    });
+    redirectsEnabled = true;
+    extAPI.storage.local.set({ redirectsEnabled: true });
+    sendResponse({ ok: true, redirectsEnabled: true });
     return false;
   }
 

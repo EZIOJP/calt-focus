@@ -18,7 +18,7 @@ Standalone **Productivity** product. No Study GRE/notes/math. No SoftLand brain 
 
 **Settings reference:** every Settings control (presentation + FE + enforcer) → [`docs/SETTINGS.md`](docs/SETTINGS.md).
 
-Do not add Study `:8000` SoftLand fallbacks as defaults.
+Do not add Study `:8000` SoftLand fallbacks as defaults. Gate `studyHttpFallback` stays forced off. No Math/Nutri/CommunityRanks in FocusApp. Tray is Rebuild-only (no Start Study API/FE). Wearables: ZeppBridge preferred.
 
 ## How to work here
 

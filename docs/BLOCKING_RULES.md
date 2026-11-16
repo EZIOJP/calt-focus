@@ -1,7 +1,7 @@
 # How blocking actually works
 
 Written from the code, not from intent. If this file and the code disagree, the
-code wins and this file is a bug. Last checked against source **2026-10-03**.
+code wins and this file is a bug. Last checked against source **2026-10-14**.
 
 Read [The 60-second version](#the-60-second-version) if you just need to explain
 it to someone. Everything after that is the exact rule, with the file that
@@ -23,7 +23,7 @@ share a decision function:
 | Reads | `data/productivity/behavior/softland_policy.json` | `data/productivity/behavior/enforcer_policy.json` |
 | Can it kill Steam? | Never | Yes |
 | Can it block YouTube? | Yes | Never |
-| Knows mode / free / incubation? | Yes — stateful | No — binary armed × kill-list |
+| Knows mode / free / incubation? | Yes — stateful | Yes for kill gate: needs `gate_locked` or `incubation_active`; free/study-free pauses kills |
 
 **Site block ON is not Armed.** Turning site blocking on does not arm anything,
 and SoftLand / msg-host code is structurally forbidden from setting
@@ -283,14 +283,34 @@ a feature to build, not a checkbox to flip.
 ## Arm: the exact kill rules
 
 `calt_enforcer.exe` owns this end to end and needs **no Python running**.
-Arm does **not** use SoftLand mode, free windows, or incubation. Armed or not;
-kill-list match or not. Do not give apps the site mode ladder unless that is an
-explicit product change later.
+Arm does **not** use SoftLand’s site mode ladder (Allow / Watch / Block). It has
+its **own** kill gate in `win_service.cpp` `TickKills`. Do not merge site decide
+and kill into one verdict.
 
 - Reads `data/productivity/behavior/enforcer_policy.json` every tick (~1.5s). The JSON is
   authoritative; the SQLite row is a fallback when the file is missing.
-- While `hard_block_armed` is true, it enumerates processes and terminates any
-  whose executable base name matches your `exes` list, then appends to
+- **Kill condition (code wins):** kills run only when
+
+  ```
+  !pauseArm && hard_block_armed && (gate_locked || incubation_active)
+  ```
+
+  where `pauseArm` is true if a productivity free day / day-pass / reward day is
+  open, or the day-loop study goal has opened study-free (`ProductivityFreeDayOpen`
+  || `DayLoopStudyFreeOpen`). So:
+
+  | State | Kills? |
+  |-------|--------|
+  | Armed, unlocked, not incubating | **No** |
+  | Armed + `gate_locked` | Yes (unless pauseArm) |
+  | Armed + `incubation_active` | Yes (unless pauseArm) |
+  | Free / study-free open | **No** — Arm paused; SoftLand porn rules still apply |
+  | Disarmed | No |
+
+  Armed alone is **not** enough. The old line “while `hard_block_armed` is true,
+  terminate matching exes” was wrong and is removed.
+- When `willKill` is true, it enumerates processes and terminates any whose
+  executable base name matches your `exes` list, then appends to
   `data/productivity/behavior/enforcer_kills.log`.
 - **Protected, never killed:** core Windows processes (`explorer.exe`,
   `csrss.exe`, `winlogon.exe`, `services.exe`, `lsass.exe`, `svchost.exe`,
@@ -304,9 +324,10 @@ explicit product change later.
   `lock_mode` to `none` (keeps the stored password/phrase for the next Arm) so
   sticky lock cannot immediately re-arm after a valid unlock.
 - **Focus watchdog:** while SoftLand is on *or* Arm is on, `calt_focus.exe` and
-  `calt_msg_host.exe` are relaunched if they die — at most 3 times in a rolling
-  60s window, after which relaunching is suppressed (visible as
-  `focus_relaunch_suppressed` in status) so a crash loop cannot spin forever.
+  `calt_msg_host.exe` are relaunched if they die — at most 3 times in a **fixed**
+  60s window (not sliding); after the window elapses the counter resets. While
+  the cap is hit, relaunching is suppressed (`focus_relaunch_suppressed` in
+  status) so a crash loop cannot spin forever.
 - **Focus refuses to quit** from the tray while SoftLand is on or Arm is armed.
   Turn SoftLand off and disarm first.
 
@@ -443,14 +464,15 @@ New calendar day (DayLoopTick)
   → Focus stays on /bible until the due slot is marked (morning; afternoon from 12:00; evening from 17:00)
   → Planning is required: Confirm plan (≥1 non-free min) → SoftLand ON + Arm ON
     No plan yet → planning stays open, Arm stays off (yesterday's enforcer does not stay active)
-  → Prefer Home work session (Allow + Start) for custom focus blocks
+  → Plan-first: Apply / Confirm on Plan tab (no Home short-session create)
   → Seed kill list (games/social presets + cursor.exe) if empty / missing cursor
   → Sites + cursor blocked until productive minutes ≥ daily_focus
   → DayLoopMaybeGrantGoalFree → free_until EOD; drop cursor.exe; pause Arm (porn stays)
 ```
 
-**Cursor trade-off:** Cursor is on the kill list until goal met, so Cursor itself
-does not earn unlock — other productive tracking does.
+**Cursor trade-off:** Cursor is on the kill list until goal met. Rollup forces
+`cursor.exe` productive score to **0** (classify_rules also scores it 15) so
+editor/agent idle cannot inflate `productive_minutes` or dual-gate free.
 
 **Reward / day pass:** `reward.claim` and `day.grant_pass` require Bible done
 today (`bible_required`); both clear study-temp kills (cursor) when granting free.
@@ -594,7 +616,7 @@ their `apply_after` passes — with no window open and no Python running.
 | Block extra | Rule 3 — every SoftLand mode, including reward days / free |
 | Gate schedules | Supplies the mode by day + time; first matching window wins |
 | Mode flags | Only `block_porn` and `block_watch_sites` change behaviour today |
-| Arm / Disarm + kill list | The OS killer and its target list — no SoftLand free/incubation |
+| Arm / Disarm + kill list | OS killer + `exes` list; kills only if armed×(locked\|incubation) and not free/study-free paused |
 | Lock mode / anti-tamper / protect uninstall | How hard it is to undo an Arm |
 | Daily goal (min) and Plan's "daily focus h" | The **same** unlock target under two names — default 240 min |
 | Category scores / productive threshold / app overrides | Feed the productive-time maths. **P5b** classifies in enforcer; **P5c** Study reads `day_rollup.json` (legacy recompute = fallback) |

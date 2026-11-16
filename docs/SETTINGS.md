@@ -22,11 +22,12 @@ How every Settings control is **presented**, which **frontend** owns it, and whi
 
 ### 1.1 Chrome
 
-- Full-height panel (`min-h-[70vh]`) inside Productivity.
-- **Header:** title “Settings”, one-line reminder (`Site block and Arm are separate switches…`).
-- In Focus desktop shell: **LiveStatusStrip** under the header (Site block ON/OFF · mode · Arm · enforcer · today minutes).
-- **Section nav** (pill row): Overview · Blocks · Unlock · Productive · More.
-- Write sections (Blocks / Unlock / Productive) wrap body in **`EnforcerWriteGate`** — if enforcer/bridge is down, UI goes dim + non-interactive with a banner.
+- Full-height panel (`min-h-[70vh]`) inside Productivity (`settings-chrome` tokens in `src/styles/settingsChrome.css`).
+- **Desktop:** left rail nav (icon + label + blurb) — Overview · Blocks · Unlock · Day · Profile · Data · Advanced. **Mobile:** horizontal scroll rail.
+- **Brand line:** title “Settings” + SoftLand ≠ Arm reminder.
+- In Focus desktop shell: **LiveStatusStrip** above the section body (Site block · mode · Arm · enforcer · today minutes).
+- Write sections (Blocks / Unlock) wrap body in **`EnforcerWriteGate`** — if enforcer/bridge is down, UI goes dim + non-interactive with a banner.
+- **UX bar (ui-ux-pro-max):** ≥44px nav targets, focus-visible rings, job-based Overview jumps, no purple/AI chrome.
 
 ### 1.2 URL / deep links
 
@@ -36,20 +37,27 @@ How every Settings control is **presented**, which **frontend** owns it, and whi
 | `section=blocks` | Blocks → Sites |
 | `section=sites` / `apps` / `filters` | Blocks sub-tab |
 | `section=unlock` (also legacy `now`, `focus`, `enforcer`) | Unlock |
-| `section=productive` (also `scoring`, `classification`) | Productive |
-| `section=more` / `tools` (also `export`, `demo`, `watch`, …) | More |
+| `section=day` (also legacy `more` / `tools` / `watch` / `planning` / `body`) | Day |
+| `section=appearance` (also `theme` / `ui` / `look` / `sticker`) | Appearance (theme + sidebar sticker) |
+| `section=profile` (also `account` / `owner` / `me` / `user`) | Profile (local owner name/email/notes) |
+| `section=data` (also `export` / `import` / `update` / `setup`) | Data |
+| `section=advanced` (also legacy `productive` / `scoring` / `classification` / `demo` / `jarvis`) | Advanced |
 
 Parser: `parseSettingsSection()` in `MakeSettingsApp.tsx`.
 
-### 1.3 Information architecture (CT-like pattern, no CT code)
+### 1.3 Information architecture
 
 | Nav | Meaning |
 |-----|---------|
-| **Overview** | What’s on + day flow + jump cards |
+| **Overview** | Status, SoftLand≠Arm callout, day flow, jump cards |
 | **Blocks** | Edit what gets blocked (Sites / Apps / Filters) |
-| **Unlock** | Goal, reward/pass, Arm (Site block lists stay under Blocks) |
-| **Productive** | What minutes count + classification extras |
-| **More** | Look (sticker), perf log, planning, export, setup |
+| **Unlock** | Free SoftLand types (goal / reward / pass) — not Arm |
+| **Blocks → Apps** | Arm on/off + lock, kill list, time limits |
+| **Day** | Body care, wearables, plan reminders, planning |
+| **Appearance** | Light/dark, color presets, surfaces, typography, sidebar title sticker |
+| **Profile** | Owner display name, email, timezone, notes (localStorage on this PC) |
+| **Data** | Export, SoftLand import, UI update, setup blurb |
+| **Advanced** | Perf, LLM+Jarvis, Telegram/email/OpenJarvis (collapsed), activity review |
 
 ---
 
@@ -105,8 +113,8 @@ Table `productivity_softland` (`document_json`): `softland_enabled`, `site_rules
 | Today Xm / Ym | Productive vs goal | day rollup + goals | `day_rollup.json`, SoftLand goals | Display |
 | “SoftLand ON ≠ Armed” | Caption | static | — | Copy |
 | WeaponCallout | Card: SoftLand vs Arm | `WeaponCallout` | — | Copy |
-| Day flow | Numbered list Bible → Confirm → goal | static | — | Copy |
-| Jump buttons | Grid to Blocks / Unlock / Productive / More | `onJump` | — | Nav |
+| Day flow | Bible → Plan → Apply/Confirm; locks after free day/pass | static | — | Copy |
+| Jump buttons | Grid to Blocks / Unlock / Day / Data / Advanced | `onJump` | — | Nav |
 
 **Note:** Mode label does **not** fully re-evaluate schedule windows / morning ritual; it uses SoftLand enabled + free/incubation clocks.
 
@@ -143,8 +151,7 @@ Built-in watch/porn lists are **not** edited here.
 |---------|--------------|---------|---------|-------|
 | Block watch sites (Study / Free) | Live toggle | `softland.patch_mode_flags` → `mode_flags.*.block_watch_sites` | SoftLand decide `FlagsForMode` | SoftLand **live** |
 | SoftLand porn heuristic | Live toggle | `mode_flags.*.block_porn` | `LooksPorn` | SoftLand **live** |
-| Sensitivity | Default on | `mode_flags.*.block_sensitive` | `grok.com`, `grok.x.ai`, `reddit.com`, `redd.it`, `venice.ai` | SoftLand **live** |
-| Block social / keywords / other / Strict allowlist | **Hidden** (not in UI) | May still exist in JSON | **Not enforced** (inert) | Dead UX |
+| Block social / keywords / other / Strict allowlist / sensitive | **Hidden** (not in UI) | May still exist in JSON | **Not enforced** as separate toggles | Dead UX |
 | Save mode flags | Button | `softland.patch_mode_flags` | Gateway | SoftLand |
 
 #### Schedule — `GateSchedulesPanel`
@@ -155,7 +162,11 @@ Built-in watch/porn lists are **not** edited here.
 | Windows | Label, start/end, mode (Study/Free/Planning/Bible), Mon–Sun, delete | `schedules.windows` | First matching window wins | SoftLand |
 | Add window / Save | Buttons | same | Gateway | SoftLand |
 
-### 4.2 Apps — time limits — `AppTimeLimitsPanel`
+### 4.2 Apps — Arm — `ArmControlCard`
+
+Slim Arm on/off + lock mode (timer / password / phrase) + anti-tamper. Kill list CRUD stays in §4.3. SoftLand free does not disarm Arm. Needs free day / pass after Confirm to change Arm.
+
+### 4.3 Apps — time limits — `AppTimeLimitsPanel`
 
 Daily budget per exe. While minutes remain, the app can run. When today's foreground time reaches the budget, the enforcer kills that exe until local midnight. **Independent of Arm.** A free day / reward day does not restore a spent budget. Browsers are rejected (use Sites). Idle gaps over 5 minutes are not counted.
 
@@ -170,7 +181,7 @@ Daily budget per exe. While minutes remain, the app can run. When today's foregr
 
 Mirror: `behavior/app_limits.json`. Live open window: `behavior/fg_live.json` (tracker, so the budget does not wait for a session flush).
 
-### 4.3 Apps (Arm) — `AppKillRulesPanel`
+### 4.4 Apps (kill list) — `AppKillRulesPanel`
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
@@ -181,7 +192,7 @@ Mirror: `behavior/app_limits.json`. Live open window: `behavior/fg_live.json` (t
 
 SoftLand site domains never belong on this list.
 
-### 4.4 Filters (Device) — `DeviceBlockPanel`
+### 4.5 Filters (Device) — `DeviceBlockPanel`
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
@@ -196,72 +207,50 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 
 ---
 
-## 5. Unlock
+## 5. Unlock — `UnlockGuidePanel`
 
-### 5.1 Goal & free days — `ProductivityPolicyPanel` `variant="unlock"`
-
-| Control | Presentation | Write path | Backend | Class |
-|---------|--------------|------------|---------|-------|
-| Daily goal minutes | Number (≈15–960); Plan → Goals shows **goal / available** hours where available = free gaps between first→last routine on the day; stepper clamps goal ≤ that max when routines exist | `softland.patch_goals` (+ local goals key) | SoftLand `goals.daily_focus_minutes` | Goals |
-| Reward day | Button → type `REWARD` | `reward.claim` / bible client | Needs Bible done + reward available; sets free until EOD; clears study temp kills | Unlock |
-| Day pass | Button → type `PASS` | `day.grant_pass` | Quota (2/week); Bible done; free until EOD | Unlock |
-| Gate / progress | Ring / status | Read mirrors | day rollup / SoftLand | Display |
-| Study Loop gate | Checkbox | Study `:8000` | — | **Study-only** (hidden in Focus) |
-| Auto-block Gaming / hard_block_exes chips | Shown in some variants | **Not the Focus write path for Arm list** | Use Blocks → Apps | Prefer Apps tab |
-
-### 5.2 Now — SoftLand & Arm — `FocusControlPanel`
+Unlock explains **SoftLand free time** (until midnight). SoftLand free ≠ Arm. App time budgets still apply.
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
-| Refresh | Button (+ poll) | status bus / dashboard fetch | Mirrors | Display |
-| Restart enforcer | Button | `focus_shell` `restart_enforcer` | `calt_focus` shell | Shell |
-| Status cards | SoftLand / blocked / incubation / free | Read-only | SoftLand + status | Display |
-| Spend earned… | Minutes prompt | `softland.spend_free` | Ledger → `free_until` | Unlock |
-| Free time (PIN) | Button | Study API | Disabled in Focus (`can_pin_free` false) | Study-only |
-| Lock mode | None / Timer / Password / Phrase | `arm.set` | Strong lock rules on disarm | Arm |
-| Lock minutes / secret | Inputs | `arm.set` | Policy JSON (secrets plaintext today) | Arm |
-| Anti-tamper | Checkbox | `arm.set` | Extra kill list when locked | Arm |
-| Protect uninstall | Checkbox | Written on `arm.set` | **Little/no consumer** | Mostly dead |
-| Arm / Disarm | Buttons | `arm.set` `hard_block_armed` | Kill loop + unlock confirm | Arm |
-| Kill list preview | Chips + link to Blocks | Read `enforcer_policy` | — | Display |
+| Goal met card | Progress vs daily goal (read-only); auto free when met | Read gate | SoftLand / day rollup | Display |
+| Reward day card | **Count banked** + earn condition (goal+Bible × N days) + Use | `reward.claim` | Bank + free until EOD | Unlock |
+| Day pass card | **Count left / week** + Bible condition + Use | `day.grant_pass` | Quota; free until EOD | Unlock |
+
+Daily goal **minutes are not edited here** — change on Plan → Goals. Arm → **Blocks → Apps**.
 
 ---
 
-## 6. Productive
+## 6. Advanced — activity (was Productive)
 
-### 6.1 Scoring — `ProductivityPolicyPanel` `variant="scoring"`
+Scoring grids removed from Settings (never drove SoftLand/Arm). Under **Advanced → Activity review**:
 
-| Control | Presentation | Focus persistence | Notes |
-|---------|--------------|-------------------|-------|
-| Productive threshold | Number 1–100 | **Often Study-only / not native-written** | Native rollup may read `classify_rules.json` `productive_threshold` |
-| Productive / blocked categories | Checkbox grids | **Not fully wired in Focus offline path** | Prefer Study API historically |
-| Category scores | Sliders / numbers | Study `:8000` `/api/behavior/category-scores` | Study-only |
-| App overrides | Key + category | Study path | Study-only |
-| Save | Button | Partial in Focus | Prefer understanding Study vs native gaps |
-
-### 6.2 Extras (`productiveExtra` from `ProductivitySettingsTab`)
-
-| Panel | Presentation | Path | Class |
-|-------|--------------|------|-------|
-| `DesktopManagedBanner` | Banner → Overview | Nav | Copy |
-| `SessionOverridePanel` | Pick session → mark productive / clear | Study PATCH tracked sessions | Study-only |
-| `ActivitiesPanel` | Day table, uncategorized filter | Focus: `day_activities.json` mirror; Study: activities API | Focus-native |
-| `ClassificationReview` | Scan / approve / reject LLM suggestions | Study classification API | Study-only |
+| Panel | Focus desktop | Class |
+|-------|---------------|-------|
+| `ActivitiesPanel` | `day_activities.json` mirror | Focus-native |
+| `ClassificationReview` | OpenJarvis / enforcer classify path when available | Focus-native when LLM on |
+| `SessionOverridePanel` | **Hidden** (Study `:8000` PATCH) | Study-only |
 
 ---
 
-## 7. More (tools)
+## 7. Look / tools (Advanced + Day + Data)
 
-### 7.1 Look — `SidebarTitleStickerPanel`
+### 7.1 Appearance — `ThemeSettingsPanel` + `SidebarTitleStickerPanel`
+
+Settings → **Appearance** (not Advanced). Light/dark works in Focus; shell CSS scopes pure-black stage to `.dark`.
 
 | Control | Persist | Class |
 |---------|---------|-------|
+| Light / dark toggle | `localStorage` `theme` | Cosmetic |
+| Color presets / accent / surfaces / type / motion / radius / intensity | ThemeContext keys | Cosmetic |
 | Calligraphy / cursive / brush font | `localStorage` `sidebarStickerFont` | Cosmetic |
 | Title size (50–220%) | `localStorage` `sidebarStickerScale` | Cosmetic |
 | Core text color | `localStorage` `sidebarStickerCoreFill` | Cosmetic |
 | Contour rings (1–6): add / remove, dilation, color | `localStorage` `sidebarStickerLayers.rings` | Cosmetic |
 | Built-in theme presets | Applies layers + core (optional font/scale) | Cosmetic |
 | Save / delete custom presets | `localStorage` `sidebarStickerCustomPresets` | Cosmetic |
+
+Long-press the sidebar theme toggle → Appearance.
 
 ### 7.2 Perf — `FocusPerfReviewPanel`
 
@@ -281,7 +270,7 @@ Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
 | Clear range days — Plan → Range | FE loops `plan.clear_day` | Clears blocks for selected days | Plan |
 | Knob rows (morning gate, etc.) | Read-only distraction gate / defaults | Often “—” in Focus | Display |
 
-When **Require Confirm plan** is off (default): Bible still runs; Confirm-plan overlay is hidden. After Bible, DayLoop auto-confirms and couples SoftLand+Arm only once today has at least one non-free planned minute. Until then the new day stays in planning and Arm stays off — yesterday's enforcer does not stay active past midnight. Apply, Clear, and New routines work in that window. After the plan confirms, those edits need a free day or day pass. Sleep save stays open. SoftLand decide treats the plan gate as satisfied. Prefer Home **work sessions** as the daily focus loop; Plan/routines stay optional.
+**Require Confirm plan** is forced on. Day path: **Bible → Plan → Apply/Confirm**. Until Confirm, Focus stays on Plan; **Planning prefs** opens as an in-gate sheet (gear on DayGateStrip / Plan) — not full Settings. Apply, Clear, and New routines work in that window. After Confirm, plan/lock edits need a free day or day pass. Sleep save stays open. Home does **not** create short/dynamic work sessions (End leftover only).
 
 ### 7.3b Focus AI brain — `FocusLlmHostPanel`
 
@@ -385,7 +374,7 @@ Each meal stores local clock (`Asia/Kolkata`), weekday, capture path (webcam/gal
 | Lead minutes | `localStorage` | Local |
 | Next block hint | `plan_blocks` mirror | Local |
 
-**Caveat:** scheduler runs while this panel is mounted (Settings → More open).
+**Runtime:** `PlannerRemindersRuntime` in Focus shell (always-on while Focus is open). Panel under Settings → Day only edits prefs.
 
 ### 7.3d Quit helper — `QuitHowToPanel`
 
@@ -405,13 +394,16 @@ Focus desktop only. No bypass — points to SoftLand UNLOCK + Disarm, then tray 
 | Import SoftLand lists | File picker → `softland.patch_site_rules` from JSON `site_rules` / policy backup | Focus-native |
 | Reveal last export | Native `behavior_file` reveal on `productivity_export.json` | Focus-native |
 | Update check / Update UI / stack / Apply | `focus_shell` → tray UpdateUi / UpdateStack / ApplyPendingUpdate; reads `pending_update.json` | Focus-native |
-| Body care — sit/stand | `localStorage` `calt:bodycare:prefs` + Notification | Focus-native |
+| Body care — sit/stand | Settings → **Day**; `localStorage` `calt:bodycare:prefs` + Notification; optional presence-pause when cam live | Focus-native |
 | Body care — eye rest | Same prefs; 20–20–20 nudges | Focus-native |
-| Body care — attention reader | Opt-in webcam via face-tracker (lazy); no SoftLand coupling | Focus-native |
+| Body care — attention reader | Opt-in webcam via face-tracker (lazy, shell-hosted); no SoftLand coupling | Focus-native |
+| Body care — posture coach | Same cam; head-pitch score + hold warn (`postureWarnMinutes`, `postureScoreThreshold`) | Focus-native |
+
+**Placement:** Day = body/watch/planning; Data = export/import/update/setup; Advanced = LLM/Jarvis/remote/activity (collapsed where noisy).
 
 ### 7.8 Setup card
 
-Static copy: SelfTracker + Gate + `run_calt_desktop.bat`; Arm under Unlock.
+Static copy under **Data**: SelfTracker + Gate + `run_calt_desktop.bat`; Arm under Unlock.
 
 ---
 
@@ -443,7 +435,7 @@ Design host `:5180` without WebView → gated sections behave read-only.
 | `softland.set_day_pass` / `day.grant_pass` | Day pass |
 | `arm.set` | Arm, lock, kill list |
 | `app_limits.set` | Daily app time limits (`enabled`, `limits[]`) |
-| `session.set` | Dashboard work session. Start/end open every day (session-first). |
+| `session.set` | Legacy work session op (FE create retired; End leftover on Home still calls end). |
 | `softland.spend_free` | Retired (`spend_retired`). Balance does not open games or apps. |
 | `device_block.*` | Device hosts lock |
 | `routine.apply` | Apply routines |
@@ -457,7 +449,7 @@ Design host `:5180` without WebView → gated sections behave read-only.
 1. **SoftLand ON ≠ Arm** — always show both; never imply one toggle does both.
 2. **Dead SoftLand flags** — social/keywords/other/strict hidden (copy explains they did nothing).
 3. **Productive scoring** — much of the rich category UI is Study `:8000` era; Focus offline path is thinner.
-4. **Kill-list edits** — authoritative UI is Blocks → Apps (`arm.set`), not Unlock’s leftover chips.
+4. **Kill-list / Arm** — authoritative UI is Blocks → Apps (`ArmControlCard` + `arm.set`), not Unlock.
 5. **Secrets in `enforcer_policy.json`** — unlock password/phrase stored in plaintext today.
 6. **Demo / classification** — still Study API where noted. **Export** is Focus-native (`productivity.export`). **Wearables** → Focus `:8765` hub (not Study `:8000`).
 7. **Mode label vs decide** — Overview chip can disagree with full SoftLand decide ladder (schedules / morning).

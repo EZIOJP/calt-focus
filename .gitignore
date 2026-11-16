@@ -38,6 +38,8 @@ debug-*.log
 **/build_quitout/
 **/*.lock
 data/productivity/behavior/enforcer_owner.lock
+# ZeppBridge local token + paths (never commit secrets)
+data/productivity/behavior/zeppbridge.json
 data/productivity/behavior/*.migrated
 
 scripts/installer/Output/

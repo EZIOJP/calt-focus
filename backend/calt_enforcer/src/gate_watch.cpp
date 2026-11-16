@@ -4,6 +4,7 @@
 #include "productivity_store.h"
 
 #include <windows.h>
+#include <tlhelp32.h>
 
 #include <cstdio>
 #include <fstream>
@@ -18,6 +19,8 @@ constexpr double kDeadS = 180.0;
 constexpr DWORD kStartupGraceMs = 90000;
 constexpr int kDeadStrikesNeeded = 2;
 constexpr DWORD kCloseCooldownMs = 120000;
+/** After Edge relaunches, give Gate SW + msg_host time to write a fresh heartbeat. */
+constexpr DWORD kEdgeRecoveryGraceMs = 120000;
 
 DWORD gProcessStartMs = 0;
 int gDeadStrikes = 0;
@@ -121,6 +124,40 @@ void AppendGateCloseLog(const std::wstring& behaviorDir, int killed) {
   fclose(f);
 }
 
+/** Youngest msedge.exe age in ms; MAXDWORD if none. Prevents kill-storm while Gate boots. */
+DWORD YoungestMsedgeAgeMs() {
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snap == INVALID_HANDLE_VALUE) return MAXDWORD;
+  PROCESSENTRY32W pe{};
+  pe.dwSize = sizeof(pe);
+  DWORD youngest = MAXDWORD;
+  FILETIME nowFt{};
+  GetSystemTimeAsFileTime(&nowFt);
+  ULARGE_INTEGER now{};
+  now.LowPart = nowFt.dwLowDateTime;
+  now.HighPart = nowFt.dwHighDateTime;
+  if (Process32FirstW(snap, &pe)) {
+    do {
+      if (_wcsicmp(pe.szExeFile, L"msedge.exe") != 0) continue;
+      HANDLE h = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pe.th32ProcessID);
+      if (!h) continue;
+      FILETIME create{}, exitT{}, kernel{}, user{};
+      if (GetProcessTimes(h, &create, &exitT, &kernel, &user)) {
+        ULARGE_INTEGER c{};
+        c.LowPart = create.dwLowDateTime;
+        c.HighPart = create.dwHighDateTime;
+        if (now.QuadPart >= c.QuadPart) {
+          DWORD ageMs = (DWORD)((now.QuadPart - c.QuadPart) / 10000ULL);
+          if (ageMs < youngest) youngest = ageMs;
+        }
+      }
+      CloseHandle(h);
+    } while (Process32NextW(snap, &pe));
+  }
+  CloseHandle(snap);
+  return youngest;
+}
+
 }  // namespace
 
 GateWatchTickResult TickGateWatch(const std::wstring& behaviorDir) {
@@ -149,6 +186,15 @@ GateWatchTickResult TickGateWatch(const std::wstring& behaviorDir) {
   const bool dead = (age < 0.0) || (age > kDeadS);
   out.candidate = dead;
   if (!dead) {
+    gDeadStrikes = 0;
+    out.strikes = 0;
+    return out;
+  }
+
+  // Stale heartbeat from a prior kill must not nuke a freshly opened Edge before Gate
+  // can connect to calt_msg_host and refresh gate_heartbeat.json.
+  const DWORD edgeAge = YoungestMsedgeAgeMs();
+  if (edgeAge != MAXDWORD && edgeAge < kEdgeRecoveryGraceMs) {
     gDeadStrikes = 0;
     out.strikes = 0;
     return out;

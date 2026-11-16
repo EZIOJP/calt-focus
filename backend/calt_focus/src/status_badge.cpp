@@ -128,10 +128,13 @@ EnforcerBadge ReadEnforcerBadge() {
 
 bool FocusBlocksActive() {
   const EnforcerBadge b = ReadEnforcerBadge();
-  if (b.ok && b.softland_or_armed) {
+  // A stopped/crashed enforcer leaves its last mirror behind.  Never let an
+  // old "armed" bit impersonate a live owner: it made Quit/restart look
+  // blocked even after the service was gone, and prevented a clean recovery.
+  if (b.ok && b.Fresh() && b.softland_or_armed) {
     return true;
   }
-  if (b.ok && b.armed) {
+  if (b.ok && b.Fresh() && b.armed) {
     return true;
   }
   const std::wstring path = SoftlandPolicyPath();
@@ -141,7 +144,7 @@ bool FocusBlocksActive() {
   }
   std::ostringstream ss;
   ss << in.rdbuf();
-  return JsonBool(ss.str(), "softland_enabled") || b.armed;
+  return JsonBool(ss.str(), "softland_enabled") || (b.Fresh() && b.armed);
 }
 
 std::wstring FormatTrayTooltip(const EnforcerBadge& b) {

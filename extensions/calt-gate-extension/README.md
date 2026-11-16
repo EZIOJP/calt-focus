@@ -1,49 +1,40 @@
-# CALT Gate (blocker) — v1.0.8
+# CALT Gate (blocker) — v2
 
-Browser **SoftLand** (DNR + locked page) for CALT Focus. Talks to **`calt_msg_host.exe`** (C++) only by default.
+Scored, layered SoftLand for Edge. Talks to **`calt_msg_host.exe`**. Image scan = **NSFWJS MobileNetV2Mid on TF.js WASM** (CPU only).
 
-## Pair with
-
-- `selftracker-extension` **v1.5.28+** (telemetry → `track_tab`)
-- **`calt_enforcer.exe`** — SoftLand SoT + Arm kills
-- **`calt_focus.exe`** — Settings / Plan UI
-
-## Load in Edge
-
-1. `edge://extensions` → Developer mode  
-2. Load unpacked → `calt-gate-extension`  
-3. Load unpacked → `selftracker-extension`  
-4. Register host with **both** extension IDs:
-
-```powershell
-powershell -File scripts\desktop_tracker\install\install_calt_msg_host.ps1 -ExtensionIds @('<GATE_ID>','<SELFTRACKER_ID>')
-```
-
-After editing JS:
+## Build
 
 ```bat
-powershell -File scripts\build_extension_workers.ps1
+cd extensions\calt-gate-extension
+npm install
+npm run fetch-models
+npm run build
+npm test
 ```
 
-Then **Reload** both extensions.
+`npm run build` regenerates `service_worker.js`, `offscreen.js`, `content_v2.js`, bumps `manifest.json`, and writes `backend/calt_msg_host/src/host_seed.generated.h`.
 
-## Requires (native path)
+Then **Reload** the unpacked extension at `edge://extensions`.
 
-- `calt_msg_host.exe` — `get_mode` (per navigation) + `get_softland_doc` (DNR / mode cache)
-- `calt_enforcer.exe` running — owns `softland_policy.json` / SQLite
-- Study `:8000` is **not** required
+Rebuild native SoftLand after seed changes:
 
-## Optional Study debug
+```bat
+scripts\build\build_native_enforcer.bat
+```
 
-Set storage `caltGateHttpFallback=true` (alias `caltSoftlandHttpFallback`) to enable:
+(or your usual msg_host build) so `host_seed.generated.h` is compiled in.
 
-- HTTP `distraction-gate`
-- Gate notify WebSocket
-- Alert / extension-log POSTs
+## Strict + grace
 
-## Stability (v1.0.8)
+| Strict | Grace |
+|--------|--------|
+| PORN_STRICT / sensitive (SoftLand on) hard LOCK | TRUSTED (Claude, GitHub, …) skip keyword locks |
+| Adult search query LOCK before results | Recovery queries (`porn addiction help`, `breast cancer`) |
+| No 60s temp-allow; appeal cooldown | SEARCH with clean query auto-opens on appeal |
+| NSFWJS blur-first on UGC/social/unknown | Bing tracking params (`gs_lcrp`) ignored |
+| Weekly StevenBlack + HaGeZi blocklist Set | Seed floor always on if download fails |
 
-- Reused native messaging port + short `get_mode` cache
-- Temp-allow honored before SoftLand redirect
-- Locked page reads SW `GET_GATE` (no `:8000` poll)
-- Single alarm-based policy poll (no dual setInterval storm)
+## Popup
+
+- **Why?** — last verdicts (host, score, reasons)
+- **Refresh blocklist** — pull StevenBlack porn + HaGeZi NSFW now

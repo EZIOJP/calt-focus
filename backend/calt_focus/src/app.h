@@ -39,6 +39,8 @@ class FocusApp {
   void OpenPlan();
   void OpenBible();
   void OpenRoadmap();
+  /** Launch installed OpenJarvis desktop (optional sidekick — not SoftLand). */
+  void OpenOpenJarvis();
   void NavigateShell(const std::wstring& url);
   void ReloadUi();
   void UpdateUi();

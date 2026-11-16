@@ -339,9 +339,15 @@ class EnforcerCmdQueue {
         stale.sender->Release();
       }
       EnforcerCmdJob job{sender, std::move(req), std::move(id), std::move(op), timeoutMs};
-      // Calendar overlay jumps the queue so status probes cannot starve it.
-      if (job.op == "plan.overlay") {
-        jobs_.push_front(std::move(job));
+      // User writes jump ahead of status probes (Bible assign was starving behind polls).
+      const bool priority =
+          job.op == "plan.overlay" || job.op.rfind("bible.", 0) == 0 ||
+          job.op.rfind("softland.", 0) == 0 || job.op.rfind("arm.", 0) == 0 ||
+          job.op.rfind("day.confirm", 0) == 0;
+      if (priority) {
+        auto it = jobs_.begin();
+        while (it != jobs_.end() && it->op == "plan.overlay") ++it;
+        jobs_.insert(it, std::move(job));
       } else {
         jobs_.push_back(std::move(job));
       }
@@ -373,6 +379,7 @@ class EnforcerCmdQueue {
       // plan.overlay can be 50–100KB+; a hard 4s cap made FE fall back to sleep-only.
       unsigned timeoutMs = job.timeoutMs;
       if (job.op == "plan.overlay" && timeoutMs < 12000) timeoutMs = 12000;
+      if (job.op.rfind("bible.devotion.", 0) == 0 && timeoutMs < 15000) timeoutMs = 15000;
       if (!EnforcerSendCommand(job.req, resp, timeoutMs)) {
         out = std::string("{\"type\":\"enforcer_cmd_result\",\"ok\":false,\"id\":\"") +
               job.id + "\",\"error\":\"enforcer_unreachable\"}";
@@ -569,6 +576,10 @@ class MsgHandler : public ICoreWebView2WebMessageReceivedEventHandler {
       else if (action == "update_ui") wp = 10;
       else if (action == "update_stack") wp = 11;
       else if (action == "apply_update") wp = 12;
+      else if (action == "run_stack" || action == "ensure_enforcer") wp = 13;
+      else if (action == "start_api") wp = 14;
+      else if (action == "start_frontend") wp = 15;
+      else if (action == "start_web_stack") wp = 16;
       if (wp) PostMessageW(shell_hwnd_, WM_FOCUS_SHELL, wp, 0);
       return S_OK;
     }
@@ -720,8 +731,12 @@ class MsgHandler : public ICoreWebView2WebMessageReceivedEventHandler {
       };
       grabQuoted("name", &name);
       grabQuoted("confirm", &confirm);
-      if (name == "device_block_apply.bat" || name == "device_block_remove.bat") {
-        const std::wstring bat = RepoRoot() + L"\\scripts\\" + WidenUtf8(name);
+      if (name == "device_block_apply.bat" || name == "device_block_remove.bat" ||
+          name == "run\\pull_zeppbridge.bat" || name == "pull_zeppbridge.bat") {
+        std::wstring rel = WidenUtf8(name);
+        // Allow scripts\run\pull_zeppbridge.bat shorthand.
+        if (rel == L"pull_zeppbridge.bat") rel = L"run\\pull_zeppbridge.bat";
+        const std::wstring bat = RepoRoot() + L"\\scripts\\" + rel;
         // Pass confirm as first arg so bat can re-pass after UAC elevation.
         std::wstring params;
         if (!confirm.empty()) {
@@ -1030,6 +1045,8 @@ class MsgHandler : public ICoreWebView2WebMessageReceivedEventHandler {
       timeoutMs = 16000;
     else if (op.rfind("plan.", 0) == 0)
       timeoutMs = 8000;
+    else if (op.rfind("bible.devotion.", 0) == 0)
+      timeoutMs = 15000;
     // Prefer FE-supplied timeoutMs when present (must be >= pipe budget).
     {
       std::string needle = "\"timeoutMs\"";

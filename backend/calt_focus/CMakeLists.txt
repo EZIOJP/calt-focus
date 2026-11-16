@@ -27,6 +27,12 @@ add_executable(calt_focus WIN32
   src/paths.cpp
   src/status_badge.cpp
   src/enforcer_cmd.cpp
+  src/sync_host_ctrl.cpp
+  src/llm_http_proxy.cpp
+  src/openjarvis_ctrl.cpp
+  src/pc_power.cpp
+  src/pc_apps.cpp
+  src/telegram_remote.cpp
 )
 
 target_include_directories(calt_focus PRIVATE
@@ -57,6 +63,8 @@ target_link_libraries(calt_focus PRIVATE
   version
   ws2_32
   dwmapi
+  winhttp
+  powrprof
 )
 
 # Copy loader DLL next to the exe after build

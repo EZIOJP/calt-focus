@@ -492,6 +492,14 @@ void TickDayRollup(const std::wstring& dbPath, const std::wstring& behaviorDir) 
     if (overrideVal == 1) score = (std::max)(score, gRules.threshold);
     if (overrideVal == 0) score = 0;
 
+    // Cursor is on the study kill list until goal — it must not earn productive minutes
+    // (chat / agent idle in the editor was unlocking dual-gate / goal free).
+    {
+      std::string appLow = app ? app : "";
+      for (auto& c : appLow) c = (char)tolower((unsigned char)c);
+      if (appLow == "cursor.exe" || appLow == "cursor") score = 0;
+    }
+
     long long a = ParseIsoToUnixApprox(start ? start : "");
     long long b = ParseIsoToUnixApprox(end && *end ? end : IsoLocalNow());
     if (b <= a) b = a + 1;  // point samples from track_tab → 1s credit

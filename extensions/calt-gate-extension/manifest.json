@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "CALT Gate (blocker)",
-  "version": "1.0.8",
+  "version": "1.1.23",
   "description": "Site SoftLand for CALT Focus via calt_msg_host (C++). DNR + locked page. Study :8000 optional debug only.",
   "permissions": [
     "storage",
@@ -10,7 +10,8 @@
     "webNavigation",
     "declarativeNetRequest",
     "notifications",
-    "nativeMessaging"
+    "nativeMessaging",
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>",
@@ -23,9 +24,17 @@
   "minimum_chrome_version": "109",
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["gate_policy.js", "content_score.js"],
-      "run_at": "document_idle"
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "gate_policy.js",
+        "content_score.js",
+        "content_v2.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": true,
+      "match_about_blank": true
     }
   ],
   "action": {
@@ -44,8 +53,23 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["locked.html", "locked.js", "gate_policy.js"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "locked.html",
+        "locked.js",
+        "gate_policy.js",
+        "icon.png",
+        "offscreen.html",
+        "offscreen.js",
+        "wasm/*",
+        "nsfwjs/*",
+        "nsfwjs/mobilenet_v2_mid/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
-  ]
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+  }
 }

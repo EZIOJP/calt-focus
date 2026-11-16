@@ -32,8 +32,9 @@ bool SendOnce(const std::string& jsonReq, std::string& jsonResp, unsigned timeou
   if (pipe == INVALID_HANDLE_VALUE) {
     const DWORD err = GetLastError();
     if (err == ERROR_PIPE_BUSY || err == ERROR_FILE_NOT_FOUND) {
-      const DWORD waitPipe = timeoutMs > 2500 ? 2500 : timeoutMs;
-      if (!WaitNamedPipeW(kPipeName, waitPipe)) return false;
+      // Use the full command budget — a 2.5s cap made Focus report
+      // enforcer_unreachable while mirrors still showed "Enforcer live".
+      if (!WaitNamedPipeW(kPipeName, timeoutMs)) return false;
       pipe = CreateFileW(kPipeName, GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
                          FILE_FLAG_OVERLAPPED, nullptr);
     }

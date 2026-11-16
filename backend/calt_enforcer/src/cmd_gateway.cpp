@@ -6,6 +6,7 @@
 #include "life_content.h"
 #include "plan_gate.h"
 #include "policy_db.h"
+#include "productivity_export.h"
 #include "productivity_store.h"
 #include "roadmap_store.h"
 #include "softland_publish.h"
@@ -437,13 +438,27 @@ std::string SaveAndPublish(ProductivitySoftland& s, const std::wstring& behavior
 }
 
 bool OpNeedsFreeDay(const std::string& op, const std::string& payload) {
-  (void)payload;
-  // Arm / kill-list / device-block / SoftLand master toggle need free day or day pass.
-  // Plan/routines: free day OR initial planning of a new day (see OpIsPlanRoutineEdit).
-  // SoftLand site/schedule/mode patches: free day OR morning lock cleared (see HandleOp).
-  return op == "arm.set" || op == "app_limits.set" || op == "softland.set_enabled" ||
-         op == "device_block.save" || op == "device_block.apply" || op == "device_block.remove" ||
-         op == "pending.add";
+  // Turning SoftLand / Arm *on* must work without a free day — otherwise an emergency
+  // stop (or first install) leaves the product permanently unable to re-engage until
+  // someone manually patches JSON. Turning *off* / disarm still needs free day.
+  // Device-block mutate + pending + app_limits stay free-day gated.
+  if (op == "softland.set_enabled") {
+    bool en = false;
+    if (JsonGetBool(payload, "enabled", &en) && en) return false;
+    return true;
+  }
+  if (op == "arm.set") {
+    bool armed = false;
+    bool hb = false;
+    if (JsonGetBool(payload, "hard_block_armed", &hb))
+      armed = hb;
+    else
+      JsonGetBool(payload, "armed", &armed);
+    if (armed) return false;
+    return true;
+  }
+  return op == "app_limits.set" || op == "device_block.save" || op == "device_block.apply" ||
+         op == "device_block.remove" || op == "pending.add";
 }
 
 bool OpIsPlanRoutineEdit(const std::string& op) {
@@ -1559,6 +1574,97 @@ std::string HandleOp(const std::string& op, const std::string& payload,
     std::string err = AppLimitsHandleSet(behaviorDir, dbPath, payload, &mirror);
     if (!err.empty()) return err;
     if (extraOut && !mirror.empty()) *extraOut = ",\"app_limits\":" + mirror;
+    return "";
+  }
+
+  // Settings → More → Export (Focus shell; no Study :8000).
+  if (op == "productivity.export" || op == "productivity.export_presence") {
+    std::wstring dataDir = behaviorDir;
+    size_t slash = dataDir.find_last_of(L"\\/");
+    if (slash != std::wstring::npos) dataDir = dataDir.substr(0, slash);
+    std::wstring dbPath = dataDir + L"\\productivity.db";
+    if (GetFileAttributesW(dbPath.c_str()) == INVALID_FILE_ATTRIBUTES)
+      dbPath = dataDir + L"\\vocab_app.db";
+    if (op == "productivity.export_presence")
+      return ProductivityExportPresenceHandle(behaviorDir, dbPath, payload, extraOut);
+    return ProductivityExportHandle(behaviorDir, dbPath, payload, extraOut);
+  }
+
+  // Focus OpenJarvis classify approve → upsert app_rules in classify_rules.json.
+  if (op == "classify.upsert_app_rule") {
+    std::string pattern, category;
+    int score = 0;
+    JsonGetString(payload, "pattern", &pattern);
+    JsonGetString(payload, "category", &category);
+    JsonGetInt(payload, "score", &score);
+    if (pattern.empty() || category.empty()) return "classify_bad_payload";
+    if (score <= 0) score = 50;
+    const std::wstring path = behaviorDir + L"\\classify_rules.json";
+    std::string body;
+    {
+      std::ifstream in(path.c_str(), std::ios::binary);
+      if (in) {
+        std::ostringstream ss;
+        ss << in.rdbuf();
+        body = ss.str();
+      }
+    }
+    if (body.empty()) {
+      body =
+          "{\n  \"schema_version\": 1,\n  \"default_score\": 35,\n  \"productive_threshold\": 60,\n"
+          "  \"app_rules\": [],\n  \"domain_rules\": [],\n  \"category_scores\": {}\n}\n";
+    }
+    // Escape pattern for JSON string.
+    std::string patJson;
+    for (unsigned char c : pattern) {
+      if (c == '"' || c == '\\') patJson.push_back('\\');
+      patJson.push_back((char)c);
+    }
+    std::string catJson;
+    for (unsigned char c : category) {
+      if (c == '"' || c == '\\') catJson.push_back('\\');
+      catJson.push_back((char)c);
+    }
+    const std::string ruleObj = std::string("{\"pattern\":\"") + patJson + "\",\"category\":\"" +
+                                catJson + "\",\"score\":" + std::to_string(score) + "}";
+    // Drop prior rule with same pattern (simple substring match on "pattern":"...").
+    const std::string patNeedle = std::string("\"pattern\":\"") + patJson + "\"";
+    size_t appKey = body.find("\"app_rules\"");
+    if (appKey == std::string::npos) return "classify_no_app_rules";
+    size_t arrStart = body.find('[', appKey);
+    if (arrStart == std::string::npos) return "classify_bad_app_rules";
+    size_t arrEnd = body.find(']', arrStart);
+    if (arrEnd == std::string::npos) return "classify_bad_app_rules";
+    std::string arr = body.substr(arrStart + 1, arrEnd - arrStart - 1);
+    // Remove existing object containing this pattern.
+    size_t hit = arr.find(patNeedle);
+    if (hit != std::string::npos) {
+      size_t objStart = arr.rfind('{', hit);
+      size_t objEnd = arr.find('}', hit);
+      if (objStart != std::string::npos && objEnd != std::string::npos && objEnd > objStart) {
+        size_t eraseFrom = objStart;
+        size_t eraseTo = objEnd + 1;
+        while (eraseFrom > 0 && (arr[eraseFrom - 1] == ' ' || arr[eraseFrom - 1] == '\n' ||
+                                 arr[eraseFrom - 1] == '\r' || arr[eraseFrom - 1] == '\t'))
+          --eraseFrom;
+        if (eraseFrom > 0 && arr[eraseFrom - 1] == ',') --eraseFrom;
+        else if (eraseTo < arr.size() && arr[eraseTo] == ',') ++eraseTo;
+        arr.erase(eraseFrom, eraseTo - eraseFrom);
+      }
+    }
+    // Trim and append.
+    while (!arr.empty() && (arr.back() == ' ' || arr.back() == '\n' || arr.back() == '\r' ||
+                            arr.back() == '\t' || arr.back() == ','))
+      arr.pop_back();
+    if (!arr.empty()) arr += ",\n    ";
+    arr += ruleObj;
+    body.replace(arrStart + 1, arrEnd - arrStart - 1, "\n    " + arr + "\n  ");
+    if (!WriteBehaviorMirrorFile(behaviorDir, L"classify_rules.json", body))
+      return "classify_write_failed";
+    if (extraOut) {
+      *extraOut = ",\"classify\":{\"pattern\":\"" + patJson + "\",\"category\":\"" + catJson +
+                  "\",\"score\":" + std::to_string(score) + "}";
+    }
     return "";
   }
   return "unknown_op";

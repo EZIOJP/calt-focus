@@ -1,9 +1,13 @@
-# CALT Sync 4.3 — rich health dumper (Zepp OS 6)
+# CALT Sync 4.4 — rich health dumper (Zepp OS 6)
 
-Watch app that dumps **rich body metrics** to the PC. Posts only to the **Focus hub**
-(`:8765`).
+Watch app that dumps **rich body metrics** to the PC. Posts only to **`calt_sync_host` on `:8765`**.
 
-Watch stamps **calendar day + timezone offset** before BLE. Phone must not replace that with its own clock.
+| Setting | Final value |
+|---------|-------------|
+| Base URL | `http://192.168.0.110:8765` |
+| Token | `calt-local-wearables` |
+
+Never use localhost from the phone. Watch stamps **calendar day + timezone offset** before BLE.
 
 ## What it does
 
@@ -21,13 +25,10 @@ Chunks (5): Sleep · Activity · Heart · Series · Extras — resume-safe, idem
 
 ## PC setup
 
-### Focus (recommended for Productivity)
-
-1. Run `scripts\run\start_calt_sync_host.bat` (`calt_sync_host` on `:8765`).
-2. Phone Zepp → **CALT Sync** settings:
-   - **Base URL:** `http://<PC-LAN-IP>:8765`
-   - **Ingest token:** `calt-local-wearables`
-3. Phone browser: `http://<IP>:8765/health`
+1. `scripts\run\start_calt_sync_host.bat` (exclusive C++ receiver; clears port fights).
+2. Optional Admin once: `open_firewall_hub_8765.bat` + `ensure_calt_sync_host.ps1 -InstallTask`.
+3. Phone Zepp → **CALT Sync** settings → Base URL + token from the table above.
+4. Phone browser: `http://192.168.0.110:8765/health`
 
 ## Install
 

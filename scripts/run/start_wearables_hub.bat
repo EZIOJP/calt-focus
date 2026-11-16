@@ -1,24 +1,12 @@
 @echo off
 setlocal EnableExtensions
-cd /d "%~dp0..\.."
-title CALT Focus wearables hub :8765
-echo Starting Focus hub :8765 HTTP + :8766 HTTPS ^(camera^)...
+REM DEPRECATED for watch ingest — :8765 belongs to calt_sync_host (C++).
+REM This Python hub fought the sync receiver (and python -m http.server) for the port.
 echo.
-echo   Windows Chrome webcam:   https://127.0.0.1:8766/n
-echo   Phone Chrome NutriNode:  http://^<PC-LAN-IP^>:8765/n
-echo   Amazfit / Zepp Base URL: http://^<PC-LAN-IP^>:8765
-echo   Token: calt-local-wearables
+echo CALT Sync watch uploads use calt_sync_host on :8765.
+echo Run instead:  scripts\run\start_calt_sync_host.bat
 echo.
-echo First time on Wi-Fi? Run as Admin: scripts\run\open_firewall_hub_8765.bat
-echo Photo AI: GEMINI_API_KEY / LLM_CLOUD_API_KEY ^(or Study .env^)
-if exist "data\productivity\behavior\nutrition\nutrition_llm.json" (
-  echo Photo AI config: behavior\nutrition\nutrition_llm.json
-)
+echo NutriNode photo AI is separate — do not start this bat for Amazfit Dump ^& Send.
 echo.
-python "%~dp0wearables_hub.py"
-if errorlevel 1 (
-  echo.
-  echo Failed — is Python on PATH?
-  pause
-)
-endlocal
+pause
+exit /b 1

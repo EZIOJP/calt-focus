@@ -77,7 +77,29 @@ void PublishStatus(const std::wstring& dbPath, const std::wstring& lockPath,
   st.last_kill_exe = gLastKillExe;
   st.last_kill_reason = gLastKillReason;
   st.lock_present = LockFilePresent(lockPath);
-  st.service_running = true;
+  // Console fallback is a healthy enforcer too, but it must not masquerade
+  // as the Windows service in diagnostics or deployment checks.
+  DWORD sessionId = 0;
+  st.service_running = ProcessIdToSessionId(GetCurrentProcessId(), &sessionId) && sessionId == 0;
+  st.armed = snap.armed;
+  st.locked = snap.locked || snap.incubation;
+  st.incubation = snap.incubation;
+  st.policy_source = snap.source;
+  st.focus_running = gFocusWatch.focus_running;
+  st.softland_or_armed = gFocusWatch.softland_or_armed;
+  st.focus_relaunch_count = gFocusWatch.focus_relaunch_count;
+  st.focus_last_relaunch_at = gFocusWatch.focus_last_relaunch_at;
+  st.focus_relaunch_suppressed = gFocusWatch.focus_relaunch_suppressed;
+  WriteEnforcerStatus(DefaultStatusJsonPath(dbPath), st);
+}
+
+// Do not leave a fresh-looking "LIVE" heartbeat after a graceful service
+// stop.  Force-kills are still covered by the Focus-side freshness check.
+void PublishStoppedStatus(const std::wstring& dbPath, const EnforcerSnapshot& snap) {
+  EnforcerStatusSnapshot st;
+  st.owns = false;
+  st.pid = 0;
+  st.service_running = false;
   st.armed = snap.armed;
   st.locked = snap.locked || snap.incubation;
   st.incubation = snap.incubation;
@@ -253,12 +275,14 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
   // Focus UI loads from these mirrors — pipe is for writes / Arm / tracking only.
   PublishFocusReadMirrors(behaviorDir);
   CmdGatewayInit();
+  EnforcerSnapshot lastSnap;
 
   while (stop == nullptr || !(*stop)) {
     if (gStopEvent && WaitForSingleObject(gStopEvent, 0) == WAIT_OBJECT_0) break;
 
     EnforcerSnapshot snap;
     TickKills(dbPath, snap);
+    lastSnap = snap;
     if (useTrackerAgent) {
       DWORD nowEnsure = GetTickCount();
       if (lastAgentEnsure == 0 || nowEnsure - lastAgentEnsure >= kAgentEnsureMs) {
@@ -351,6 +375,7 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
     sessions.Flush();
   }
   ReleaseOwnerLock(lockPath);
+  PublishStoppedStatus(dbPath, lastSnap);
   ReleaseMutex(ownerMu);
   CloseHandle(ownerMu);
   return 0;

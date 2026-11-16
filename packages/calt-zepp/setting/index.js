@@ -55,14 +55,14 @@ AppSettingsPage({
       [
         Text(
           { style: { fontSize: '18px', fontWeight: '600', marginBottom: '4px' } },
-          ['CALT Sync 4.3'],
+          ['CALT Sync 4.4'],
         ),
         Text(
           {
             style: {
               fontSize: '13px',
-              color: '#b45309',
-              background: '#fff7ed',
+              color: '#14532d',
+              background: '#f0fdf4',
               padding: '10px',
               borderRadius: '8px',
               marginBottom: '14px',
@@ -70,7 +70,7 @@ AppSettingsPage({
             },
           },
           [
-            'Rich health dump → Focus hub :8765. Dump & Send on the watch, or enable Auto sync (every 3h) in watch Settings. Phone + PC on same Wi‑Fi. Sensors do not invent history.',
+            'Final PC receiver: calt_sync_host :8765. Default Base URL http://192.168.0.110:8765 — token calt-local-wearables. Phone + PC same Wi‑Fi. Never use localhost.',
           ],
         ),
 
@@ -79,7 +79,7 @@ AppSettingsPage({
           ['Connection'],
         ),
         TextInput({
-          label: 'Base URL (tracker hub :8765)',
+          label: 'Base URL (final)',
           value: get('base_url', 'http://192.168.0.110:8765'),
           onChange: (val) => storage.setItem('base_url', String(val || '').trim()),
         }),
@@ -96,12 +96,11 @@ AppSettingsPage({
             },
           },
           [
-            'Use your PC LAN IP — localhost will NOT work from the phone. ' +
-              'Verify: phone browser → http://<PC-LAN-IP>:8765/health.',
+            'Must match PC LAN IP. Verify in phone browser: http://192.168.0.110:8765/health',
           ],
         ),
         TextInput({
-          label: 'Ingest token',
+          label: 'Ingest token (final)',
           value: get('ingest_token', 'calt-local-wearables'),
           onChange: (val) => storage.setItem('ingest_token', val),
         }),

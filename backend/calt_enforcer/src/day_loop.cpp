@@ -92,19 +92,14 @@ bool ArmHardBlock(const std::wstring& behaviorDir, bool* armedOut) {
       L"robloxplayerbeta.exe",
       L"battle.net.exe",
       L"netflix.exe",
+      L"mhur.exe",  // My Hero Ultra Rumble
       nullptr,
-  };
-  auto hasExe = [&](const wchar_t* name) {
-    for (const auto& e : cur.exes) {
-      if (_wcsicmp(e.c_str(), name) == 0) return true;
-    }
-    return false;
   };
   if (cur.exes.empty()) {
     for (int i = 0; kSeed[i]; ++i) cur.exes.push_back(kSeed[i]);
-  } else if (!hasExe(L"cursor.exe")) {
-    cur.exes.push_back(L"cursor.exe");  // study-temp until goal; cleared on free
   }
+  // Never auto-add cursor.exe — that kills the editor while developing Focus.
+  // Study-temp kills (if any) stay explicit via Settings / arm.set only.
 
   if (!WriteEnforcerPolicyJson(polPath, cur, cur.anti_tamper, false)) return false;
   SyncEnforcerRuntimeSqlite(dbPath, cur);
@@ -789,7 +784,11 @@ bool DayLoopPlanConfirmedToday(const std::string& softlandDocumentJson) {
 }
 
 bool DayLoopMorningLockCleared(const std::string& softlandDocumentJson) {
-  if (BibleRitualPending(softlandDocumentJson, LocalDate())) return false;
+  // SoftLand settings (allow/watch/block extras) unlock after *morning* Bible + plan.
+  // Afternoon/evening devotion still uses BibleRitualPending for free/closeout — not here.
+  const std::string today = LocalDate();
+  if (!GoalsDoneToday(softlandDocumentJson, "bible_done", "bible_done_for_date", today))
+    return false;
   return DayLoopPlanConfirmedToday(softlandDocumentJson);
 }
 

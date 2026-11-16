@@ -1,59 +1,79 @@
-# Focus wearables — CALT Sync (Amazfit)
+# Focus wearables — ZeppBridge (preferred) + CALT Sync
 
-## Path (primary)
+## Preferred path — [ZeppBridge](https://github.com/lingcang728/ZeppBridge)
 
 ```text
-T-Rex CALT Sync  --BLE-->  Phone Zepp side service  --HTTP-->  Focus hub :8765
-                                                                    │
-                                                                    ▼
-                                         wearable_*.json + life_days/ + Health UI
+Amazfit  -->  Zepp phone cloud  -->  ZeppBridge desktop (local zepp.db)
+                                         │
+                                         ▼  scripts/run/pull_zeppbridge.py
+         wearable_day.json + wearable_days/ + life_days/ + sleep_windows.json
+         + zeppbridge_collector/{YYYY-MM-DD}.json   (rich archive)
 ```
 
-CALT Sync is the only health ingest. The hub refuses Google Fit, Health Connect, and bridge exports.
+| Setting | Value |
+|---------|--------|
+| **App** | ZeppBridge (Local REST ON) |
+| **API** | `http://127.0.0.1:43921` (`/health`, `/workouts/{id}/series`) |
+| **Token** | Settings → Local REST → Bearer `zbk_…` (stored in `behavior/zeppbridge.json`, gitignored) |
+| **Day health** | Read-only `…/ZeppBridge/data/zepp.db` (REST does not expose daily sleep/steps) |
+| **Pull** | Settings → Watch ↔ PC → **Pull from ZeppBridge**, or `python scripts\run\pull_zeppbridge.py` |
 
-## Setup
+Keep ZeppBridge open and synced; then pull into Focus. CALT Sync below stays as a fallback.
 
-1. PC: `scripts\run\start_calt_sync_host.bat` — a small C++ receiver on `:8765`. It sits idle until the watch uploads, then writes the mirrors. It is not inside the enforcer.
-2. Sideload Focus SoT watch app: [`packages/calt-zepp`](../packages/calt-zepp) **4.3+** (`sideload.bat` in that folder)
-3. Phone Zepp → CALT Sync settings → Base URL `http://<PC-LAN-IP>:8765`, token `calt-local-wearables`
-4. Watch: **Dump & Send** once to verify
-5. Watch Settings → **Auto sync: ON** (interval default **3h**, cycle 1 / 3 / 6 / 12)
+### Collector format (schema 3)
 
-Watch package lives in this repo (`packages/calt-zepp`). Do not sideload from the Study sibling for Focus.
+`pull_zeppbridge.py` writes **payload.schema = 3** with a nested `collector` block that mirrors ZeppBridge’s daily metrics (same keys as ZeppBridge AI exports). Empty cells stay **null** (not 0).
 
-Auto uses a persistent watch alarm that wakes the dump page and runs Dump & Send. Phone should be nearby (BLE) and on the same Wi‑Fi as the PC.
+| Path | Role |
+|------|------|
+| `behavior/wearable_day.json` | Today summary (FE-compat top-level + `payload.collector`) |
+| `behavior/wearable_days/{day}.json` | Per-day same shape |
+| `behavior/zeppbridge_collector/{day}.json` | Rich archive only (`calt.zeppbridge.collector` v1) |
+| `behavior/life_today.json` / `life_days/` | Life Tracker summary (`schema_version` 2 + readiness / HRV / charges) |
+
+`collector` fields: `coverage`, `daily` (readiness, charges, stress min/max, sleep_hrv, training_load, PAI, …), `metrics_all` (every `daily_metrics` key), `sleep`, `workouts`, `samples` (downsampled HR / HRV / HRV_RMSSD / stress / SpO₂ from `metric_samples`). Health → Watch shows these as vitals charts.
+
+Promoted onto the wearable summary for Health UI: `readiness`, `training_load`, `hybrid_charge`, `physical_charge`, `mental_charge`, `sleep_hrv`, `stress_min`, `stress_max`, `active_minutes`.
+
+## Legacy path — CALT Sync (Amazfit)
+
+```text
+T-Rex CALT Sync  --BLE-->  Phone Zepp side service  --HTTP-->  calt_sync_host :8765
+                                                                  │
+                                                                  ▼
+                                       wearable_*.json + life_days/ + Health UI
+```
+
+| Setting | Value |
+|---------|--------|
+| **Receiver** | `calt_sync_host.exe` (C++) — **not** Python, not the enforcer |
+| **Base URL** | `http://192.168.0.110:8765` (this PC’s Wi‑Fi LAN IP; update if DHCP changes) |
+| **Token** | `calt-local-wearables` |
+| **Ingest** | `POST /api/wearables/zepp` (+ `/raw`, `/ping`) |
+| **Health check** | Phone browser → `http://192.168.0.110:8765/health` |
+
+Never use `http://127.0.0.1:8765` from the phone/watch — that is the phone itself.
+
+Live mirror of the URL: `data/productivity/behavior/calt_sync_url.json` (written whenever the receiver starts).
+
+## Setup (once)
+
+1. Admin once: `scripts\run\open_firewall_hub_8765.bat`
+2. Start + keep alive: `scripts\run\start_calt_sync_host.bat`  
+   Or install logon task:  
+   `powershell -File scripts\run\ensure_calt_sync_host.ps1 -InstallTask`
+3. Sideload watch app: [`packages/calt-zepp`](../packages/calt-zepp) **4.4+**
+4. Phone Zepp → CALT Sync settings → Base URL + token from the table above
+5. Watch: **Dump & Send** once; enable **Auto sync** if you want recurring dumps
+
+`ensure_calt_sync_host.ps1` clears port conflicts (e.g. `python -m http.server 8765`) before starting the C++ receiver with an exclusive bind.
+
+## Do not use for watch ingest
+
+- `scripts\run\start_wearables_hub.bat` / `wearables_hub.py` — deprecated for Amazfit; fights `:8765`
+- SoftLand/Arm enforcer — different process, different job
 
 ## Focus UI
 
-- Settings → Watch ↔ PC — hub status / test payload
+- Settings → Watch ↔ PC — hub status
 - Sidebar **Health** — Life Tracker from last dump
-- Sidebar **NutriNode** — meal search/log + **Photo suggest** on the same hub
-
-### NutriNode photo AI
-
-Same process as the wearables hub. Set one of:
-
-- env `GEMINI_API_KEY` or `LLM_CLOUD_API_KEY` before starting the hub
-- `data/productivity/behavior/nutrition/nutrition_llm.json` → `{"gemini_api_key":"..."}` (do not commit)
-- sibling Study `.env` with `LLM_CLOUD_API_KEY` (auto-read for local)
-
-Flow: Photo suggest → pick detected food → edit weight (g) → Add → Send.
-
-## Phone / Windows Chrome NutriNode
-
-Hub binds `0.0.0.0`:
-
-| Port | Use |
-|------|-----|
-| `8765` HTTP | Amazfit sync + phone **Take photo** (file capture) |
-| `8766` HTTPS | **Webcam** in Windows/phone Chrome (`getUserMedia`) |
-
-Chrome blocks the live webcam on plain `http://LAN-IP`. Use HTTPS (self-signed; Advanced → Proceed once) or `http://127.0.0.1:8765/n` on the PC.
-
-1. Once: `scripts\run\open_firewall_hub_8765.bat` **as Administrator** (opens 8765 + 8766)
-2. For watch upload, keep `start_calt_sync_host.bat` running (not the enforcer). NutriNode photos still use `start_wearables_hub.bat`, which wants the same port, so run one of them.
-3. **Windows Chrome:** `https://127.0.0.1:8766/n` → **Start webcam** → Capture
-4. **Phone:** `http://<PC-LAN-IP>:8765/n` → **Take photo**, or HTTPS `:8766/n` for live camera
-5. Optional: Add to Home screen
-
-SoftLand/Arm stay on the desktop enforcer. This LAN surface is NutriNode plus CALT Sync ingest.

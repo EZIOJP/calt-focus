@@ -39,6 +39,10 @@ constexpr WPARAM SHELL_OPEN_OPENJARVIS = 9;
 constexpr WPARAM SHELL_UPDATE_UI = 10;
 constexpr WPARAM SHELL_UPDATE_STACK = 11;
 constexpr WPARAM SHELL_APPLY_UPDATE = 12;
+constexpr WPARAM SHELL_RUN_STACK = 13;       // Ensure enforcer + open (tray ID_RUN)
+constexpr WPARAM SHELL_START_API = 14;       // Advanced → Study API
+constexpr WPARAM SHELL_START_FE = 15;        // Advanced → Study Vite
+constexpr WPARAM SHELL_START_WEB = 16;       // Advanced → API + Vite
 
 UINT g_taskbar_created = 0;
 
@@ -334,6 +338,18 @@ LRESULT FocusApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
       case SHELL_APPLY_UPDATE:
         ApplyPendingUpdate();
+        return 0;
+      case SHELL_RUN_STACK:
+        RunStack();
+        return 0;
+      case SHELL_START_API:
+        StartApiOnly();
+        return 0;
+      case SHELL_START_FE:
+        StartFrontendOnly();
+        return 0;
+      case SHELL_START_WEB:
+        StartWebStack();
         return 0;
       default:
         break;

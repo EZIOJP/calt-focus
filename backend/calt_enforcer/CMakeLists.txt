@@ -37,6 +37,7 @@ add_executable(calt_enforcer
   src/work_session.cpp
   src/gate_watch.cpp
   src/roadmap_store.cpp
+  src/productivity_export.cpp
   ${SQLITE_DIR}/sqlite3.c
 )
 target_include_directories(calt_enforcer PRIVATE src ${SQLITE_DIR})

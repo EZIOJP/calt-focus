@@ -323,6 +323,9 @@ bool AllowedSource(const std::string& source) {
                             "calt_zepp_raw",
                             "zepp",
                             "amazfit",
+                            "calt_manual",
+                            "manual",
+                            "web_test",
                             nullptr};
   for (int i = 0; k[i]; ++i)
     if (source == k[i]) return true;
@@ -350,6 +353,116 @@ bool Foreign(const std::string& body, std::string* why) {
   return false;
 }
 
+bool IsEmptyJsonArray(std::string raw) {
+  while (!raw.empty() && std::isspace(static_cast<unsigned char>(raw.front()))) raw.erase(raw.begin());
+  while (!raw.empty() && std::isspace(static_cast<unsigned char>(raw.back()))) raw.pop_back();
+  return raw == "[]";
+}
+
+bool IsJsonArray(const std::string& raw) {
+  size_t i = 0;
+  while (i < raw.size() && std::isspace(static_cast<unsigned char>(raw[i]))) ++i;
+  return i < raw.size() && raw[i] == '[';
+}
+
+int ApproxArrayLen(const std::string& raw) {
+  if (!IsJsonArray(raw) || IsEmptyJsonArray(raw)) return 0;
+  int n = 0;
+  bool inStr = false;
+  int depth = 0;
+  bool objects = raw.find('{') != std::string::npos;
+  for (size_t i = 0; i < raw.size(); ++i) {
+    char c = raw[i];
+    if (c == '"' && (i == 0 || raw[i - 1] != '\\')) inStr = !inStr;
+    if (inStr) continue;
+    if (c == '[') {
+      ++depth;
+      continue;
+    }
+    if (c == ']') {
+      if (depth > 0) --depth;
+      continue;
+    }
+    if (c == '{') {
+      if (depth == 1) ++n;
+      ++depth;
+      continue;
+    }
+    if (c == '}') {
+      if (depth > 0) --depth;
+      continue;
+    }
+    if (!objects && depth == 1 && ((c >= '0' && c <= '9') || c == '-')) {
+      size_t j = i;
+      while (j > 0 && std::isspace(static_cast<unsigned char>(raw[j - 1]))) --j;
+      if (j > 0 && (raw[j - 1] == '[' || raw[j - 1] == ',')) ++n;
+    }
+  }
+  if (n == 0 && !IsEmptyJsonArray(raw)) n = 1;
+  return n;
+}
+
+int SleepRichness(const std::string& sleep) {
+  if (sleep.empty() || sleep == "null" || sleep.front() != '{') return 0;
+  int score = 0;
+  double total = 0, endMin = -1, startMin = -1, deep = 0;
+  NumRaw(sleep, "total_min", &total);
+  NumRaw(sleep, "end_min", &endMin);
+  NumRaw(sleep, "start_min", &startMin);
+  NumRaw(sleep, "deep_min", &deep);
+  if (total > 0) score += (int)total;
+  if (deep > 0) score += 20;
+  if (endMin >= 0) score += 40;
+  if (startMin >= 0) score += 20;
+  std::string stages;
+  std::vector<Mem> mems;
+  if (ParseObject(sleep, &mems)) {
+    const Mem* m = FindMem(mems, "stages");
+    if (m) score += ApproxArrayLen(m->raw) * 8;
+    if (FindMem(mems, "start_at")) score += 15;
+  }
+  return score;
+}
+
+std::string SanitizeSleepObject(const std::string& sleepIn) {
+  if (sleepIn.empty() || sleepIn.front() != '{') return sleepIn;
+  std::vector<Mem> mems;
+  if (!ParseObject(sleepIn, &mems)) return sleepIn;
+  double endMin = -1, startMin = -1, total = 0;
+  NumRaw(sleepIn, "end_min", &endMin);
+  NumRaw(sleepIn, "start_min", &startMin);
+  NumRaw(sleepIn, "total_min", &total);
+  std::vector<Mem> out;
+  out.reserve(mems.size());
+  for (const auto& m : mems) {
+    if (m.key == "end_min" && endMin < 0) continue;
+    if (m.key == "start_min" && (startMin < 0 || (startMin == 0 && endMin < 0 && total <= 0))) continue;
+    if ((m.key == "stages" || m.key == "naps") && IsEmptyJsonArray(m.raw)) continue;
+    out.push_back(m);
+  }
+  return Emit(out);
+}
+
+std::string SanitizeWearableBody(const std::string& body) {
+  std::vector<Mem> mems;
+  if (!ParseObject(body, &mems)) return body;
+  for (auto& m : mems) {
+    if (m.key == "sleep" && !m.raw.empty() && m.raw.front() == '{') m.raw = SanitizeSleepObject(m.raw);
+    if (m.key == "heart" && !m.raw.empty() && m.raw.front() == '{') {
+      std::vector<Mem> h;
+      if (ParseObject(m.raw, &h)) {
+        std::vector<Mem> kept;
+        for (const auto& x : h) {
+          if ((x.key == "today_min" || x.key == "series") && IsEmptyJsonArray(x.raw)) continue;
+          kept.push_back(x);
+        }
+        m.raw = Emit(kept);
+      }
+    }
+  }
+  return Emit(mems);
+}
+
 std::string MergeObjects(const std::string& prior, const std::string& incoming) {
   std::vector<Mem> a, b;
   if (!ParseObject(incoming, &b)) return prior.empty() ? incoming : prior;
@@ -360,11 +473,52 @@ std::string MergeObjects(const std::string& prior, const std::string& incoming) 
     for (auto& old : a) {
       if (old.key != neu.key) continue;
       found = true;
-      if (neu.key == "sleep") {
-        double total = 1;
-        if (NumRaw(neu.raw, "total_min", &total) && total <= 0 && !old.raw.empty() &&
-            old.raw.front() == '{')
+      // Never let an empty array wipe a populated one (stages / today_min / naps).
+      if (IsJsonArray(neu.raw) && IsEmptyJsonArray(neu.raw) && IsJsonArray(old.raw) &&
+          !IsEmptyJsonArray(old.raw))
+        break;
+      if (IsJsonArray(neu.raw) && IsJsonArray(old.raw) && !IsEmptyJsonArray(old.raw) &&
+          ApproxArrayLen(neu.raw) > 0 && ApproxArrayLen(neu.raw) < ApproxArrayLen(old.raw) / 2)
+        break;
+      if (neu.key == "sleep" && !neu.raw.empty() && neu.raw.front() == '{' && !old.raw.empty() &&
+          old.raw.front() == '{') {
+        std::string cleaned = SanitizeSleepObject(neu.raw);
+        double manualFlag = 0;
+        if (NumRaw(cleaned, "manual", &manualFlag) && manualFlag > 0) {
+          // Explicit UI correction wins over watch merge protect.
+          old.raw = cleaned;
           break;
+        }
+        int neuR = SleepRichness(cleaned);
+        int oldR = SleepRichness(old.raw);
+        if (neuR <= 0 && oldR > 0) break;
+        if (oldR > 60 && neuR > 0 && neuR < oldR / 2) {
+          // Sparse chunk: deep-merge but keep richer scalar totals / stages.
+          std::string mergedSleep = MergeObjects(old.raw, cleaned);
+          double oldTotal = 0, neuTotal = 0;
+          NumRaw(old.raw, "total_min", &oldTotal);
+          NumRaw(cleaned, "total_min", &neuTotal);
+          if (oldTotal > neuTotal) {
+            std::vector<Mem> ms;
+            if (ParseObject(mergedSleep, &ms)) {
+              for (auto& x : ms) {
+                if (x.key == "total_min" || x.key == "deep_min" || x.key == "score" ||
+                    x.key == "start_min" || x.key == "end_min" || x.key == "start_at" ||
+                    x.key == "end_at" || x.key == "stages") {
+                  const Mem* om = nullptr;
+                  std::vector<Mem> omems;
+                  if (ParseObject(old.raw, &omems)) om = FindMem(omems, x.key.c_str());
+                  if (om && (x.key == "stages" ? !IsEmptyJsonArray(om->raw) : true)) x.raw = om->raw;
+                }
+              }
+              mergedSleep = Emit(ms);
+            }
+          }
+          old.raw = mergedSleep;
+          break;
+        }
+        old.raw = MergeObjects(old.raw, cleaned);
+        break;
       }
       if (!old.raw.empty() && old.raw.front() == '{' && !neu.raw.empty() && neu.raw.front() == '{')
         old.raw = MergeObjects(old.raw, neu.raw);
@@ -388,28 +542,171 @@ int RollupStudyMinutes(const std::wstring& behavior) {
   return 0;
 }
 
+bool ParseYmd(const std::string& day, int* y, int* m, int* d) {
+  if (day.size() < 10) return false;
+  *y = atoi(day.substr(0, 4).c_str());
+  *m = atoi(day.substr(5, 2).c_str());
+  *d = atoi(day.substr(8, 2).c_str());
+  return *y > 2000 && *m >= 1 && *m <= 12 && *d >= 1 && *d <= 31;
+}
+
+std::string ShiftYmd(const std::string& day, int deltaDays) {
+  int y = 0, m = 0, d = 0;
+  if (!ParseYmd(day, &y, &m, &d)) return day.size() >= 10 ? day.substr(0, 10) : day;
+  SYSTEMTIME st = {};
+  st.wYear = (WORD)y;
+  st.wMonth = (WORD)m;
+  st.wDay = (WORD)d;
+  FILETIME ft;
+  if (!SystemTimeToFileTime(&st, &ft)) return day.substr(0, 10);
+  ULARGE_INTEGER u;
+  u.LowPart = ft.dwLowDateTime;
+  u.HighPart = ft.dwHighDateTime;
+  const ULONGLONG day100ns = 86400ULL * 10000000ULL;
+  if (deltaDays >= 0)
+    u.QuadPart += (ULONGLONG)deltaDays * day100ns;
+  else
+    u.QuadPart -= (ULONGLONG)(-deltaDays) * day100ns;
+  ft.dwLowDateTime = u.LowPart;
+  ft.dwHighDateTime = u.HighPart;
+  SYSTEMTIME outSt;
+  if (!FileTimeToSystemTime(&ft, &outSt)) return day.substr(0, 10);
+  char buf[16];
+  snprintf(buf, sizeof(buf), "%04u-%02u-%02u", outSt.wYear, outSt.wMonth, outSt.wDay);
+  return buf;
+}
+
+/** Zepp sleep minutes → local ISO date-time on/around wake day `day`. */
+bool SleepInstantAt(const std::string& day, int timelineMin, int endTimelineMin, std::string* outAt,
+                    int* outMinOfDay) {
+  if (timelineMin < 0 || endTimelineMin < 0) return false;
+  int originShift = 0;
+  if (endTimelineMin >= 1440 || timelineMin >= 1440) {
+    int span = endTimelineMin > timelineMin ? endTimelineMin : timelineMin;
+    originShift = -(span / 1440);
+  } else if (timelineMin > endTimelineMin) {
+    originShift = -1;
+  }
+  int absFromLocal = timelineMin + originShift * 1440;
+  int dayOffset = absFromLocal / 1440;
+  if (absFromLocal < 0 && (absFromLocal % 1440) != 0) --dayOffset;
+  int clock = absFromLocal - dayOffset * 1440;
+  if (clock < 0) clock += 1440;
+  if (outMinOfDay) *outMinOfDay = clock;
+  std::string date = ShiftYmd(day, dayOffset);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "%sT%02d:%02d:00", date.c_str(), clock / 60, clock % 60);
+  *outAt = buf;
+  return true;
+}
+
+std::string EnrichSleepJson(const std::string& day, const std::string& sleepIn) {
+  if (sleepIn.empty() || sleepIn == "null" || sleepIn.front() != '{') return sleepIn;
+  double startMin = -1, endMin = -1;
+  NumRaw(sleepIn, "start_min", &startMin);
+  NumRaw(sleepIn, "end_min", &endMin);
+  if (startMin < 0 || endMin < 0) return sleepIn;
+  std::string startAt, endAt;
+  int startClock = 0, endClock = 0;
+  if (!SleepInstantAt(day, (int)startMin, (int)endMin, &startAt, &startClock)) return sleepIn;
+  if (!SleepInstantAt(day, (int)endMin, (int)endMin, &endAt, &endClock)) return sleepIn;
+  std::vector<Mem> mems;
+  if (!ParseObject(sleepIn, &mems)) return sleepIn;
+  auto upsert = [&](const char* key, const std::string& raw) {
+    for (auto& m : mems) {
+      if (m.key == key) {
+        m.raw = raw;
+        return;
+      }
+    }
+    mems.push_back({key, raw});
+  };
+  upsert("start_at", std::string("\"") + startAt + "\"");
+  upsert("end_at", std::string("\"") + endAt + "\"");
+  char cbuf[24];
+  snprintf(cbuf, sizeof(cbuf), "%d", startClock);
+  upsert("start_clock_min", cbuf);
+  snprintf(cbuf, sizeof(cbuf), "%d", endClock);
+  upsert("end_clock_min", cbuf);
+  return Emit(mems);
+}
+
 std::string SummaryJson(const std::string& day, const std::string& merged, const std::string& synced) {
-  std::string sleep, activity, heart, stress;
+  std::string sleep, activity, heart, stress, spo2, calorie, distance, stand, battery, pai;
   ObjRaw(merged, "sleep", &sleep);
   ObjRaw(merged, "activity", &activity);
   ObjRaw(merged, "heart", &heart);
   ObjRaw(merged, "stress", &stress);
-  double totalMin = 0, steps = 0, hr = 0, stressV = 0, score = 0;
+  ObjRaw(merged, "spo2", &spo2);
+  ObjRaw(merged, "calorie", &calorie);
+  ObjRaw(merged, "distance", &distance);
+  ObjRaw(merged, "stand", &stand);
+  ObjRaw(merged, "battery", &battery);
+  ObjRaw(merged, "pai", &pai);
+  sleep = EnrichSleepJson(day, sleep);
+  double totalMin = 0, steps = 0, hr = 0, hrRest = 0, hrAvg = 0, hrMax = 0, stressV = 0, score = 0;
+  double deepMin = 0, spo2V = 0, kcal = 0, distM = 0, standH = 0, bat = 0, paiToday = 0;
+  double startMin = -1, endMin = -1;
   NumRaw(sleep, "total_min", &totalMin);
   NumRaw(sleep, "score", &score);
+  NumRaw(sleep, "deep_min", &deepMin);
+  NumRaw(sleep, "start_min", &startMin);
+  NumRaw(sleep, "end_min", &endMin);
   NumRaw(activity, "steps", &steps);
   NumRaw(heart, "last", &hr);
+  NumRaw(heart, "resting", &hrRest);
+  NumRaw(heart, "avg", &hrAvg);
+  NumRaw(heart, "max", &hrMax);
   NumRaw(stress, "value", &stressV);
+  NumRaw(spo2, "value", &spo2V);
+  NumRaw(calorie, "kcal", &kcal);
+  NumRaw(distance, "meters", &distM);
+  NumRaw(stand, "hours", &standH);
+  NumRaw(battery, "pct", &bat);
+  NumRaw(pai, "today", &paiToday);
   double hours = totalMin > 0 ? totalMin / 60.0 : 0;
   if (hours > 16) hours = 16;
   std::string source = Field(merged, "source");
   if (source.empty()) source = "calt_zepp";
-  char nums[320];
+  std::string sleepStartAt, sleepEndAt;
+  if (startMin >= 0 && endMin >= 0) {
+    SleepInstantAt(day, (int)startMin, (int)endMin, &sleepStartAt, nullptr);
+    SleepInstantAt(day, (int)endMin, (int)endMin, &sleepEndAt, nullptr);
+  }
+  const std::string startAtJson = sleepStartAt.empty() ? "null" : ("\"" + sleepStartAt + "\"");
+  const std::string endAtJson = sleepEndAt.empty() ? "null" : ("\"" + sleepEndAt + "\"");
+  int stageN = 0, hrSeriesN = 0;
+  std::vector<Mem> sleepMems, heartMems;
+  if (ParseObject(sleep, &sleepMems)) {
+    const Mem* st = FindMem(sleepMems, "stages");
+    if (st) stageN = ApproxArrayLen(st->raw);
+  }
+  if (ParseObject(heart, &heartMems)) {
+    const Mem* tm = FindMem(heartMems, "today_min");
+    if (tm) hrSeriesN = ApproxArrayLen(tm->raw);
+  }
+  const bool sleepOk = hours > 0 && endMin >= 0 && startMin >= 0;
+  const bool sleepTimed = !sleepStartAt.empty() && !sleepEndAt.empty();
+  char quality[280];
+  snprintf(quality, sizeof(quality),
+           "{\"sleep_ok\":%s,\"sleep_timed\":%s,\"sleep_stages\":%d,\"hr_series\":%d,"
+           "\"hr_ok\":%s,\"steps_ok\":%s}",
+           sleepOk ? "true" : "false", sleepTimed ? "true" : "false", stageN, hrSeriesN,
+           (hr > 0 || hrAvg > 0) ? "true" : "false", steps > 0 ? "true" : "false");
+  char nums[960];
   snprintf(nums, sizeof(nums),
-           ",\"sleep_hours\":%.2f,\"sleep_score\":%.0f,\"steps\":%.0f,\"hr_last\":%.0f,"
-           "\"stress\":%.0f,\"source\":\"%s\",\"local_date\":\"%s\",\"synced_at\":\"%s\","
-           "\"payload\":",
-           hours, score, steps, hr, stressV, JsonEscape(source).c_str(), day.c_str(), synced.c_str());
+           ",\"sleep_hours\":%.2f,\"sleep_score\":%.0f,\"sleep_deep_min\":%.0f,"
+           "\"sleep_start_min\":%.0f,\"sleep_end_min\":%.0f,"
+           "\"sleep_start_at\":%s,\"sleep_end_at\":%s,"
+           "\"steps\":%.0f,\"hr_last\":%.0f,\"hr_resting\":%.0f,\"hr_avg\":%.0f,\"hr_max\":%.0f,"
+           "\"stress\":%.0f,\"spo2\":%.0f,\"calories\":%.0f,\"distance_m\":%.0f,"
+           "\"stand_hours\":%.0f,\"battery_pct\":%.0f,\"pai_today\":%.0f,"
+           "\"data_quality\":%s,"
+           "\"source\":\"%s\",\"local_date\":\"%s\",\"synced_at\":\"%s\",\"payload\":",
+           hours, score, deepMin, startMin >= 0 ? startMin : 0, endMin >= 0 ? endMin : 0,
+           startAtJson.c_str(), endAtJson.c_str(), steps, hr, hrRest, hrAvg, hrMax, stressV, spo2V, kcal,
+           distM, standH, bat, paiToday, quality, JsonEscape(source).c_str(), day.c_str(),
+           synced.c_str());
   std::string out = "{\"sleep\":";
   out += sleep.empty() ? "null" : sleep;
   out += nums;
@@ -419,12 +716,19 @@ std::string SummaryJson(const std::string& day, const std::string& merged, const
 }
 
 std::string LifeJson(const std::string& day, const std::string& summary, int studyMin) {
-  double hours = 0, steps = 0, hr = 0, stress = 0, score = 0;
+  double hours = 0, steps = 0, hr = 0, hrRest = 0, hrAvg = 0, hrMax = 0, stress = 0, score = 0;
+  double spo2 = 0, kcal = 0, distM = 0;
   NumRaw(summary, "sleep_hours", &hours);
   NumRaw(summary, "steps", &steps);
   NumRaw(summary, "hr_last", &hr);
+  NumRaw(summary, "hr_resting", &hrRest);
+  NumRaw(summary, "hr_avg", &hrAvg);
+  NumRaw(summary, "hr_max", &hrMax);
   NumRaw(summary, "stress", &stress);
   NumRaw(summary, "sleep_score", &score);
+  NumRaw(summary, "spo2", &spo2);
+  NumRaw(summary, "calories", &kcal);
+  NumRaw(summary, "distance_m", &distM);
   std::string source = "calt_zepp";
   StrRaw(summary, "source", &source);
   std::string synced = LocalNow();
@@ -444,17 +748,21 @@ std::string LifeJson(const std::string& day, const std::string& summary, int stu
     if (stressLevel < 1) stressLevel = 1;
     if (stressLevel > 5) stressLevel = 5;
   }
-  bool empty = hours <= 0 && steps <= 0 && stress <= 0;
-  char buf[700];
+  bool empty = hours <= 0 && steps <= 0 && stress <= 0 && hr <= 0;
+  char buf[900];
   snprintf(buf, sizeof(buf),
            "{\"date\":\"%s\",\"empty\":%s,\"source\":\"%s\",\"sleep_hours\":%.2f,"
            "\"sleep_quality\":%d,\"exercise_minutes\":%d,\"water_glasses\":0,\"meals_healthy\":0,"
            "\"study_minutes\":%d,\"tasks_completed\":0,\"deep_work_blocks\":0,"
            "\"screen_time_hours\":0,\"social_media_minutes\":0,\"outdoor_minutes\":0,"
            "\"mood_score\":3,\"stress_level\":%d,\"meditation_minutes\":0,"
-           "\"steps\":%.0f,\"hr_last\":%.0f,\"synced_at\":\"%s\",\"maintained_by\":\"calt_sync_host\"}",
+           "\"steps\":%.0f,\"hr_last\":%.0f,\"hr_resting\":%.0f,\"hr_avg\":%.0f,\"hr_max\":%.0f,"
+           "\"spo2\":%.0f,\"calories\":%.0f,\"distance_m\":%.0f,"
+           "\"synced_at\":\"%s\",\"maintained_by\":\"calt_sync_host\"}",
            day.c_str(), empty ? "true" : "false", JsonEscape(source).c_str(), hours > 0 ? hours : 0,
            quality, exercise, studyMin, stressLevel, steps > 0 ? steps : 0, hr > 0 ? hr : 0,
+           hrRest > 0 ? hrRest : 0, hrAvg > 0 ? hrAvg : 0, hrMax > 0 ? hrMax : 0,
+           spo2 > 0 ? spo2 : 0, kcal > 0 ? kcal : 0, distM > 0 ? distM : 0,
            JsonEscape(synced).c_str());
   return buf;
 }
@@ -471,8 +779,22 @@ void RecordPing(const std::wstring& behavior, const std::string& source, const s
   WriteFileAtomic(Join(behavior, L"wearables_ping.json"), buf);
 }
 
+std::string StampSleepOnMerged(const std::string& day, const std::string& merged) {
+  std::string sleep;
+  if (!ObjRaw(merged, "sleep", &sleep)) return merged;
+  std::string enriched = EnrichSleepJson(day, sleep);
+  if (enriched == sleep) return merged;
+  std::vector<Mem> mems;
+  if (!ParseObject(merged, &mems)) return merged;
+  for (auto& m : mems) {
+    if (m.key == "sleep") m.raw = enriched;
+  }
+  return Emit(mems);
+}
+
 std::string Ingest(const std::wstring& behavior, std::string body, bool rawRoute) {
   if (rawRoute && Field(body, "source").empty()) body = MergeObjects("{\"source\":\"calt_zepp_raw\"}", body);
+  body = SanitizeWearableBody(body);
   std::string why;
   if (Foreign(body, &why)) {
     return std::string("{\"ok\":false,\"detail\":\"Refused ") + JsonEscape(why) +
@@ -500,6 +822,7 @@ std::string Ingest(const std::wstring& behavior, std::string body, bool rawRoute
                    chunk == Field(prior, "chunk_id") && sum == Field(prior, "checksum");
 
   std::string merged = duplicate ? prior : MergeObjects(prior, body);
+  merged = StampSleepOnMerged(day, merged.empty() ? body : merged);
   std::string at = LocalNow();
   if (!duplicate) {
     std::string stamp = Stamp();
@@ -513,24 +836,31 @@ std::string Ingest(const std::wstring& behavior, std::string body, bool rawRoute
   }
 
   std::string summary = SummaryJson(day, merged.empty() ? body : merged, at);
-  WriteFileAtomic(Join(behavior, L"wearable_day.json"), summary);
+  // Keep wearable_day.json as "today's card" — historical re-dumps must not replace it.
+  if (day == LocalDay()) WriteFileAtomic(Join(behavior, L"wearable_day.json"), summary);
   int study = day == LocalDay() ? RollupStudyMinutes(behavior) : 0;
   std::string life = LifeJson(day, summary, study);
   WriteFileAtomic(Join(lifeDir, dayName + L".json"), life);
   if (day == LocalDay()) WriteFileAtomic(Join(behavior, L"life_today.json"), life);
 
-  double steps = 0, hours = 0;
+  double steps = 0, hours = 0, hr = 0, hrAvg = 0, stress = 0, spo2 = 0;
   NumRaw(summary, "steps", &steps);
   NumRaw(summary, "sleep_hours", &hours);
-  char sync[700];
+  NumRaw(summary, "hr_last", &hr);
+  NumRaw(summary, "hr_avg", &hrAvg);
+  NumRaw(summary, "stress", &stress);
+  NumRaw(summary, "spo2", &spo2);
+  char sync[900];
   snprintf(sync, sizeof(sync),
            "{\"updated_at\":\"%s\",\"last_ingest_at\":\"%s\",\"last_event\":\"ingest\","
            "\"last_source\":\"%s\",\"last_local_date\":\"%s\",\"last_dump_id\":\"%s\","
            "\"last_chunk_id\":\"%s\",\"last_duplicate\":%s,\"last_steps\":%.0f,"
-           "\"last_sleep_hours\":%.2f}",
+           "\"last_sleep_hours\":%.2f,\"last_hr\":%.0f,\"last_hr_avg\":%.0f,"
+           "\"last_stress\":%.0f,\"last_spo2\":%.0f,\"last_is_watch\":true,"
+           "\"last_wrote_life\":true}",
            at.c_str(), at.c_str(), JsonEscape(Field(merged, "source")).c_str(), day.c_str(),
            JsonEscape(dump).c_str(), JsonEscape(chunk).c_str(), duplicate ? "true" : "false", steps,
-           hours);
+           hours, hr, hrAvg, stress, spo2);
   WriteFileAtomic(Join(behavior, L"wearables_last_sync.json"), sync);
 
   bool finalChunk = true;
@@ -542,15 +872,17 @@ std::string Ingest(const std::wstring& behavior, std::string body, bool rawRoute
   }
   if (!duplicate && finalChunk) {
     char msg[80];
-    snprintf(msg, sizeof(msg), "Watch sync OK · %s · %.0f steps · %.2fh sleep", day.c_str(), steps, hours);
+    snprintf(msg, sizeof(msg), "Watch sync OK · %s · %.0f steps · %.2fh sleep · HR %.0f", day.c_str(),
+             steps, hours, hr);
     RecordPing(behavior, Field(merged, "source").empty() ? "calt_zepp" : Field(merged, "source"), msg);
   }
 
-  char reply[400];
+  char reply[480];
   snprintf(reply, sizeof(reply),
            "{\"ok\":true,\"duplicate\":%s,\"local_date\":\"%s\",\"wrote_life_tracker\":true,"
-           "\"steps\":%.0f,\"sleep_hours\":%.2f,\"hub\":\"calt_sync_host\"}",
-           duplicate ? "true" : "false", day.c_str(), steps, hours);
+           "\"steps\":%.0f,\"sleep_hours\":%.2f,\"hr_last\":%.0f,\"hr_avg\":%.0f,"
+           "\"stress\":%.0f,\"hub\":\"calt_sync_host\"}",
+           duplicate ? "true" : "false", day.c_str(), steps, hours, hr, hrAvg, stress);
   return reply;
 }
 
@@ -657,10 +989,17 @@ void Handle(SOCKET client, const std::wstring& behavior) {
     return;
   }
 
-  if (method == "GET" && (path == "/" || path == "/health")) {
-    Send(client, 200,
-         "{\"ok\":true,\"service\":\"calt.sync_host\",\"version\":\"1\",\"port\":8765,"
-         "\"hint\":\"Amazfit Base URL http://<PC-LAN-IP>:8765\"}");
+  if (method == "GET" && (path == "/" || path == "/health" || path == "/sync")) {
+    std::string published = ReadFile(Join(behavior, L"calt_sync_url.json"));
+    if (published.empty()) {
+      published =
+          "{\"ok\":true,\"service\":\"calt.sync_host\",\"version\":\"1\",\"port\":8765,"
+          "\"token\":\"calt-local-wearables\","
+          "\"hint\":\"Amazfit Base URL http://<PC-LAN-IP>:8765\"}";
+      Send(client, 200, published);
+    } else {
+      Send(client, 200, published);
+    }
     return;
   }
 
@@ -735,23 +1074,57 @@ int main() {
 
   SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (listener == INVALID_SOCKET) return 1;
-  BOOL reuse = TRUE;
-  setsockopt(listener, SOL_SOCKET, SO_REUSEADDR, (char*)&reuse, sizeof(reuse));
+  // Exclusive: stop python -m http.server / old hubs from binding 127.0.0.1:8765
+  // while we own 0.0.0.0:8765 (that hitchhiker closed watch/localhost probes).
+  BOOL exclusive = TRUE;
+  setsockopt(listener, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (char*)&exclusive, sizeof(exclusive));
   sockaddr_in addr{};
   addr.sin_family = AF_INET;
   addr.sin_port = htons(kPort);
   addr.sin_addr.s_addr = htonl(INADDR_ANY);
   if (bind(listener, (sockaddr*)&addr, sizeof(addr)) != 0) {
-    fprintf(stderr, "Port %u is already in use.\n", (unsigned)kPort);
+    fprintf(stderr, "Port %u is already in use — stop the other process (python http.server / old hub).\n",
+            (unsigned)kPort);
     closesocket(listener);
     WSACleanup();
     return 1;
   }
-  listen(listener, 4);
+  listen(listener, 8);
   wprintf(L"CALT Sync receiver on 0.0.0.0:%u\n", (unsigned)kPort);
   wprintf(L"  mirrors %s\n", behavior.c_str());
+  wprintf(L"  Base URL  http://<PC-LAN-IP>:%u\n", (unsigned)kPort);
+  wprintf(L"  Token     %hs\n", kToken);
   wprintf(L"  idle until a watch upload\n");
   fflush(stdout);
+  // Publish finalized URL for Focus UI / docs (first non-loopback IPv4).
+  {
+    char hostname[256] = {};
+    gethostname(hostname, sizeof(hostname) - 1);
+    hostent* he = gethostbyname(hostname);
+    std::string lan = "192.168.0.110";
+    if (he && he->h_addr_list && he->h_addr_list[0]) {
+      for (int i = 0; he->h_addr_list[i]; ++i) {
+        in_addr a{};
+        memcpy(&a, he->h_addr_list[i], sizeof(a));
+        char* dotted = inet_ntoa(a);
+        if (!dotted) continue;
+        std::string ip = dotted;
+        if (ip.rfind("127.", 0) == 0) continue;
+        lan = ip;
+        break;
+      }
+    }
+    std::string url = "http://" + lan + ":8765";
+    std::string body =
+        std::string("{\n") + "  \"ok\": true,\n" + "  \"receiver\": \"calt_sync_host\",\n" +
+        "  \"port\": 8765,\n" + "  \"token\": \"" + kToken + "\",\n" + "  \"base_url\": \"" + url +
+        "\",\n" + "  \"ingest_path\": \"/api/wearables/zepp\",\n" +
+        "  \"health_path\": \"/health\",\n" + "  \"hint\": \"Zepp Base URL must be this, not localhost\"\n" +
+        "}\n";
+    WriteFileAtomic(Join(behavior, L"calt_sync_url.json"), body);
+    printf("  published %s\n", url.c_str());
+    fflush(stdout);
+  }
 
   for (;;) {
     SOCKET client = accept(listener, nullptr, nullptr);

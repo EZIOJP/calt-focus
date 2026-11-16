@@ -26,9 +26,7 @@ function formatMin(seconds) {
 function renderGate(gateCache, redirectsEnabled) {
   const chip = document.getElementById("gateChip");
   const meta = document.getElementById("gateMeta");
-  const toggle = document.getElementById("redirectsToggle");
   const banner = document.getElementById("enforceBanner");
-  toggle.checked = redirectsEnabled !== false;
   const setBanner = (on, text) => {
     if (!banner) return;
     banner.className = on ? "enforce-banner on" : "enforce-banner";
@@ -198,10 +196,6 @@ function load() {
   );
   api.runtime.sendMessage({ type: "REFRESH_GATE" }, () => {});
 }
-
-document.getElementById("redirectsToggle").addEventListener("change", (e) => {
-  api.runtime.sendMessage({ type: "SET_REDIRECTS", enabled: e.target.checked });
-});
 
 document.getElementById("openDash").addEventListener("click", () => {
   api.tabs.create({ url: api.runtime.getURL("dashboard.html") });

@@ -199,17 +199,13 @@ bool ListMatch(const std::string& host, const std::vector<std::string>& domains)
   return false;
 }
 
-const std::vector<std::string>& BuiltinWatch() {
-  static const std::vector<std::string> k = {
-      "youtube.com", "youtu.be", "netflix.com", "primevideo.com", "hotstar.com",
-      "disneyplus.com", "hulu.com", "twitch.tv", "reddit.com", "twitter.com",
-      "x.com", "instagram.com", "facebook.com", "tiktok.com", "discord.com",
-  };
-  return k;
-}
-
 // Single SoT: extensions/calt-gate-extension/data/host_seed.json → host_seed.generated.h
 #include "host_seed.generated.h"
+
+// WATCH + SOCIAL from host_seed (matches gate DISTRACTION_DOMAINS + social).
+const std::vector<std::string>& BuiltinWatch() { return SeedWatchHosts(); }
+
+const std::vector<std::string>& BuiltinAllow() { return SeedAllowHosts(); }
 
 const std::vector<std::string>& BuiltinPornHosts() { return SeedPornHosts(); }
 
@@ -821,17 +817,6 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     return r;
   }
 
-  // Morning ritual: SoftLand on + Bible/Confirm not done today → block every non-allow host.
-  if (morning_pending && !emergency) {
-    r.ok = true;
-    r.action = "block";
-    r.enforce = true;
-    r.reason = ritual_reason;
-    r.matched = host;
-    r.interstitial = true;
-    return r;
-  }
-
   // Work session: only the chosen sites. Allow-extra and free mode do not widen it.
   if (WorkSessionSiteDecision(path, url, &r)) return r;
 
@@ -857,12 +842,25 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     return r;
   }
 
-  if (ListMatch(host, allow_extra)) {
+  // allow_extra + host_seed TRUSTED/SEARCH (same spirit as Gate FALLBACK_ALLOW).
+  // Study tools stay open during morning bible/plan — ritual only blocks non-allow hosts.
+  if (ListMatch(host, allow_extra) || ListMatch(host, BuiltinAllow())) {
     r.ok = true;
     r.action = "allow";
-    r.reason = "allow_list";
+    r.reason = ListMatch(host, allow_extra) ? "allow_list" : "seed_allow";
     r.matched = host;
     r.interstitial = false;
+    return r;
+  }
+
+  // Morning ritual: SoftLand on + Bible/Confirm not done today → block every non-allow host.
+  if (morning_pending && !emergency) {
+    r.ok = true;
+    r.action = "block";
+    r.enforce = true;
+    r.reason = ritual_reason;
+    r.matched = host;
+    r.interstitial = true;
     return r;
   }
 
@@ -1068,6 +1066,8 @@ std::string SoftlandGateSnapshotJson() {
   // Locked page / Gate: hide goal UI when planning is off or no target was configured.
   const bool show_daily_goal = has_daily_goal && planning_enabled;
 
+  // Gate unions these with its offline FALLBACK_* lists. Publish only site_rules
+  // extras here — never a full replacement list (that used to wipe google.com).
   std::string site_rules = ExtractObject(body, "site_rules");
   std::string watch_domains = "[]";
   std::string allow_domains = "[]";
