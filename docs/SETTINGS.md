@@ -60,7 +60,7 @@ Parser: `parseSettingsSection()` in `MakeSettingsApp.tsx`.
 | **Blocks → Limits** | App time budgets (independent of board mode) |
 | **Day** | Body care, wearables, plan reminders, planning |
 | **Appearance** | Light/dark, color presets, surfaces, typography, sidebar title sticker |
-| **Profile** | Owner display name, email, timezone, notes (localStorage on this PC) |
+| **Profile** | Owner display name, email, timezone, notes + free DiceBear avatar (localStorage on this PC) |
 | **Data** | Export, SoftLand import, UI update, setup blurb |
 | **Advanced** | Perf, LLM+Jarvis, Telegram/email/OpenJarvis (collapsed), activity review |
 
@@ -401,10 +401,10 @@ Focus desktop only. No bypass — points to SoftLand UNLOCK + Disarm, then tray 
 | Import SoftLand lists | File picker → `softland.patch_site_rules` from JSON `site_rules` / policy backup | Focus-native |
 | Reveal last export | Native `behavior_file` reveal on `productivity_export.json` | Focus-native |
 | Update check / Update UI / stack / Apply | `focus_shell` → tray UpdateUi / UpdateStack / ApplyPendingUpdate; reads `pending_update.json` | Focus-native |
-| Body care — sit/stand | Settings → **Day**; `localStorage` `calt:bodycare:prefs` + Notification; optional presence-pause when cam live | Focus-native |
-| Body care — eye rest | Same prefs; 20–20–20 nudges | Focus-native |
-| Body care — attention reader | Opt-in webcam via face-tracker (lazy, shell-hosted); no SoftLand coupling | Focus-native |
-| Body care — posture coach | Same cam; head-pitch score + hold warn (`postureWarnMinutes`, `postureScoreThreshold`) | Focus-native |
+| Body care — sit/stand | Settings → **Day**; prefs + `BodyCareRuntime` nudges; presence-pause + `sit_stand_hint=stand` freezes sit clock | Focus-native |
+| Body care — eye rest | Same prefs; 20–20–20 via Runtime only (panel does not double-notify) | Focus-native |
+| Body care — attention / posture | Prefer `scripts\run\run_bodycare_sidecar.bat` → `body_care.json`; Human.js fallback; Health card + export `body_*` | Focus-native + optional Python sidecar |
+| Body care — calibrate | Settings → Day **Recalibrate** buttons → `POST :8766/calibrate` (or bats) → `body_care_calibration.json` | Sidecar + Focus UI |
 
 **Placement:** Day = body/watch/planning; Data = export/import/update/setup; Advanced = LLM/Jarvis/remote/activity (collapsed where noisy).
 

@@ -295,7 +295,7 @@ struct BlockRow {
   std::string status;
 };
 
-/** Flattened life + wearable mirror for export (Health UI SoT). */
+/** Flattened life + wearable + body-care mirrors for export (Health UI SoT). */
 struct HealthRow {
   std::string date;
   double sleep_hours = 0;
@@ -315,6 +315,14 @@ struct HealthRow {
   std::string synced_at;
   bool has_life = false;
   bool has_wearable = false;
+  // bodycare_sidecar day rollup
+  bool has_body_care = false;
+  double body_attention_avg = 0;
+  double body_posture_avg = 0;
+  double body_present_minutes = 0;
+  double body_slouch_minutes = 0;
+  double body_distance_avg = 0;
+  int body_samples = 0;
 };
 
 HealthRow LoadHealthForDay(const std::wstring& behaviorDir, const std::string& day) {
@@ -375,6 +383,48 @@ HealthRow LoadHealthForDay(const std::wstring& behaviorDir, const std::string& d
     if (JsonGetStringNear(wear, "source", &src) && !src.empty()) row.source = src;
     std::string synced;
     if (JsonGetStringNear(wear, "synced_at", &synced) && !synced.empty()) row.synced_at = synced;
+  }
+
+  std::string body = ReadFileUtf8(behaviorDir + L"\\body_care_days\\" + dayW + L".json");
+  if (body.empty()) {
+    std::string latest = ReadFileUtf8(behaviorDir + L"\\body_care.json");
+    std::string mirrorDay;
+    if (!latest.empty()) {
+      // Prefer nested day.date when present.
+      if (JsonGetStringNear(latest, "date", &mirrorDay) && mirrorDay == day) {
+        body = latest;
+      }
+    }
+  }
+  if (!body.empty()) {
+    double attn = 0, post = 0, present = 0, slouch = 0, dist = 0;
+    int samples = 0;
+    bool any = false;
+    if (JsonGetDoubleNear(body, "attention_pct_avg", &attn)) {
+      row.body_attention_avg = attn;
+      any = true;
+    }
+    if (JsonGetDoubleNear(body, "posture_score_avg", &post)) {
+      row.body_posture_avg = post;
+      any = true;
+    }
+    if (JsonGetDoubleNear(body, "present_minutes", &present)) {
+      row.body_present_minutes = present;
+      any = true;
+    }
+    if (JsonGetDoubleNear(body, "slouch_minutes", &slouch)) {
+      row.body_slouch_minutes = slouch;
+      any = true;
+    }
+    if (JsonGetDoubleNear(body, "distance_proxy_avg", &dist)) {
+      row.body_distance_avg = dist;
+      any = true;
+    }
+    if (JsonGetIntNear(body, "samples", &samples) && samples > 0) {
+      row.body_samples = samples;
+      any = true;
+    }
+    row.has_body_care = any;
   }
   return row;
 }
@@ -594,7 +644,7 @@ std::string ProductivityExportHandle(const std::wstring& behaviorDir, const std:
   healthRows.reserve(dayOrder.size());
   for (const auto& d : dayOrder) {
     HealthRow h = LoadHealthForDay(behaviorDir, d);
-    if (h.has_life || h.has_wearable) healthRows.push_back(std::move(h));
+    if (h.has_life || h.has_wearable || h.has_body_care) healthRows.push_back(std::move(h));
   }
 
   auto isEmptyDay = [](const DayAgg& a) {
@@ -696,7 +746,14 @@ std::string ProductivityExportHandle(const std::wstring& behaviorDir, const std:
        << ",\"distance_m\":" << r.distance_m << ",\"source\":\"" << JsonEscape(r.source)
        << "\",\"synced_at\":\"" << JsonEscape(r.synced_at)
        << "\",\"has_life\":" << (r.has_life ? "true" : "false")
-       << ",\"has_wearable\":" << (r.has_wearable ? "true" : "false") << "}";
+       << ",\"has_wearable\":" << (r.has_wearable ? "true" : "false")
+       << ",\"has_body_care\":" << (r.has_body_care ? "true" : "false")
+       << ",\"body_attention_avg\":" << r.body_attention_avg
+       << ",\"body_posture_avg\":" << r.body_posture_avg
+       << ",\"body_present_minutes\":" << r.body_present_minutes
+       << ",\"body_slouch_minutes\":" << r.body_slouch_minutes
+       << ",\"body_distance_avg\":" << r.body_distance_avg
+       << ",\"body_samples\":" << r.body_samples << "}";
   }
   js << "\n    ]\n  }\n}\n";
 
@@ -739,7 +796,9 @@ std::string ProductivityExportHandle(const std::wstring& behaviorDir, const std:
   csv << "\n# table:health_days\n";
   csv << "date,weekday,sleep_hours,sleep_quality,sleep_score,steps,hr_last,stress,"
          "exercise_minutes,study_minutes,mood_score,meditation_minutes,outdoor_minutes,"
-         "calories,distance_m,source,synced_at,has_life,has_wearable\n";
+         "calories,distance_m,source,synced_at,has_life,has_wearable,has_body_care,"
+         "body_attention_avg,body_posture_avg,body_present_minutes,body_slouch_minutes,"
+         "body_distance_avg,body_samples\n";
   for (const HealthRow& r : healthRows) {
     char sleepBuf[32];
     snprintf(sleepBuf, sizeof(sleepBuf), "%.2f", r.sleep_hours);
@@ -748,7 +807,10 @@ std::string ProductivityExportHandle(const std::wstring& behaviorDir, const std:
         << r.exercise_minutes << "," << r.study_minutes << "," << r.mood_score << ","
         << r.meditation_minutes << "," << r.outdoor_minutes << "," << r.calories << ","
         << r.distance_m << "," << CsvEscape(r.source) << "," << CsvEscape(r.synced_at) << ","
-        << (r.has_life ? "1" : "0") << "," << (r.has_wearable ? "1" : "0") << "\n";
+        << (r.has_life ? "1" : "0") << "," << (r.has_wearable ? "1" : "0") << ","
+        << (r.has_body_care ? "1" : "0") << "," << r.body_attention_avg << ","
+        << r.body_posture_avg << "," << r.body_present_minutes << "," << r.body_slouch_minutes
+        << "," << r.body_distance_avg << "," << r.body_samples << "\n";
   }
 
   // Wide CSV: one row per day (simple) + health columns when present.

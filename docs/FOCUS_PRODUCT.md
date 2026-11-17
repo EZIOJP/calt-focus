@@ -19,7 +19,8 @@ Not Study: no GRE, notes banks, math coursework, or Python SoftLand on `:8000`.
 | Browser SoftLand | Gate + `calt_msg_host` |
 | Wearables | **ZeppBridge** pull → mirrors; CALT Sync `:8765` optional |
 | Export / import SoftLand lists / update check | Settings → **Data** |
-| **Body care** | Settings → **Day** — sit/stand + eye rest + optional webcam attention/posture (local) |
+| **Body care** | Settings → **Day** — sit/stand + eye rest; optional Human.js webcam **or** Python MediaPipe sidecar → `body_care.json` (Health + export) |
+| **End-of-day wrap** | Home — plan vs actual + off-plan-in-blocks + sleep + sit/stand; **Tomorrow’s one fix** + Close-the-day seal (local) |
 
 ## Day path (locked)
 
@@ -54,10 +55,10 @@ During unconfirmed plan: Plan tab only; **Planning prefs** sheet on the gate (no
 |-------|----------|
 | **Sit / stand** | Local interval: after N minutes seated, notify to stand; optional stand hold; daily stand hint from wearable when present. With camera on + **presence pause**: no face freezes the sit clock (stepped away). Without camera: input-idle heuristic. |
 | **Eye rest** | 20–20–20 style: every N minutes, short “look away” nudge |
-| **Eye focus (attention reader)** | Optional webcam attention % / attitude via existing face-tracker models — **opt-in**, off by default, no SoftLand coupling. Shell-hosted so it stays live outside Settings. |
-| **Posture coach** | Same webcam: neck/lean score from head pitch; warn after sustained poor posture (default ~3 min). Not a separate Pose/Electron app. |
+| **Eye focus (attention reader)** | Opt-in. Prefer **bodycare_sidecar** (MediaPipe gaze + EMA + calibration); Human.js WebView is fallback. No SoftLand coupling. |
+| **Posture coach** | Sidecar neck/torso angles + head pitch; Runtime warns after sustained poor posture. Not Electron/Tauri. |
 
-Prefs: `localStorage` `calt:bodycare:*` (+ optional `behavior/body_care.json` mirror later). No enforcer required for reminders. No Python activity_tracker bridge in-product (optional research path only).
+Prefs: `localStorage` `calt:bodycare:*`. Mirrors: `behavior/body_care.json` + `body_care_days/`. Optional Python **body-care sidecar only** — still zero Python for SoftLand/arm/kill/status. See [`BODY_CARE.md`](BODY_CARE.md).
 
 ## Architecture reminder
 
@@ -65,7 +66,8 @@ Prefs: `localStorage` `calt:bodycare:*` (+ optional `behavior/body_care.json` mi
 UI (React) ──reads──► calt-data mirrors
          ──writes──► enforcerNamedPipe (SoftLand/Arm/plan/…)
 Wearables ◄── ZeppBridge DB pull (preferred)
-Body care ◄── timers + optional webcam (client-only)
+Body care ◄── BodyCareRuntime nudges + optional Human.js
+           ◄── bodycare_sidecar.py → body_care.json (preferred math)
 ```
 
 ## Build

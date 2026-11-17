@@ -85,12 +85,14 @@ Deep rules: [`docs/BLOCKING_RULES.md`](docs/BLOCKING_RULES.md).
 | Area | Highlights |
 |------|------------|
 | **Home** | Day glance, Confirm plan, work session Allow + Start/End, unlock check |
+| **End of day** | Plan vs actual + sleep + sit/stand wrap · **Tomorrow’s one fix** · Close-the-day seal |
 | **Calendar & Plan** | Day/week/month, drag blocks, routines, sleep windows, actuals overlay |
 | **Bible & Journal** | Reader + morning/afternoon/evening devotion · mark done · journal autosave |
-| **Settings** | Overview · Blocks (sites / apps) · Unlock · Productive · More |
+| **Body care** | Sit/stand + eye rest + optional webcam posture; MediaPipe sidecar + in-app recalibrate |
+| **Settings** | Overview · Blocks · Unlock · Day · Appearance · Profile · Data · Advanced |
 | **Gate** | Edge extension for site decisions + tab time |
-| **Health** | Amazfit/Zepp sync → sleep, steps, HR on the Health tab |
-| **Tray** | Open Home / Plan / Bible / Settings · Reload UI · Quit only when disarmed |
+| **Health** | Amazfit/Zepp sync → sleep, steps, HR · body-care day card |
+| **Tray** | Rebuild / Focus / Quit — Reload UI after UI updates |
 
 Typed confirms in Settings: `UNLOCK` · `REWARD` · `PASS` · `DEVICE LOCK`.
 
@@ -150,7 +152,8 @@ scripts\run\run_calt_desktop.bat
 
 Load the Gate extension from `extensions/calt-gate-extension` in Edge (unpacked). Use the tray to open Focus and **Reload UI** after UI updates.
 
-Watch setup: [`docs/WEARABLES.md`](docs/WEARABLES.md).
+Watch setup: [`docs/WEARABLES.md`](docs/WEARABLES.md).  
+Body care sidecar: [`docs/BODY_CARE.md`](docs/BODY_CARE.md) · `scripts\run\run_bodycare_sidecar.bat`
 
 ---
 
@@ -166,9 +169,10 @@ Enforcer service        Site rules · Arm kills · day loop · tracking
 Gate (Edge)      ────── soft decisions + tab tracking
 
 Sync host (optional)    Watch / Health ingest on the LAN
+Body-care sidecar       MediaPipe → body_care.json (opt-in webcam)
 ```
 
-Everything important lives on disk: SQLite + small JSON mirrors. No account required.
+Everything important lives on disk: SQLite + small JSON mirrors. No account required. SoftLand never couples to attention scores.
 
 ---
 
@@ -176,8 +180,10 @@ Everything important lives on disk: SQLite + small JSON mirrors. No account requ
 
 | Doc | What |
 |-----|------|
+| [FOCUS_PRODUCT.md](docs/FOCUS_PRODUCT.md) | Product lock / owns |
 | [BLOCKING_RULES.md](docs/BLOCKING_RULES.md) | Exact site / Arm / unlock rules |
 | [SETTINGS.md](docs/SETTINGS.md) | Every Settings control |
+| [BODY_CARE.md](docs/BODY_CARE.md) | Sit/stand, eye rest, sidecar, recalibrate |
 | [FE_FLOWS.md](docs/FE_FLOWS.md) | Screen flows |
 | [WEARABLES.md](docs/WEARABLES.md) | Watch → PC |
 | [examples/](docs/examples/) | Sample export + charts |

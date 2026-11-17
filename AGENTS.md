@@ -6,7 +6,7 @@ Standalone **Productivity** product. No Study GRE/notes/math. No SoftLand brain 
 |------|------|
 | SoftLand, Arm, Plan, Calendar, Settings, Bible, Journal, Gate | C++ enforcer + msg-host + `calt_focus` WebView2 |
 | Wearables | ZeppBridge pull preferred; CALT Sync `:8765` optional |
-| Body care | Sit/stand + eye rest + opt-in attention reader (client) |
+| Body care | Sit/stand + eye rest + opt-in attention; Python MediaPipe sidecar → `body_care.json` (not SoftLand) |
 | Focus UI | React SPA → `dist-focus/` (build/sync from Study sibling) |
 | SoT | `data/productivity/productivity.db` + behavior mirrors |
 
