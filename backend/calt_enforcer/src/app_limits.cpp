@@ -513,7 +513,12 @@ AppLimitTickResult TickAppTimeLimits(const std::wstring& dbPath, const std::wstr
   AppLimitTickResult result;
   if (behaviorDir.empty()) return result;
   std::string body = ReadFileUtf8(behaviorDir + L"\\app_limits.json");
-  if (body.empty()) return result;
+  // Seed an empty mirror so Focus Settings can load without "Failed to fetch".
+  if (body.empty()) {
+    Evaluated empty = Evaluate(dbPath, behaviorDir, false, {});
+    Publish(behaviorDir, empty.json, true);
+    return result;
+  }
   bool enabled = false;
   std::vector<Rule> rules;
   std::string err;

@@ -79,6 +79,9 @@ bool WriteEnforcerStatus(const std::wstring& statusPath, const EnforcerStatusSna
           "  \"focus_relaunch_count\": %u,\n"
           "  \"focus_last_relaunch_at\": \"%s\",\n"
           "  \"focus_relaunch_suppressed\": %s,\n"
+          "  \"cmd_gateway_alive\": %s,\n"
+          "  \"cmd_gateway_slots\": %d,\n"
+          "  \"cmd_gateway_idle_ms\": %ld,\n"
           "  \"updated_at\": \"%s\"\n"
           "}\n",
           snap.owns ? "true" : "false", snap.pid, JsonEscape(snap.last_kill).c_str(),
@@ -89,7 +92,9 @@ bool WriteEnforcerStatus(const std::wstring& statusPath, const EnforcerStatusSna
           JsonEscape(snap.policy_source).c_str(), snap.focus_running ? "true" : "false",
           snap.softland_or_armed ? "true" : "false", snap.focus_relaunch_count,
           JsonEscape(snap.focus_last_relaunch_at).c_str(),
-          snap.focus_relaunch_suppressed ? "true" : "false", iso);
+          snap.focus_relaunch_suppressed ? "true" : "false",
+          snap.cmd_gateway_alive ? "true" : "false", snap.cmd_gateway_slots,
+          snap.cmd_gateway_idle_ms, iso);
 
   fclose(f);
   return true;

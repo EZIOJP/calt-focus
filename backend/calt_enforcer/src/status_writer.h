@@ -18,6 +18,12 @@ struct EnforcerStatusSnapshot {
   unsigned focus_relaunch_count = 0;
   std::string focus_last_relaunch_at;
   bool focus_relaunch_suppressed = false;
+  /** Dedicated cmd-gateway thread (not the kill loop). */
+  bool cmd_gateway_alive = false;
+  /** Listening named-pipe slots armed right now. */
+  int cmd_gateway_slots = 0;
+  /** ms since last successful pipe request; -1 if never. */
+  long cmd_gateway_idle_ms = -1;
 };
 
 std::wstring DefaultStatusJsonPath(const std::wstring& dbPath);

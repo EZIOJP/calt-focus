@@ -59,6 +59,29 @@ is for executable blocking.
 
 ## Observed failures
 
+### 0. Cmd pipe hung while status still looked live (2026-11-17)
+
+**Symptom:** Focus Mark afternoon done / Settings writes timed out with
+`The semaphore timeout period has expired` on `\\.\pipe\calt_enforcer_cmd`.
+`enforcer_status.json` still showed `owns: true` and a fresh `updated_at`
+because status publish lived on the same loop that had stopped serving the pipe.
+
+**Root cause:** `CmdGatewayPoll` ran on the **kill loop thread** (1.5s Sleep +
+SoftLand clocks + 60s mirror republish + Gate/Arm ticks). Any long SoftLand /
+Bible / SQLite stall skipped `ConnectNamedPipe` for the whole duration. Dual
+console+service listeners historically made this worse; the Global owner mutex
+mitigated that, but a single stuck loop still froze the pipe for hours.
+
+**Fix (durable):**
+
+1. Dedicated **cmd-gateway thread** (`CmdGatewayStartBackground`) polls the pipe
+   every ~25ms, independent of kill cadence.
+2. `ProductivityLock` serializes SoftLand/Bible SQLite between that thread and
+   the kill loop (lock never held across Kill/Sleep/pipe I/O).
+3. `enforcer_status.json` exposes `cmd_gateway_alive`, `cmd_gateway_slots`,
+   `cmd_gateway_idle_ms` so Focus can tell “process up, pipe dead”.
+4. Empty listening pool self-heals via `RecyclePipeSlot`.
+
 ### 1. Stale status looked live
 
 When an enforcer process stopped or was force-killed, its most recent
@@ -235,3 +258,7 @@ Focus defines and edits the rules. The native enforcer owns the effective,
 validated policy and applies it continuously. This preserves permanent
 enforcement without coupling it to the WebView UI, and makes every mismatch
 visible and recoverable.
+
+**Thread contract:** kills/watchdogs may lag; the **cmd pipe must not**. SoftLand
+decide and Arm kill stay separate engines; the gateway thread is only the write
+path into those engines, never a merged verdict loop.

@@ -12,6 +12,8 @@
 #include <vector>
 
 sqlite3* gDb = nullptr;
+CRITICAL_SECTION gStoreCs;
+bool gStoreCsInit = false;
 
 namespace {
 
@@ -552,12 +554,30 @@ std::wstring ProductivityCurrentBehaviorDir() {
   return ProductivityBehaviorDirFromDb(gDbPath);
 }
 
+void ProductivityLock() {
+  if (!gStoreCsInit) {
+    InitializeCriticalSection(&gStoreCs);
+    gStoreCsInit = true;
+  }
+  EnterCriticalSection(&gStoreCs);
+}
+
+void ProductivityUnlock() {
+  if (gStoreCsInit) LeaveCriticalSection(&gStoreCs);
+}
+
 bool ProductivityStoreOpen(const std::wstring& dbPath) {
   ProductivityStoreClose();
+  if (!gStoreCsInit) {
+    InitializeCriticalSection(&gStoreCs);
+    gStoreCsInit = true;
+  }
   gDbPath = dbPath;
   std::string path = Narrow(dbPath);
-  if (sqlite3_open_v2(path.c_str(), &gDb, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) !=
-      SQLITE_OK) {
+  // FULLMUTEX: kill loop + cmd-gateway thread may touch gDb concurrently.
+  if (sqlite3_open_v2(path.c_str(), &gDb,
+                      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX,
+                      nullptr) != SQLITE_OK) {
     if (gDb) {
       sqlite3_close(gDb);
       gDb = nullptr;

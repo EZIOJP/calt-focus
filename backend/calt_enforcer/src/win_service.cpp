@@ -90,6 +90,12 @@ void PublishStatus(const std::wstring& dbPath, const std::wstring& lockPath,
   st.focus_relaunch_count = gFocusWatch.focus_relaunch_count;
   st.focus_last_relaunch_at = gFocusWatch.focus_last_relaunch_at;
   st.focus_relaunch_suppressed = gFocusWatch.focus_relaunch_suppressed;
+  st.cmd_gateway_alive = CmdGatewayThreadAlive();
+  st.cmd_gateway_slots = CmdGatewayListeningSlots();
+  {
+    const unsigned long last = CmdGatewayLastOkTick();
+    st.cmd_gateway_idle_ms = last == 0 ? -1L : (long)(GetTickCount() - last);
+  }
   WriteEnforcerStatus(DefaultStatusJsonPath(dbPath), st);
 }
 
@@ -119,7 +125,13 @@ void TickKills(const std::wstring& dbPath, EnforcerSnapshot& snapOut) {
     snapOut = snap;
     // Reward day, day pass, or study goal met: pause Arm so games and apps can open.
     // Porn stays blocked in SoftLand. Emergency wind-down and incubation keep kills.
-    const bool pauseArm = ProductivityFreeDayOpen() || DayLoopStudyFreeOpen();
+    // Bedtime is strict: free/study-free must not pause kills (Focus apps stay dead).
+    bool pauseArm = false;
+    {
+      ProductivityLockGuard lock;
+      const bool bedtime = DayLoopBedtimeActive();
+      pauseArm = !bedtime && (ProductivityFreeDayOpen() || DayLoopStudyFreeOpen());
+    }
     const bool willKill = !pauseArm && snap.armed && (snap.locked || snap.incubation);
     if (willKill) {
       std::vector<std::wstring> targets = snap.exes;
@@ -275,6 +287,9 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
   // Focus UI loads from these mirrors — pipe is for writes / Arm / tracking only.
   PublishFocusReadMirrors(behaviorDir);
   CmdGatewayInit();
+  // Pipe must not share the kill-loop cadence — SoftLand/Bible/SQLite stalls
+  // previously froze ConnectNamedPipe for hours (Mark afternoon done failed).
+  CmdGatewayStartBackground(behaviorDir);
   EnforcerSnapshot lastSnap;
 
   while (stop == nullptr || !(*stop)) {
@@ -339,14 +354,15 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
     ReadSoftlandEnabled(dbPath, &softland);
     // Watchdog only matters while SoftLand or Arm is on — keep with kill cadence.
     TickFocusWatchdog(snap.armed, softland, gFocusWatch);
-    // Writes must stay realtime with kills.
-    CmdGatewayPoll(behaviorDir);
+    // Cmd gateway runs on CmdGatewayStartBackground — never block it on this Sleep.
     DWORD now = GetTickCount();
     if (lastClock == 0 || now - lastClock >= kClockMs) {
+      ProductivityLockGuard lock;
       TickSoftlandClocks(behaviorDir);
       lastClock = now;
     }
     if (lastDbSlow == 0 || now - lastDbSlow >= kDbSlowMs) {
+      ProductivityLockGuard lock;
       TickSoftlandPlanAndDayLoop(behaviorDir);
       TickDayRollup(dbPath, behaviorDir);
       PublishFocusReadMirrors(behaviorDir);
@@ -367,6 +383,7 @@ int RunEnforcerLoop(const std::wstring& dbPath, const std::wstring& lockPath, vo
       Sleep(kKillMs);
     }
   }
+  CmdGatewayStopBackground();
   CmdGatewayShutdown();
   ProductivityStoreClose();
   if (useTrackerAgent) {

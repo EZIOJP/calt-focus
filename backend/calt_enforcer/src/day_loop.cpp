@@ -812,6 +812,14 @@ bool DayLoopStudyFreeOpen() {
   return IsoStillActive(s.free_until, now);
 }
 
+bool DayLoopBedtimeActive() {
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return false;
+  bool active = false;
+  JsonGetBool(s.document_json, "bedtime_active", &active);
+  return active;
+}
+
 bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath) {
   ProductivitySoftland s;
   if (!ProductivityLoadSoftland(s)) return false;
@@ -924,6 +932,11 @@ bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath) {
   }
   if (active != wasActive) {
     SetRuntimeBool(s, "bedtime_active", active);
+    changed = true;
+  }
+  // Sleep window: keep SoftLand on so Focus watch/block lists still apply.
+  if (active && !s.softland_enabled) {
+    s.softland_enabled = true;
     changed = true;
   }
 

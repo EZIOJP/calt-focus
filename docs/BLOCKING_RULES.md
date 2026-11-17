@@ -86,26 +86,27 @@ current mode) — not the host ladder and the kill-list check.
 
 ---
 
-## Goals “Blocker” board (product shape)
+## Goals / Settings “Blocks” board (product shape)
 
-Plan → Goals may show one **Blocker** control surface. That is **UX grouping**,
-not one engine:
+Settings → Blocks → **Board** (and Plan Goals cue linking there) is one **UX
+table**, not one engine. SoftLand decide and Arm kill stay separate.
 
-| Column / action | Sites | Apps |
-|-----------------|-------|------|
-| **Allow** | → `site_rules.allow_extra` | Remove from kill list (`exes`) |
-| **Block** | → `site_rules.block_extra` | Add to kill list (`exes`) |
+| Column | Sites (SoftLand) | Apps (Arm) |
+|--------|------------------|------------|
+| **Focus** | → `site_rules.watch_extra` (study-only; open in free/reward) | On kill list while Armed |
+| **Normal** | → `site_rules.allow_extra` | Off kill list |
+| **Block fully** | → `site_rules.block_extra` | On kill list (same `exes` list as Focus today) |
 
-- **Study-only** (`watch_extra` + built-in distractors) stays out of this board
-  (Settings / engine defaults). They open in SoftLand `free` mode unless
-  incubation is on.
-- **Block** sites and kill-list apps open after the study goal is met. Porn stays
-  blocked. Until that goal, **Block** sites stay blocked and Armed apps stay killable.
-- **Allow** always wins on the SoftLand host ladder (including SoftLand porn
-  heuristic). It does **not** punch through the hosts-file device block.
-- Safe short copy for that board: *“After the study goal, only porn stays blocked.
-  Until then, Block stays. Allow always wins in Site block. Apps = Arm kill list.
-  Device porn (hosts) is separate.”*
+- **Focus** includes study-only SoftLand (`watch_extra`). Built-in distractor
+  hosts still come from engine defaults, not this table.
+- **Block fully** sites stay closed even on reward / SoftLand free. SoftLand free
+  does **not** disarm Arm — apps on the kill list stay killable while Armed.
+- **Normal** (Allow) always wins on the SoftLand host ladder (including SoftLand
+  porn heuristic). It does **not** punch through the hosts-file device block.
+- Device porn (hosts) and app **time limits** stay off this board (Filters /
+  Limits tabs).
+- Safe short copy: *“Focus / Normal / Block fully — sites via SoftLand, apps via
+  Arm. SoftLand ≠ Arm. Device porn (hosts) is separate.”*
   Do not say “Allow always wins over porn” without meaning the SoftLand
   heuristic only.
 
@@ -132,16 +133,19 @@ whole web. This is deliberate.
 
 In this order, each line able to overwrite the one above:
 
-1. **Schedule window.** If `schedules.enabled`, the **first** window whose
+1. **Schedule window (legacy).** If `schedules.enabled`, the **first** window whose
    `days` include today (Mon=0 … Sun=6) and whose `start`–`end` contains now
    supplies the mode. Windows may cross midnight (`22:00`–`06:00` works).
-   No match, or schedules off → `study`.
+   No match, or schedules off → `study`. Product UI no longer edits schedules;
+   prefer schedules off and let the day loop own the clock.
 2. **Reward day or free window** → `free`.
    A free window means `runtime.free_until` is in the future, **or** the clock
    has passed `runtime.free_after_hm`.
 3. **Incubation** (`runtime.incubation_until` in the future) → back to `study`.
    Incubation always wins; it is the "you just tried to relapse, sit still"
    state.
+4. **Bedtime** (`runtime.bedtime_active`) → force `study` (unless emergency).
+   Leftover free/reward does not open Focus sites until wake.
 
 The banner text picks its reason in the same priority: incubation, then reward
 day, then free window — so during a cooldown you always see *why* you are stuck,
@@ -342,7 +346,7 @@ foreground minutes are used, then closes it until local midnight.
 - SoT: `data/productivity/behavior/app_limits.json` (`enabled`, `limits[]` of
   `{exe, daily_minutes}`). The enforcer rewrites `usage[]` on the same file
   (used / remaining / blocked) for the Settings panel.
-- Gateway: `app_limits.set`. UI: Settings → Blocks → Apps → Time limits.
+- Gateway: `app_limits.set`. UI: Settings → Blocks → Limits.
 - Kill loop (`app_limits.cpp`, same ~1.5s tick as Arm) sums today's
   `tracked_sessions` for that exe and adds the open window from
   `fg_live.json` (written by the tracker so a long session is not invisible
@@ -483,7 +487,7 @@ Landing: `DayLoopLanding` — tasks, SoftLand/Site-block mode, planned vs tracke
 
 **Confirm plan** is required. Due Bible slots (morning always, afternoon from 12:00, evening from 17:00) **and** ≥1 non-free planned minute (`plan_required` / `bible_required`). `planning_enabled` is forced on. An empty confirm is reopened and does not keep a goal-free window. Arm stays off until Confirm. SoftLand stays **on** for the host gate. **Follow** (`ApplyActivePlanToSoftland`) runs only when `plan_confirmed_for_date == today`.
 
-**Bedtime:** `softland.set_bedtime` → tick sets `bedtime_active` → Focus `BedtimeOverlay`. **Emergency:** `softland.emergency_winddown` (confirm `EMERGENCY`) opens web minus distraction lists; Arm keeps game kills.
+**Bedtime (strict sleep):** `softland.set_bedtime` → tick sets `bedtime_active` → Focus `BedtimeOverlay`. While active: SoftLand mode forced to **study** (Focus / watch sites blocked; SoftLand kept on); Arm kill pause from free/study-free is **suppressed** so Armed apps stay killed. **Emergency:** `softland.emergency_winddown` (confirm `EMERGENCY`) opens web minus distraction lists; Arm keeps game kills.
 
 **Focus FE:** Home stats / schedules / SoftLand lists read enforcer mirrors +
 gateway only — no live Study `:8000`. Demo clock hidden in Focus Settings.

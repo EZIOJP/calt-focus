@@ -30,6 +30,12 @@ HANDLE gPipePool[kPipePoolSize];
 bool gPipePoolInit = false;
 const wchar_t* kPipeName = L"\\\\.\\pipe\\calt_enforcer_cmd";
 
+HANDLE gGatewayThread = nullptr;
+volatile LONG gGatewayStop = 0;
+volatile LONG gGatewayAlive = 0;
+volatile LONG gGatewayLastOkTick = 0;
+std::wstring gGatewayBehaviorDir;
+
 SECURITY_ATTRIBUTES* PipeSa(SECURITY_ATTRIBUTES* sa, PSECURITY_DESCRIPTOR* sdOut) {
   *sdOut = nullptr;
   if (ConvertStringSecurityDescriptorToSecurityDescriptorW(
@@ -1674,12 +1680,14 @@ std::string HandleOp(const std::string& op, const std::string& payload,
 
 std::string GatewayApplyOp(const std::string& op, const std::string& payloadJson,
                            const std::wstring& behaviorDir) {
+  ProductivityLockGuard lock;
   return HandleOp(op, payloadJson, behaviorDir, nullptr);
 }
 
 void CmdGatewayInit() { EnsurePipePool(); }
 
 void CmdGatewayShutdown() {
+  CmdGatewayStopBackground();
   if (!gPipePoolInit) return;
   for (int i = 0; i < kPipePoolSize; ++i) {
     if (gPipePool[i] != INVALID_HANDLE_VALUE) {
@@ -1689,10 +1697,58 @@ void CmdGatewayShutdown() {
   }
 }
 
+bool CmdGatewayThreadAlive() { return InterlockedCompareExchange(&gGatewayAlive, 0, 0) != 0; }
+
+unsigned long CmdGatewayLastOkTick() {
+  return (unsigned long)InterlockedCompareExchange(&gGatewayLastOkTick, 0L, 0L);
+}
+
+int CmdGatewayListeningSlots() {
+  if (!gPipePoolInit) return 0;
+  int n = 0;
+  for (int i = 0; i < kPipePoolSize; ++i) {
+    if (gPipePool[i] != INVALID_HANDLE_VALUE) ++n;
+  }
+  return n;
+}
+
+DWORD WINAPI CmdGatewayThreadMain(LPVOID) {
+  InterlockedExchange(&gGatewayAlive, 1);
+  while (InterlockedCompareExchange(&gGatewayStop, 0, 0) == 0) {
+    CmdGatewayPoll(gGatewayBehaviorDir);
+    // Tight poll — independent of the 1.5s kill-loop Sleep.
+    Sleep(25);
+  }
+  InterlockedExchange(&gGatewayAlive, 0);
+  return 0;
+}
+
+void CmdGatewayStartBackground(const std::wstring& behaviorDir) {
+  CmdGatewayStopBackground();
+  gGatewayBehaviorDir = behaviorDir;
+  InterlockedExchange(&gGatewayStop, 0);
+  EnsurePipePool();
+  gGatewayThread = CreateThread(nullptr, 0, CmdGatewayThreadMain, nullptr, 0, nullptr);
+}
+
+void CmdGatewayStopBackground() {
+  InterlockedExchange(&gGatewayStop, 1);
+  if (gGatewayThread) {
+    WaitForSingleObject(gGatewayThread, 8000);
+    CloseHandle(gGatewayThread);
+    gGatewayThread = nullptr;
+  }
+  InterlockedExchange(&gGatewayAlive, 0);
+}
+
 void CmdGatewayPoll(const std::wstring& behaviorDir) {
   // Serve every connected pool slot. Keep multiple listeners armed so Focus +
   // status probes + calendar overlay never starve on ERROR_PIPE_BUSY.
   EnsurePipePool();
+  // Self-heal: if every slot died (CreateNamedPipe failures), rebuild the pool.
+  if (CmdGatewayListeningSlots() == 0) {
+    for (int i = 0; i < kPipePoolSize; ++i) RecyclePipeSlot(i);
+  }
   for (int slot = 0; slot < kPipePoolSize; ++slot) {
     HANDLE pipe = gPipePool[slot];
     if (pipe == INVALID_HANDLE_VALUE) {
@@ -1715,7 +1771,7 @@ void CmdGatewayPoll(const std::wstring& behaviorDir) {
     DWORD read = 0;
     bool got = false;
     // Allow Focus WebView→native hop (~tens of ms) before the first byte.
-    for (int spin = 0; spin < 200; ++spin) {
+    for (int spin = 0; spin < 80; ++spin) {
       read = 0;
       SetLastError(0);
       if (ReadFile(pipe, buf, sizeof(buf) - 1, &read, nullptr) && read > 0) {
@@ -1741,12 +1797,17 @@ void CmdGatewayPoll(const std::wstring& behaviorDir) {
     JsonGetString(req, "id", &id);
     std::string payload = ExtractPayload(req);
     std::string extra;
-    std::string err = HandleOp(op, payload, behaviorDir, &extra);
-
+    std::string err;
     ProductivitySoftland s;
-    ProductivityLoadSoftland(s);
     ProductivityGatewayMeta meta;
-    ProductivityLoadMeta(meta);
+    {
+      // Never hold the store lock across pipe I/O — only around SoT work.
+      ProductivityLockGuard lock;
+      err = HandleOp(op, payload, behaviorDir, &extra);
+      ProductivityLoadSoftland(s);
+      ProductivityLoadMeta(meta);
+    }
+    InterlockedExchange(&gGatewayLastOkTick, (LONG)GetTickCount());
 
     std::string freeJs = s.free_until.empty() ? "null" : ("\"" + s.free_until + "\"");
     std::string incJs = s.incubation_until.empty() ? "null" : ("\"" + s.incubation_until + "\"");

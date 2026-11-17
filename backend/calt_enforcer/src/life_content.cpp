@@ -1,4 +1,5 @@
 #include "life_content.h"
+#include "day_loop.h"
 #include "productivity_store.h"
 #include "softland_publish.h"
 #include "sqlite3.h"
@@ -143,6 +144,26 @@ bool JsonGetIntLocal(const std::string& body, const char* key, int* out) {
   if (i >= body.size()) return false;
   *out = atoi(body.c_str() + i);
   return true;
+}
+
+bool JsonGetBoolLocal(const std::string& body, const char* key, bool* out) {
+  if (!out) return false;
+  std::string needle = std::string("\"") + key + "\"";
+  size_t p = body.find(needle);
+  if (p == std::string::npos) return false;
+  size_t colon = body.find(':', p + needle.size());
+  if (colon == std::string::npos) return false;
+  size_t i = colon + 1;
+  while (i < body.size() && (body[i] == ' ' || body[i] == '\t')) ++i;
+  if (body.compare(i, 4, "true") == 0) {
+    *out = true;
+    return true;
+  }
+  if (body.compare(i, 5, "false") == 0) {
+    *out = false;
+    return true;
+  }
+  return false;
 }
 
 std::string ReadFileUtf8(const std::wstring& path) {
@@ -1085,20 +1106,8 @@ std::string LifeBibleDevotionTodayJson(int userId, const std::wstring& bibleData
   std::string eveKey = ChapterKey(evening.book, evening.chapter);
   bool aftDone = false;
   bool eveDone = false;
-  {
-    std::string flag;
-    // true/false tokens
-    size_t p = doc.find("\"afternoon_done\"");
-    if (p != std::string::npos) {
-      size_t colon = doc.find(':', p);
-      if (colon != std::string::npos && doc.find("true", colon) < doc.find(',', colon)) aftDone = true;
-    }
-    p = doc.find("\"evening_done\"");
-    if (p != std::string::npos) {
-      size_t colon = doc.find(':', p);
-      if (colon != std::string::npos && doc.find("true", colon) < doc.find(',', colon)) eveDone = true;
-    }
-  }
+  JsonGetBoolLocal(doc, "afternoon_done", &aftDone);
+  JsonGetBoolLocal(doc, "evening_done", &eveDone);
 
   std::string mNotes, aNotes, eNotes;
   JsonGetStringLocal(doc, "morning_notes", &mNotes);
@@ -1238,6 +1247,7 @@ bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
     }
     if (outJson) *outJson = LifeBibleDevotionTodayJson(userId, bibleDataDir);
     PublishDevotionMirrorBestEffort(bibleDataDir, behaviorDir, userId);
+    if (!behaviorDir.empty()) PublishDayLoopMirror(behaviorDir);
     return true;
   }
   if (done && !LifeBibleDevotionSlotOpen(slot)) return false;
@@ -1251,6 +1261,8 @@ bool LifeBibleDevotionDone(int userId, const std::string& slot, bool done,
   const char* dateKey =
       slot == "afternoon" ? "bible_afternoon_for_date" : "bible_evening_for_date";
   if (!SetGoalsDateField(dateKey, done, behaviorDir)) return false;
+  // SoftLand goals drive day_loop bible_due — publish immediately so overlays clear.
+  if (!behaviorDir.empty()) PublishDayLoopMirror(behaviorDir);
 
   if (done) {
     std::string reader;

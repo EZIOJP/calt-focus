@@ -34,14 +34,17 @@ How every Settings control is **presented**, which **frontend** owns it, and whi
 | Query / hash | Resolves to |
 |--------------|-------------|
 | `section=overview` | Overview |
-| `section=blocks` | Blocks → Sites |
-| `section=sites` / `apps` / `filters` | Blocks sub-tab |
+| `section=blocks` | Blocks → Board |
+| `section=sites` / `apps` | Blocks → Board (unified table) |
+| `section=limits` (also `timelimits` / `time-limits` / `app-limits`) | Blocks → Limits |
+| `section=filters` | Blocks → Filters |
 | `section=unlock` (also legacy `now`, `focus`, `enforcer`) | Unlock |
 | `section=day` (also legacy `more` / `tools` / `watch` / `planning` / `body`) | Day |
 | `section=appearance` (also `theme` / `ui` / `look` / `sticker`) | Appearance (theme + sidebar sticker) |
 | `section=profile` (also `account` / `owner` / `me` / `user`) | Profile (local owner name/email/notes) |
 | `section=data` (also `export` / `import` / `update` / `setup`) | Data |
-| `section=advanced` (also legacy `productive` / `scoring` / `classification` / `demo` / `jarvis`) | Advanced |
+| `section=review` (also `classification` / `classify` / `activity`) | Blocks → Review |
+| `section=advanced` (also legacy `productive` / `scoring` / `demo` / `jarvis`) | Advanced |
 
 Parser: `parseSettingsSection()` in `MakeSettingsApp.tsx`.
 
@@ -50,9 +53,11 @@ Parser: `parseSettingsSection()` in `MakeSettingsApp.tsx`.
 | Nav | Meaning |
 |-----|---------|
 | **Overview** | Status, SoftLand≠Arm callout, day flow, jump cards |
-| **Blocks** | Edit what gets blocked (Sites / Apps / Filters) |
+| **Blocks** | Edit what gets blocked (Board / Limits / Filters) |
 | **Unlock** | Free SoftLand types (goal / reward / pass) — not Arm |
-| **Blocks → Apps** | Arm on/off + lock, kill list, time limits |
+| **Blocks → Board** | Focus/Normal/Block + Limit table + chips; Device hosts |
+| **Unlock** | SoftLand On/Off + Arm masters + free SoftLand types |
+| **Blocks → Limits** | App time budgets (independent of board mode) |
 | **Day** | Body care, wearables, plan reminders, planning |
 | **Appearance** | Light/dark, color presets, surfaces, typography, sidebar title sticker |
 | **Profile** | Owner display name, email, timezone, notes (localStorage on this PC) |
@@ -122,9 +127,9 @@ Table `productivity_softland` (`document_json`): `softland_enabled`, `site_rules
 
 ## 4. Blocks
 
-**FE:** `BlocksSection` with sub-tabs Sites · Apps · Filters.
+**FE:** `BlocksSection` with sub-tabs **Board · Review**. Board = table (Focus/Normal/Block + **Limit** for apps) + chips + Device hosts. SoftLand On/Off and Arm masters live under **Unlock**. Study/free flags are engine defaults (not user-edited). Weekly **Schedule** UI removed.
 
-### 4.1 Sites (SoftLand)
+### 4.1 Board — SoftLand chrome + Arm + `BlocksBoardPanel`
 
 #### SoftLand master — `ProductivityPolicyPanel` `variant="softland"`
 
@@ -133,17 +138,28 @@ Table `productivity_softland` (`document_json`): `softland_enabled`, `site_rules
 | SoftLand on | Checkbox; OFF prompts type `UNLOCK` | `saveProductivityPolicy` → `softland.set_enabled` | `cmd_gateway.cpp` SoftLand enable; `PublishSoftlandMirror` | SoftLand master |
 | Save | Button | same + related policy save | SoftLand document | SoftLand |
 
-#### Site lists — `SoftLandSiteRulesPanel`
+#### Arm — `ArmControlCard`
 
-Copy: *Allow always wins. Watch is study-only. Block survives reward days.*
+Slim Arm on/off only (lock mode / anti-tamper UI removed). SoftLand free does not disarm Arm. Bedtime keeps kills on even after goal unlock. Needs free day / pass after Confirm to change Arm. Kill membership is edited on the board (§4.1 table), not a separate chip list.
+
+#### Unified table — `BlocksBoardPanel`
+
+Columns: **Focus · Normal · Block fully** (radio per row). Row = one host **or** one `.exe` (Site / App badge). Add: `.exe` / bare process name → app; else normalize host → site.
+
+| Column | Site (SoftLand) | App (Arm) |
+|--------|-----------------|-----------|
+| **Focus** | `watch_extra` — blocked in study; open when free/reward | On kill list while Armed |
+| **Normal** | `allow_extra` — always open in SoftLand | Off kill list |
+| **Block fully** | `block_extra` — blocked even on reward days | On kill list (same list as Focus; SoftLand free still does not disarm Arm) |
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
-| Allow / Watch / Block chips | Click chip to remove | Local until Save | — | SoftLand |
-| Domain input + Add | Enter adds; one tag per domain | Local | — | SoftLand |
-| Save | Button | `softland.patch_site_rules` | Gateway patches `site_rules.{allow,watch,block}_extra`; decide in `calt_msg_host` SoftLand decide | SoftLand |
+| Mode radios | Per-row Focus / Normal / Block fully | Local until Save | — | SoftLand or Arm |
+| Add row | Domain or `.exe` + default mode | Local | — | SoftLand or Arm |
+| Remove | Trash | Local | — | SoftLand or Arm |
+| Save | Button | Sites → `softland.patch_site_rules`; apps → `arm.set` / `putEnforcerPolicy` | Decide + kill loop stay separate | SoftLand + Arm |
 
-Built-in watch/porn lists are **not** edited here.
+Copy: *Allow always wins. Watch is study-only. Block stays after you unlock.* Built-in SoftLand watch/porn lists are **not** edited here. Legacy `SoftLandSiteRulesPanel` / `AppKillRulesPanel` remain for older hubs; production Settings uses the board.
 
 #### Mode flags — `SoftLandModeFlagsPanel`
 
@@ -154,21 +170,13 @@ Built-in watch/porn lists are **not** edited here.
 | Block social / keywords / other / Strict allowlist / sensitive | **Hidden** (not in UI) | May still exist in JSON | **Not enforced** as separate toggles | Dead UX |
 | Save mode flags | Button | `softland.patch_mode_flags` | Gateway | SoftLand |
 
-#### Schedule — `GateSchedulesPanel`
+#### Schedule — removed from Blocks UI
 
-| Control | Presentation | Write path | Backend | Class |
-|---------|--------------|------------|---------|-------|
-| Enable recurring schedules | Checkbox | `softland.patch_schedules` | SoftLand decide `ResolveScheduleMode` | SoftLand |
-| Windows | Label, start/end, mode (Study/Free/Planning/Bible), Mon–Sun, delete | `schedules.windows` | First matching window wins | SoftLand |
-| Add window / Save | Buttons | same | Gateway | SoftLand |
+`GateSchedulesPanel` is no longer shown. Engine `softland.patch_schedules` remains for legacy data; default product path is day loop (Bible → Plan → Work → unlock) + bedtime. Prefer `schedules.enabled: false`.
 
-### 4.2 Apps — Arm — `ArmControlCard`
+### 4.2 Limits — `AppTimeLimitsPanel`
 
-Slim Arm on/off + lock mode (timer / password / phrase) + anti-tamper. Kill list CRUD stays in §4.3. SoftLand free does not disarm Arm. Needs free day / pass after Confirm to change Arm.
-
-### 4.3 Apps — time limits — `AppTimeLimitsPanel`
-
-Daily budget per exe. While minutes remain, the app can run. When today's foreground time reaches the budget, the enforcer kills that exe until local midnight. **Independent of Arm.** A free day / reward day does not restore a spent budget. Browsers are rejected (use Sites). Idle gaps over 5 minutes are not counted.
+Daily budget per exe. While minutes remain, the app can run. When today's foreground time reaches the budget, the enforcer kills that exe until local midnight. **Independent of Arm and of board Focus/Normal/Block.** A free day / reward day does not restore a spent budget. Browsers are rejected (use board sites). Idle gaps over 5 minutes are not counted.
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
@@ -181,18 +189,7 @@ Daily budget per exe. While minutes remain, the app can run. When today's foregr
 
 Mirror: `behavior/app_limits.json`. Live open window: `behavior/fg_live.json` (tracker, so the budget does not wait for a session flush).
 
-### 4.4 Apps (kill list) — `AppKillRulesPanel`
-
-| Control | Presentation | Write path | Backend | Class |
-|---------|--------------|------------|---------|-------|
-| Gaming / Social presets | Buttons merge exe lists | Local until Save | — | Arm |
-| Exe chips | Click to remove | Local | — | Arm |
-| Add exe | Input (+ `.exe`) | Local | — | Arm |
-| Save | Button | `arm.set` / `putEnforcerPolicy` | `enforcer_policy.json` + runtime SQLite; kill loop in `win_service.cpp` | Arm |
-
-SoftLand site domains never belong on this list.
-
-### 4.5 Filters (Device) — `DeviceBlockPanel`
+### 4.3 Filters (Device) — `DeviceBlockPanel`
 
 | Control | Presentation | Write path | Backend | Class |
 |---------|--------------|------------|---------|-------|
@@ -204,6 +201,16 @@ SoftLand site domains never belong on this list.
 | YouTube/streaming / Social checkboxes | Detail toggles | `device_block.save` fields | Patch settings | Device |
 
 Independent of SoftLand schedules. SoftLand Allow cannot override hosts.
+
+### 4.4 Review — activity + classify
+
+Moved from Advanced. `ActivitiesPanel` + `ClassificationReview` (OpenJarvis / enforcer classify when available). Approve → `classify.upsert_app_rule`. Labels never arm SoftLand or Arm — user then puts the app on the Board or a Limit.
+
+Deep link: `section=review` (also `classification` / `classify` / `activity`).
+
+### 4.5 Sleep (Day → rhythm, not Blocks)
+
+`softland.set_bedtime` → tick sets `bedtime_active`. While active: SoftLand forced to study (Focus sites blocked); Arm kills are **not** paused by free/study-free; SoftLand kept on. Emergency wind-down opens limited web. UI: `DayRhythmPanel` + `BedtimeOverlay`.
 
 ---
 
@@ -217,19 +224,19 @@ Unlock explains **SoftLand free time** (until midnight). SoftLand free ≠ Arm. 
 | Reward day card | **Count banked** + earn condition (goal+Bible × N days) + Use | `reward.claim` | Bank + free until EOD | Unlock |
 | Day pass card | **Count left / week** + Bible condition + Use | `day.grant_pass` | Quota; free until EOD | Unlock |
 
-Daily goal **minutes are not edited here** — change on Plan → Goals. Arm → **Blocks → Apps**.
+Daily goal **minutes are not edited here** — change on Plan → Goals. Arm → **Blocks → Board**.
 
 ---
 
 ## 6. Advanced — activity (was Productive)
 
-Scoring grids removed from Settings (never drove SoftLand/Arm). Under **Advanced → Activity review**:
+Scoring grids removed from Settings (never drove SoftLand/Arm). Activity review moved to **Blocks → Review** (§4.4). Advanced keeps a link only.
 
-| Panel | Focus desktop | Class |
-|-------|---------------|-------|
-| `ActivitiesPanel` | `day_activities.json` mirror | Focus-native |
-| `ClassificationReview` | OpenJarvis / enforcer classify path when available | Focus-native when LLM on |
-| `SessionOverridePanel` | **Hidden** (Study `:8000` PATCH) | Study-only |
+| Panel | Where | Class |
+|-------|-------|-------|
+| `ActivitiesPanel` | Blocks → Review | Focus-native |
+| `ClassificationReview` | Blocks → Review | Focus-native when LLM on |
+| `SessionOverridePanel` | Study hub only | Study-only |
 
 ---
 
@@ -449,7 +456,7 @@ Design host `:5180` without WebView → gated sections behave read-only.
 1. **SoftLand ON ≠ Arm** — always show both; never imply one toggle does both.
 2. **Dead SoftLand flags** — social/keywords/other/strict hidden (copy explains they did nothing).
 3. **Productive scoring** — much of the rich category UI is Study `:8000` era; Focus offline path is thinner.
-4. **Kill-list / Arm** — authoritative UI is Blocks → Apps (`ArmControlCard` + `arm.set`), not Unlock.
+4. **Kill-list / Arm** — authoritative UI is Blocks → Board (`ArmControlCard` + `BlocksBoardPanel` → `arm.set`), not Unlock.
 5. **Secrets in `enforcer_policy.json`** — unlock password/phrase stored in plaintext today.
 6. **Demo / classification** — still Study API where noted. **Export** is Focus-native (`productivity.export`). **Wearables** → Focus `:8765` hub (not Study `:8000`).
 7. **Mode label vs decide** — Overview chip can disagree with full SoftLand decide ladder (schedules / morning).
@@ -464,10 +471,12 @@ Design host `:5180` without WebView → gated sections behave read-only.
 | Settings IA / nav | `settings/make/MakeSettingsApp.tsx` |
 | Tab extras (export, planning, …) | `ProductivitySettingsTab.tsx` |
 | SoftLand policy UI | `ProductivityPolicyPanel.tsx` |
-| Site rules | `SoftLandSiteRulesPanel.tsx` |
+| Blocks board (sites + apps) | `BlocksBoardPanel.tsx` |
+| Site rules (legacy / hubs) | `SoftLandSiteRulesPanel.tsx` |
 | Mode flags | `SoftLandModeFlagsPanel.tsx` |
-| Schedules | `GateSchedulesPanel.tsx` |
-| Kill list | `AppKillRulesPanel.tsx` |
+| Schedules (legacy engine only) | `GateSchedulesPanel.tsx` — hidden from Blocks UI |
+| Review / classify | `ActivitiesPanel.tsx`, `ClassificationReview.tsx` |
+| Kill list (legacy / hubs) | `AppKillRulesPanel.tsx` |
 | App time limits | `AppTimeLimitsPanel.tsx` · `backend/calt_enforcer/src/app_limits.cpp` |
 | Device hosts | `DeviceBlockPanel.tsx` |
 | Now / Arm | `FocusControlPanel.tsx` |

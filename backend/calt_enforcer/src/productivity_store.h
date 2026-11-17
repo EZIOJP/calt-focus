@@ -25,10 +25,25 @@ struct ProductivityGatewayMeta {
   std::string last_publish_at;
 };
 
-/** Open vocab DB (WAL + busy_timeout). Call once per process. */
+/** Open vocab DB (WAL + busy_timeout + FULLMUTEX). Call once per process. */
 bool ProductivityStoreOpen(const std::wstring& dbPath);
 
 void ProductivityStoreClose();
+
+/**
+ * Serialize SoftLand / Bible / day-loop SQLite access across the kill loop and
+ * the cmd-gateway thread. Hold only around short DB work — never across kills,
+ * Sleep, or named-pipe I/O.
+ */
+void ProductivityLock();
+void ProductivityUnlock();
+
+struct ProductivityLockGuard {
+  ProductivityLockGuard() { ProductivityLock(); }
+  ~ProductivityLockGuard() { ProductivityUnlock(); }
+  ProductivityLockGuard(const ProductivityLockGuard&) = delete;
+  ProductivityLockGuard& operator=(const ProductivityLockGuard&) = delete;
+};
 
 /** Ensure DDL; import softland_policy.json if row missing. */
 bool ProductivityMigrateAndImport(const std::wstring& softlandJsonPath);

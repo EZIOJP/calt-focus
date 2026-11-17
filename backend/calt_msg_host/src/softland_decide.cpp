@@ -713,11 +713,13 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   std::string runtime = ExtractObject(body, "runtime");
   std::string free_until, incubation_until, free_after;
   bool reward_day = false;
+  bool bedtime_active = false;
   if (!runtime.empty()) {
     JsonStringNear(runtime, "free_until", &free_until);
     JsonStringNear(runtime, "incubation_until", &incubation_until);
     JsonStringNear(runtime, "free_after_hm", &free_after);
     JsonBoolNear(runtime, "reward_day_active", &reward_day);
+    JsonBoolNear(runtime, "bedtime_active", &bedtime_active);
   }
 
   std::string goalsObj = ExtractObject(body, "goals");
@@ -741,12 +743,17 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   if (!runtime.empty()) JsonStringNear(runtime, "emergency_until", &emergency_until);
   bool emergency = IsoStillActive(emergency_until, now.unix);
   if (emergency) free_win = true;
-  // Study goal met: every site except porn. Emergency and incubation keep their tighter rules.
+  // Study goal met: every site except porn. Emergency / incubation / bedtime keep tighter rules.
   const bool study_complete = goal_free_date == now.ymd && free_win && !emergency && !incubating &&
-                              !morning_pending;
+                              !morning_pending && !bedtime_active;
 
   // Morning ritual wins over leftover free/reward until Bible + Confirm today.
   if (morning_pending && !emergency) {
+    free_win = false;
+    reward_day = false;
+  }
+  // Strict sleep: leftover free/reward does not open Focus sites until wake.
+  if (bedtime_active && !emergency) {
     free_win = false;
     reward_day = false;
   }
@@ -754,7 +761,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   std::string mode = ResolveScheduleMode(body, now);
   if (mode.empty()) mode = "study";
   if (reward_day || free_win) mode = "free";
-  if (incubating || morning_pending) mode = "study";
+  if (incubating || morning_pending || (bedtime_active && !emergency)) mode = "study";
 
   ModeFlags flags = FlagsForMode(body, mode);
   // Emergency: keep porn/watch blocks even in free (distraction trim).
@@ -765,7 +772,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     flags.block_social = studyFlags.block_social;
     flags.block_keywords = studyFlags.block_keywords;
   }
-  if (morning_pending) {
+  if (morning_pending || (bedtime_active && !emergency)) {
     ModeFlags studyFlags = FlagsForMode(body, "study");
     flags.block_watch_sites = studyFlags.block_watch_sites;
     flags.block_social = studyFlags.block_social;
@@ -776,6 +783,8 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   if (incubating) {
     r.until = incubation_until;
     r.reason = "incubation";
+  } else if (bedtime_active && !emergency) {
+    r.reason = "bedtime";
   } else if (morning_pending) {
     r.reason = ritual_reason;
   } else if (emergency) {
@@ -875,7 +884,7 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
     return r;
   }
 
-  if (mode == "free" && !incubating) {
+  if (mode == "free" && !incubating && !(bedtime_active && !emergency)) {
     // Emergency wind-down: free browsing except distraction lists (watch/social/porn already handled).
     if (emergency && flags.block_watch_sites) {
       if (ListMatch(host, watch_extra) || ListMatch(host, BuiltinWatch())) {
@@ -984,11 +993,13 @@ std::string SoftlandGateSnapshotJson() {
   std::string free_until, incubation_until, free_after;
   bool reward_day = false;
   bool day_pass = false;
+  bool bedtime_active = false;
   if (!runtime.empty()) {
     JsonStringNear(runtime, "free_until", &free_until);
     JsonStringNear(runtime, "incubation_until", &incubation_until);
     JsonStringNear(runtime, "free_after_hm", &free_after);
     JsonBoolNear(runtime, "reward_day_active", &reward_day);
+    JsonBoolNear(runtime, "bedtime_active", &bedtime_active);
     std::string dp = ExtractObject(runtime, "day_pass");
     if (!dp.empty()) {
       bool spent = false;
@@ -1015,18 +1026,20 @@ std::string SoftlandGateSnapshotJson() {
   if (!runtime.empty()) JsonStringNear(runtime, "emergency_until", &emergency_until);
   bool emergency = IsoStillActive(emergency_until, now.unix);
   if (emergency) free_win = true;
+  if (bedtime_active && !emergency) free_win = false;
 
   std::string mode = ResolveScheduleMode(body, now);
   if (mode.empty()) mode = "study";
   if (reward_day || free_win || day_pass) mode = "free";
-  if (incubating) mode = "study";
+  if (incubating || (bedtime_active && !emergency)) mode = "study";
   if (!enabled) mode = "free";
 
   // Emergency keeps distraction blocks (porn/watch) via flags — use study flags for block_watch/porn
   // while mode is free for allow path. SoftLandGetMode still blocks porn before free allow.
 
   ModeFlags flags = FlagsForMode(body, mode);
-  bool free_mode = (mode == "free" && !incubating) || !enabled;
+  bool free_mode =
+      (mode == "free" && !incubating && !(bedtime_active && !emergency)) || !enabled;
   bool locked = enabled && !free_mode;
 
   std::string goals = ExtractObject(body, "goals");

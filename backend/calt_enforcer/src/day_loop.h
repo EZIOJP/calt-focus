@@ -70,6 +70,13 @@ bool DayLoopClearStudyTempKills(const std::wstring& behaviorDir);
 bool DayLoopStudyFreeOpen();
 
 /**
+ * SoftLand runtime.bedtime_active (clock between bedtime_hm and wake_hm).
+ * Sleep is strict: SoftLand study for Focus sites; Arm kills are not paused by free.
+ * Emergency wind-down still opens limited web; it does not pause Arm here.
+ */
+bool DayLoopBedtimeActive();
+
+/**
  * Emergency wind-down: confirm EMERGENCY → emergency_until = now+minutes (default 30).
  * SoftLand decide treats as free for non-distraction hosts while active.
  */

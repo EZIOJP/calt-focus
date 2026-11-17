@@ -66,7 +66,7 @@ New day
 | Goal free (productive min) | Tracked ≥ daily_focus → `free_until` EOD; drop study-temp kills; pause Arm | Home progress line + FREE badge | `DayLoopMaybeGrantGoalFree` | **Live** | After goal: sites open except porn; games and kill-list apps can run |
 | Dual-gate close free (1h) | Tasks done + ≥50% planned non-free → +60m once | Home **Check unlock** / `DayLoopLanding` | `day.evaluate_close` | **Live** | Grants once per day when gates met |
 | Reward / day pass | Bible required; clears study-temp kills | Settings → Unlock (`ProductivityPolicyPanel`) | `reward.claim` / `day.grant_pass` | **Live** | Without bible → `bible_required` |
-| Bedtime | `set_bedtime` → `bedtime_active` → overlay | `DayRhythmPanel` + `BedtimeOverlay` | `softland.set_bedtime` | **Live** | Bedtime suppresses morning overlays |
+| Bedtime | `set_bedtime` → `bedtime_active` → overlay + study SoftLand + Arm kills kept on | `DayRhythmPanel` + `BedtimeOverlay` | `softland.set_bedtime` | **Live** | Strict sleep: Focus sites blocked; free does not pause Arm; suppresses morning overlays |
 | Emergency winddown | Confirm `EMERGENCY` → web minus distraction; Arm keeps games | `BedtimeOverlay` | `softland.emergency_winddown` | **Live** | Typed EMERGENCY unlocks web |
 
 ---
