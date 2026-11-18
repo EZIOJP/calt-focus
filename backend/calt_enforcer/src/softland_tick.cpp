@@ -5,6 +5,8 @@
 #include "productivity_store.h"
 #include "softland_publish.h"
 
+// PublishGameSessionMirror declared in day_loop.h
+
 #include <windows.h>
 
 #include <cstdio>
@@ -75,6 +77,24 @@ bool TickSoftlandClocks(const std::wstring& behaviorDir) {
     s.reward_day_active = false;
     expired = true;
   }
+  // Clear expired game session runtime keys (not on Softland cache struct).
+  {
+    std::string gUntil;
+    size_t p = s.document_json.find("\"game_session_until\"");
+    if (p != std::string::npos) {
+      size_t colon = s.document_json.find(':', p);
+      size_t q1 = s.document_json.find('"', colon + 1);
+      size_t q2 = (q1 == std::string::npos) ? std::string::npos : s.document_json.find('"', q1 + 1);
+      if (q1 != std::string::npos && q2 != std::string::npos)
+        gUntil = s.document_json.substr(q1 + 1, q2 - q1 - 1);
+    }
+    if (!gUntil.empty() && IsoExpired(gUntil, now)) {
+      ProductivityReplaceJsonValue(s.document_json, "game_session_until", "null");
+      ProductivityReplaceJsonValue(s.document_json, "game_session_started_at", "null");
+      expired = true;
+      PublishGameSessionMirror(behaviorDir);
+    }
+  }
 
   if (expired) {
     s.updated_at = now;
@@ -82,6 +102,7 @@ bool TickSoftlandClocks(const std::wstring& behaviorDir) {
     if (!ProductivitySaveSoftland(s)) return changed;
     ProductivityBumpSeq();
     PublishSoftlandMirror(behaviorDir, s);
+    PublishGameSessionMirror(behaviorDir);
     changed = true;
   }
 

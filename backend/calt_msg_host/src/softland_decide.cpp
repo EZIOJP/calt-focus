@@ -743,6 +743,9 @@ SoftlandModeResult SoftlandGetMode(const std::string& url, const std::string& /*
   if (!runtime.empty()) JsonStringNear(runtime, "emergency_until", &emergency_until);
   bool emergency = IsoStillActive(emergency_until, now.unix);
   if (emergency) free_win = true;
+  std::string game_until;
+  if (!runtime.empty()) JsonStringNear(runtime, "game_session_until", &game_until);
+  if (IsoStillActive(game_until, now.unix)) free_win = true;
   // Study goal met: every site except porn. Emergency / incubation / bedtime keep tighter rules.
   const bool study_complete = goal_free_date == now.ymd && free_win && !emergency && !incubating &&
                               !morning_pending && !bedtime_active;
@@ -1026,6 +1029,9 @@ std::string SoftlandGateSnapshotJson() {
   if (!runtime.empty()) JsonStringNear(runtime, "emergency_until", &emergency_until);
   bool emergency = IsoStillActive(emergency_until, now.unix);
   if (emergency) free_win = true;
+  std::string game_until;
+  if (!runtime.empty()) JsonStringNear(runtime, "game_session_until", &game_until);
+  if (IsoStillActive(game_until, now.unix)) free_win = true;
   if (bedtime_active && !emergency) free_win = false;
 
   std::string mode = ResolveScheduleMode(body, now);
@@ -1118,6 +1124,9 @@ std::string SoftlandGateSnapshotJson() {
     << "\"reward_day\":" << JsonBoolLit(reward_day) << ","
     << "\"day_unlimited\":" << JsonBoolLit(reward_day || day_pass || goal_met) << ","
     << "\"day_pass\":" << JsonBoolLit(day_pass) << ","
+    << "\"goal_met\":" << JsonBoolLit(goal_met) << ","
+    << "\"free_window\":" << JsonBoolLit(free_win) << ","
+    << "\"free_until\":" << (free_until.empty() ? "null" : ("\"" + JsonEscape(free_until) + "\"")) << ","
     << "\"chapter_goal_met\":" << JsonBoolLit(bible_today) << ","
     << "\"productive_minutes\":" << productive_minutes << ","
     << "\"daily_goal_minutes\":" << (show_daily_goal ? daily_focus : 0) << ","

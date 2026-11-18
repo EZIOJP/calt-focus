@@ -224,7 +224,22 @@ Unlock explains **SoftLand free time** (until midnight). SoftLand free ≠ Arm. 
 | Reward day card | **Count banked** + earn condition (goal+Bible × N days) + Use | `reward.claim` | Bank + free until EOD | Unlock |
 | Day pass card | **Count left / week** + Bible condition + Use | `day.grant_pass` | Quota; free until EOD | Unlock |
 
-Daily goal **minutes are not edited here** — change on Plan → Goals. Arm → **Blocks → Board**.
+Daily goal **minutes are not edited here** — change on Plan → Goals.
+
+#### Game Sleeper — `FocusSleeperPanel` (preferred for gaming CPU)
+
+Low-CPU Focus while gaming. Does **not** change SoftLand or Arm.
+
+| Control | Persist | Effect |
+|---------|---------|--------|
+| Sleep for gaming / Wake | `localStorage` `calt:focus:sleeper` | Unloads FaceTracker/Human.js (`BodyCareVisionHost`), pauses BodyCare timers, status bus → 45s, native push → 60s |
+| Hide to tray | same prefs (`hideToTray`) | `focus_shell` `sleeper_on` / `sleeper_off` — hide window + `WebView` IsVisible |
+
+SoftLand ≠ Arm. Enforcer stays up. Open from tray anytime; Wake restores UI.
+
+#### SoftLand game free — `GameSessionPanel` (optional)
+
+Timed SoftLand free + Arm pause + FG tracking sleep (30/60/90/120m). Not the low-CPU sleeper. Needs Unlock free open. Ops: `game.session.start` / `game.session.stop`.
 
 ---
 

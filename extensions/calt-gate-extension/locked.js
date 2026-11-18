@@ -1,7 +1,8 @@
 const FALLBACK_LINKS = [
-  { title: "Bible reader", url: "http://127.0.0.1:5180/bible", source: "calt" },
-  { title: "Today's plan", url: "http://127.0.0.1:5180/productivity?tab=plan", source: "calt" },
-  { title: "Focus Home", url: "http://127.0.0.1:5180/productivity", source: "calt" },
+  { title: "Bible reader", url: "http://localhost:5173/bible", source: "calt" },
+  { title: "Today's plan", url: "http://localhost:5173/productivity?tab=plan", source: "calt" },
+  { title: "Lecture notes", url: "http://localhost:5173/lecture-notes", source: "calt" },
+  { title: "Review hub", url: "http://localhost:5173/review", source: "calt" },
   { title: "Scaler", url: "https://www.scaler.com/", source: "allowlist" },
   { title: "Colab", url: "https://colab.research.google.com/", source: "allowlist" },
   { title: "GitHub", url: "https://github.com/", source: "allowlist" },
@@ -27,73 +28,60 @@ function fmtMin(n) {
   return hours + " " + mins;
 }
 
-function hasDailyGoal(g) {
-  if (!g || g._offline) return false;
-  if (g.has_daily_goal === false) return false;
-  if (g.planning_enabled === false) return false;
-  if (g.browser && g.browser.planning_enabled === false) return false;
-  const goal = Number(g.daily_goal_minutes);
-  return Number.isFinite(goal) && goal > 0;
-}
-
 function renderStats(g) {
   const root = document.getElementById("stats");
-  const section = document.getElementById("statsSection");
   if (!g || g._offline) {
-    if (section) section.hidden = false;
     root.innerHTML =
       '<div class="stat wide"><div class="k">Status</div>' +
-      '<div class="v muted">Gate unreachable — shortcuts below still work. SoftLand uses Focus + msg_host (no Study API).</div></div>';
+      '<div class="v muted">Gate API unreachable — start CALT (:8000). Shortcuts below still work.</div></div>';
     return;
   }
   const prod = g.productive_minutes;
   const goal = g.daily_goal_minutes;
   const left = g.remaining_minutes;
-  const showGoal = hasDailyGoal(g);
   const modeRaw = ((g.browser && (g.browser.mode_label || g.browser.mode)) || g.browser_mode || "—");
   const mode = String(modeRaw).toUpperCase();
   const modeLc = String(modeRaw).toLowerCase();
-  const pct =
-    showGoal && goal > 0 && prod != null
-      ? Math.min(100, Math.round((Number(prod) / Number(goal)) * 100))
-      : 0;
+  const pct = goal > 0 && prod != null ? Math.min(100, Math.round((Number(prod) / Number(goal)) * 100)) : 0;
   const bible = g.chapter_goal_met ? "Done" : "Needed";
   const block = g.current_block;
   const inFocusMode = modeLc === "study" || modeLc === "bible" || modeLc === "planning";
-  const dayMet = Boolean(g.day_unlimited || g.reward_day || g.unlocked);
+  const goalMet = Boolean(g.goal_met || g.day_unlimited);
+  const rewardDay = Boolean(g.reward_day);
+  const dayPass = Boolean(g.day_pass);
+  const freeWin = Boolean(g.free_window) || (Boolean(g.unlocked) && !inFocusMode);
   const incubating = Boolean((g.incubation && g.incubation.active) || (g.browser && g.browser.incubation_active));
-  const morningNext = String((g.morning && g.morning.next) || "").toLowerCase();
 
-  let unlockKey = "Status";
+  // Do not label timed SoftLand free (closeout) as "Goal met".
+  let unlockKey = "Time left to unlock";
   let unlockVal = "Locked";
-  let showUnlock = true;
   if (incubating) {
     unlockKey = "Incubation break";
     const rem = (g.incubation && g.incubation.remaining_sec) || 0;
     unlockVal = rem > 0
       ? Math.round(rem / 60) + " min left · entertainment blocked"
       : "Entertainment blocked — open CALT Desktop · Focus";
-  } else if (morningNext === "bible") {
-    unlockKey = "Morning gate";
-    unlockVal = "Finish Bible chapter to continue";
-  } else if (morningNext === "plan") {
-    unlockKey = "Morning gate";
-    unlockVal = "Confirm today’s plan to continue";
-  } else if (showGoal && dayMet && inFocusMode) {
+  } else if ((goalMet || rewardDay || dayPass) && inFocusMode) {
     unlockKey = "Daily goal";
     unlockVal = block && block.title
       ? "Met — still locked for this study block"
       : "Met — still locked in " + mode + " mode";
-  } else if (showGoal && dayMet) {
+  } else if (rewardDay) {
     unlockKey = "Daily unlock";
-    unlockVal = g.reward_day
-      ? "Reward day · YouTube & games OK"
-      : "Goal met · YouTube & games OK";
-  } else if (showGoal && left != null) {
-    unlockKey = "Time left to unlock";
+    unlockVal = "Reward day · YouTube & games OK";
+  } else if (dayPass) {
+    unlockKey = "Daily unlock";
+    unlockVal = "Day pass · YouTube & games OK";
+  } else if (goalMet) {
+    unlockKey = "Daily unlock";
+    unlockVal = "Goal met · YouTube & games OK";
+  } else if (freeWin) {
+    unlockKey = "Timed free";
+    unlockVal = g.free_until
+      ? "Free until " + String(g.free_until).slice(11, 16) + " · not goal met"
+      : "Timed SoftLand free · daily goal still open";
+  } else if (left != null) {
     unlockVal = fmtMin(left) + " study left";
-  } else {
-    showUnlock = morningNext === "bible" || morningNext === "plan" || incubating;
   }
 
   let blockHtml = "";
@@ -105,45 +93,15 @@ function renderStats(g) {
       (block.category ? " · " + escapeHtml(block.category) : "") +
       escapeHtml(leftB) + "</div></div>";
   }
-
-  let html = "";
-  if (showGoal) {
-    html +=
-      '<div class="stat"><div class="k">Studied today</div><div class="v">' +
-      escapeHtml(fmtMin(prod)) +
-      "</div></div>" +
-      '<div class="stat"><div class="k">Daily goal</div><div class="v">' +
-      escapeHtml(fmtMin(goal)) +
-      "</div></div>";
-  } else {
-    html +=
-      '<div class="stat wide"><div class="k">Studied today</div><div class="v">' +
-      escapeHtml(fmtMin(prod)) +
-      "</div></div>";
-  }
-  if (showUnlock) {
-    html +=
-      '<div class="stat wide"><div class="k">' +
-      escapeHtml(unlockKey) +
-      "</div>" +
-      '<div class="v accent">' +
-      escapeHtml(unlockVal) +
-      "</div>";
-    if (showGoal) {
-      html += '<div class="bar"><span style="width:' + pct + '%"></span></div>';
-    }
-    html += "</div>";
-  }
-  html +=
-    '<div class="stat"><div class="k">Mode</div><div class="v">' +
-    escapeHtml(mode) +
-    "</div></div>" +
-    '<div class="stat"><div class="k">Bible chapter</div><div class="v">' +
-    escapeHtml(bible) +
-    "</div></div>" +
+  root.innerHTML =
+    '<div class="stat"><div class="k">Studied today</div><div class="v">' + escapeHtml(fmtMin(prod)) + "</div></div>" +
+    '<div class="stat"><div class="k">Daily goal</div><div class="v">' + escapeHtml(fmtMin(goal)) + "</div></div>" +
+    '<div class="stat wide"><div class="k">' + escapeHtml(unlockKey) + "</div>" +
+    '<div class="v accent">' + escapeHtml(unlockVal) + "</div>" +
+    '<div class="bar"><span style="width:' + pct + '%"></span></div></div>' +
+    '<div class="stat"><div class="k">Mode</div><div class="v">' + escapeHtml(mode) + "</div></div>" +
+    '<div class="stat"><div class="k">Bible chapter</div><div class="v">' + escapeHtml(bible) + "</div></div>" +
     blockHtml;
-  if (section) section.hidden = false;
-  root.innerHTML = html;
 }
 
 function escapeHtml(s) {
@@ -182,17 +140,8 @@ function applyGate(g, fromCache) {
   const status = document.getElementById("status");
   const title = document.getElementById("title");
   const body = document.getElementById("body");
-  const parsed = parseBlockedHost();
-  const hardPornHost =
-    parsed.host &&
-    typeof isAppealHardDenyHost === "function" &&
-    isAppealHardDenyHost(parsed.host, (g && g.browser) || null);
-  const pornWhy =
-    parsed.why &&
-    typeof isPornAppealReason === "function" &&
-    isPornAppealReason(parsed.why);
   if (!g || g._offline) {
-    status.textContent = "Gate unreachable — SoftLand uses Focus + msg_host. Showing fallback shortcuts.";
+    status.textContent = "Gate unreachable — start CALT API (:8000). Showing fallback shortcuts.";
     renderStats(g || { _offline: true });
     renderLinks(null);
     return;
@@ -200,55 +149,35 @@ function applyGate(g, fromCache) {
   const morning = g.morning || {};
   const browser = g.browser || {};
   const next = morning.next || browser.morning_next || "open";
-  const showGoal = hasDailyGoal(g);
-
-  const whyLc = String(parsed.why || "").toLowerCase();
-  const studyWhy =
-    whyLc === "study" ||
-    whyLc === "watch_study" ||
-    whyLc === "watch" ||
-    whyLc === "blocked" ||
-    whyLc === "keyword";
-  if (hardPornHost || (pornWhy && !studyWhy)) {
-    title.textContent = "Adult content blocked";
-    body.textContent =
-      (parsed.host ? parsed.host + " — " : "") +
-      "SoftLand blocked this as adult / porn. Quinn appeal is below if Focus Quinn is ON. Other tabs stay open.";
-    if (next === "bible") {
-      body.textContent += " Morning Bible is also still required today.";
-    }
-  } else if (studyWhy) {
-    title.textContent = "Distraction site blocked";
-    body.textContent =
-      (parsed.host ? parsed.host + " — " : "") +
-      "Blocked in study mode (SoftLand watch / focus rules), not as adult content. Other tabs stay open.";
-  } else if (next === "bible") {
+  if (next === "bible") {
     title.textContent = "Morning — Bible first";
-    body.textContent = showGoal
-      ? "Finish today’s Bible chapter, then confirm your plan. Only this tab is locked; other tabs are untouched."
-      : "Finish today’s Bible chapter. Planning goals are off — no daily focus unlock on this page. Only this tab is locked.";
+    body.textContent =
+      "Finish today’s Bible chapter, then confirm your plan. Only this tab is locked; other tabs are untouched.";
   } else if (next === "plan") {
     title.textContent = "Morning — Confirm plan";
     body.textContent = "Review goals and confirm today’s plan. Pick a shortcut below — opens in this tab.";
   } else {
     title.textContent = "Distraction site blocked";
     const modeLc = String(browser.mode_label || browser.mode || "").toLowerCase();
-    const dayMet = Boolean(g.day_unlimited || g.reward_day || g.unlocked);
+    const goalMet = Boolean(g.goal_met || g.day_unlimited);
+    const freeWin = Boolean(g.free_window);
     const incubating = Boolean((g.incubation && g.incubation.active) || browser.incubation_active);
     if (incubating) {
       title.textContent = "Incubation break";
       body.textContent =
         "Mandatory rest — entertainment stays blocked. Stretch or walk. Manage timers in CALT Desktop · Focus (Windows enforcer owns app kills).";
-    } else if (modeLc === "free" || (dayMet && modeLc !== "bible" && modeLc !== "planning")) {
+    } else if (modeLc === "free" && (goalMet || g.reward_day || g.day_pass)) {
       body.textContent =
-        "Odd redirect in free mode — reload CALT Gate on Edge. Distractions stay blocked.";
-    } else if (showGoal && dayMet && (modeLc === "study" || modeLc === "bible" || modeLc === "planning")) {
+        "Odd redirect in free mode — reload CALT Gate on Edge. Distractions stay blocked; YouTube should work after today's unlock.";
+    } else if (modeLc === "free" && freeWin) {
       body.textContent =
-        "Daily focus goal is met, but this tab still sees study rules — reload CALT Gate so mode updates to FREE.";
+        "Timed SoftLand free is active (not full daily goal). Distractions stay blocked. Reload CALT Gate if this page should not appear.";
+    } else if (goalMet && (modeLc === "study" || modeLc === "bible" || modeLc === "planning")) {
+      body.textContent =
+        "Daily focus goal is met on the server, but this tab still sees study rules — reload CALT Gate on Edge so mode updates to FREE. Distracted stay blocked.";
     } else {
-      body.textContent = showGoal
-        ? "This tab was redirected. Control blocks in CALT Desktop · Focus. Distractions stay blocked until SoftLand opens."
-        : "This tab was redirected. Control blocks in CALT Desktop · Focus. No daily focus goal is set.";
+      body.textContent =
+        "This tab was redirected. Control blocks in CALT Desktop · Focus. YouTube stays blocked until today's focus goal; distractions are always blocked.";
     }
   }
   const mode = (browser.mode_label || browser.mode || "").toUpperCase();
@@ -295,16 +224,7 @@ function showRedirectDialog(parsed) {
   const why = parsed.why || "";
   const until = parsed.until || "";
   hostEl.textContent = host;
-  const whyLc = String(why || "").toLowerCase();
-  let whyHuman = why;
-  if (whyLc === "study" || whyLc === "watch_study" || whyLc === "watch") {
-    whyHuman = "study mode (not porn)";
-  } else if (whyLc === "blocked" || whyLc === "keyword") {
-    whyHuman = whyLc === "keyword" ? "keyword filter" : "SoftLand block";
-  } else if (whyLc === "sensitive") {
-    whyHuman = "sensitive site";
-  }
-  const whyLabel = whyHuman ? "Reason: " + whyHuman + ". " : "";
+  const whyLabel = why ? "Reason: " + why + ". " : "";
   const untilLabel = until ? " Until: " + until + "." : "";
   detailEl.textContent =
     whyLabel +
@@ -353,7 +273,7 @@ function setTempMsg(text, kind) {
 
 let tempCountdownTimer = null;
 
-function showAllowedUntil(untilMs, reopen) {
+function showAllowedUntil(untilMs) {
   const btn = document.getElementById("tempAllowBtn");
   const tick = function () {
     const left = Math.max(0, Math.ceil((untilMs - Date.now()) / 1000));
@@ -363,17 +283,15 @@ function showAllowedUntil(untilMs, reopen) {
       if (btn) {
         btn.disabled = false;
         btn.textContent = "Allow this site 60 sec";
-        btn.onclick = null;
       }
       setTempMsg("Temp allow expired — site will block again.", "");
       return;
     }
     if (btn) {
-      btn.disabled = false;
-      btn.textContent = "Open site (" + left + "s left)";
-      if (reopen) btn.onclick = reopen;
+      btn.disabled = true;
+      btn.textContent = "Allowed (" + left + "s left)";
     }
-    setTempMsg("Allowed until " + formatUntil(untilMs) + " — open the site to go back.", "ok");
+    setTempMsg("Allowed until " + formatUntil(untilMs), "ok");
   };
   tick();
   if (tempCountdownTimer) clearInterval(tempCountdownTimer);
@@ -437,7 +355,6 @@ async function initTempAllowUi() {
   btn.disabled = false;
   btn.textContent = "Allow this site 60 sec";
 
-  let alreadyAllowed = false;
   try {
     const status = await sendExtMessage({ type: "TEMP_ALLOW_STATUS", host: host });
     if (status && status.excluded) {
@@ -450,24 +367,11 @@ async function initTempAllowUi() {
       return;
     }
     if (status && status.allowed_until && status.allowed_until > Date.now()) {
-      alreadyAllowed = true;
-      const go = function () {
-        window.location.href = reopenUrl(host, parsed.from);
-      };
-      showAllowedUntil(status.allowed_until, go);
-      const explicit =
-        typeof urlLooksExplicit === "function" && urlLooksExplicit(parsed.from || "", "");
-      const reopenKey = "caltReopen:" + host;
-      if (!explicit && sessionStorage.getItem(reopenKey) !== "1") {
-        sessionStorage.setItem(reopenKey, "1");
-        go();
-      }
+      showAllowedUntil(status.allowed_until);
     }
   } catch (e) {
     /* status optional */
   }
-
-  if (alreadyAllowed) return;
 
   btn.onclick = async function () {
     btn.disabled = true;
@@ -479,12 +383,9 @@ async function initTempAllowUi() {
         btn.disabled = false;
         return;
       }
-      const go = function () {
-        window.location.href = reopenUrl(host, parsed.from);
-      };
-      showAllowedUntil(resp.until, go);
+      showAllowedUntil(resp.until);
       // Re-open the blocked page in this tab while the 60s window is active.
-      go();
+      window.location.href = reopenUrl(host, parsed.from);
     } catch (err) {
       setTempMsg("Could not allow this site.", "err");
       btn.disabled = false;
@@ -520,106 +421,7 @@ async function refresh() {
   applyGate({ _offline: true }, false);
 }
 
-function setAppealMsg(text, kind) {
-  const el = document.getElementById("appealMsg");
-  if (!el) return;
-  el.textContent = text || "";
-  el.className = "temp-msg" + (kind ? " " + kind : "");
-}
-
-async function initAppealUi() {
-  const box = document.getElementById("appealBox");
-  const btn = document.getElementById("appealBtn");
-  const meta = document.getElementById("appealMeta");
-  const noteEl = document.getElementById("appealNote");
-  if (!box || !btn) return;
-
-  const parsed = parseBlockedHost();
-  const host = parsed.host;
-  const why = parsed.why || "";
-  const canAppeal =
-    host &&
-    (typeof isPornAppealReason !== "function" || isPornAppealReason(why) || !why);
-
-  // Show appeal for porn / content_score / hard-deny — user may not trust auto-block fully.
-  let show = false;
-  if (host && typeof isPornAppealReason === "function" && isPornAppealReason(why)) show = true;
-  if (host && typeof isAppealHardDenyHost === "function" && isAppealHardDenyHost(host, null))
-    show = true;
-  if (host && typeof isForcePornHost === "function" && isForcePornHost(host, null)) show = true;
-  if (!show && canAppeal && (why === "porn" || why.indexOf("porn") >= 0 || why === "content_score"))
-    show = true;
-
-  if (!show) {
-    box.hidden = true;
-    return;
-  }
-
-  box.hidden = false;
-  btn.disabled = false;
-  if (noteEl) noteEl.disabled = false;
-  if (meta) {
-    meta.textContent =
-      "Blocked" +
-      (why ? " (" + why + ")" : "") +
-      " · " +
-      host +
-      ". Gate v2: trusted/search may open now; everything else waits out a cooldown. Your note is logged, not authority.";
-  }
-  if (btn) btn.textContent = "Request review";
-  setAppealMsg("", "");
-
-  btn.onclick = async function () {
-    btn.disabled = true;
-    setAppealMsg("Submitting review…", "");
-    const note = noteEl ? String(noteEl.value || "").slice(0, 400) : "";
-    try {
-      const resp = await sendExtMessage({
-        type: "PORN_APPEAL_REQUEST",
-        host: host,
-        url: parsed.from || "https://" + host + "/",
-        reason: why || "porn",
-        note: note,
-        title: "",
-        excerpt: "",
-      });
-      if (!resp) {
-        setAppealMsg("Appeal failed.", "err");
-        btn.disabled = false;
-        return;
-      }
-      if (resp.allow) {
-        setAppealMsg(
-          (resp.why || "Opened for this path") +
-            (resp.until ? " — until " + formatUntil(resp.until) : ""),
-          "ok"
-        );
-        window.setTimeout(function () {
-          window.location.href = reopenUrl(host, parsed.from);
-        }, 600);
-        return;
-      }
-      setAppealMsg(resp.why || "Review queued or denied.", resp.queued ? "" : "err");
-      btn.disabled = false;
-      if (resp.queued && resp.readyAt) {
-        btn.textContent = "Check review status";
-      }
-    } catch (err) {
-      setAppealMsg((err && err.message) || "Appeal failed.", "err");
-      btn.disabled = false;
-    }
-  };
-}
-
 refresh();
 setInterval(refresh, 8000);
-// Gate v2 removed 60s temp-allow — hide the box.
-(function hideTempAllowV2() {
-  const box = document.getElementById("tempAllowBox");
-  if (box) {
-    box.hidden = true;
-    box.style.display = "none";
-  }
-})();
-initAppealUi();
+initTempAllowUi();
 reportLockedPageLoad();

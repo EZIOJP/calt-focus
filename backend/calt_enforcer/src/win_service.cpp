@@ -130,7 +130,8 @@ void TickKills(const std::wstring& dbPath, EnforcerSnapshot& snapOut) {
     {
       ProductivityLockGuard lock;
       const bool bedtime = DayLoopBedtimeActive();
-      pauseArm = !bedtime && (ProductivityFreeDayOpen() || DayLoopStudyFreeOpen());
+      // Game Session naps Arm (and SoftLand free) for a timed gaming window.
+      pauseArm = !bedtime && (ProductivityFreeDayOpen() || DayLoopStudyFreeOpen() || GameSessionOpen());
     }
     const bool willKill = !pauseArm && snap.armed && (snap.locked || snap.incubation);
     if (willKill) {

@@ -20,6 +20,7 @@ Not Study: no GRE, notes banks, math coursework, or Python SoftLand on `:8000`.
 | Wearables | **ZeppBridge** pull → mirrors; CALT Sync `:8765` optional |
 | Export / import SoftLand lists / update check | Settings → **Data** |
 | **Body care** | Settings → **Day** — sit/stand + eye rest; optional Human.js webcam **or** Python MediaPipe sidecar → `body_care.json` (Health + export) |
+| **Game sleeper** | Settings → Unlock — low-CPU Focus while gaming (unload attention models, slow polls, optional tray hide). SoftLand ≠ Arm unchanged |
 | **End-of-day wrap** | Home — plan vs actual + off-plan-in-blocks + sleep + sit/stand; **Tomorrow’s one fix** + Close-the-day seal (local) |
 
 ## Day path (locked)

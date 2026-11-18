@@ -309,6 +309,7 @@ and kill into one verdict.
   | Armed + `gate_locked` | Yes (unless pauseArm) |
   | Armed + `incubation_active` | Yes (unless pauseArm) |
   | Free / study-free open | **No** — Arm paused; SoftLand porn rules still apply |
+  | Game Session active | **No** — Arm paused; FG tracking sleeps; app time-limit kills skipped |
   | Disarmed | No |
 
   Armed alone is **not** enough. The old line “while `hard_block_armed` is true,
@@ -483,7 +484,7 @@ today (`bible_required`); both clear study-temp kills (cursor) when granting fre
 
 Landing: `DayLoopLanding` — tasks, SoftLand/Site-block mode, planned vs tracked.
 
-**Dual-gate 1h free** (`day.evaluate_close`): checkboxes done (or zero tasks) **and** tracked ≥ 50% of today’s planned non-free block minutes → `free_until = now+60m` once per day. No SoftLand time-extend on incomplete tasks. **No plan carry-forward** — `plan.import_from_date` / `plan.roll_forward` return `carry_disabled`; shutdown may drop or leave-on-today only.
+**Dual-gate 1h free** (`day.evaluate_close`, **manual only**): checkboxes done (or zero tasks) **and** tracked ≥ 50% of today’s planned non-free block minutes **and** tracked ≥ daily focus goal → `free_until = now+60m` once per day. Dual-gate alone must not open YouTube while the daily goal is unmet. No SoftLand time-extend on incomplete tasks. **No plan carry-forward** — `plan.import_from_date` / `plan.roll_forward` return `carry_disabled`; shutdown may drop or leave-on-today only.
 
 **Confirm plan** is required. Due Bible slots (morning always, afternoon from 12:00, evening from 17:00) **and** ≥1 non-free planned minute (`plan_required` / `bible_required`). `planning_enabled` is forced on. An empty confirm is reopened and does not keep a goal-free window. Arm stays off until Confirm. SoftLand stays **on** for the host gate. **Follow** (`ApplyActivePlanToSoftland`) runs only when `plan_confirmed_for_date == today`.
 

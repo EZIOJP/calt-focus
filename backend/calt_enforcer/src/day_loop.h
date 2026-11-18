@@ -83,6 +83,16 @@ bool DayLoopBedtimeActive();
 std::string DayLoopEmergencyWinddown(const std::wstring& behaviorDir, const std::string& payload);
 
 /**
+ * Timed Game Session — SoftLand free + Arm pause + FG tracking sleep.
+ * SoftLand ≠ Arm under the hood; this is one UX that naps both for gaming.
+ * Requires an open free window (goal/reward/pass) and refuses during bedtime.
+ */
+bool GameSessionOpen();
+std::string GameSessionStart(const std::wstring& behaviorDir, int minutes, std::string* extraOut);
+std::string GameSessionStop(const std::wstring& behaviorDir, std::string* extraOut);
+bool PublishGameSessionMirror(const std::wstring& behaviorDir);
+
+/**
  * Disabled: unfinished plans do not carry across days (returns carry_disabled).
  */
 std::string DayLoopImportFromDate(const std::string& payload, int userId, std::string* extraOut);

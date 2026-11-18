@@ -42,10 +42,10 @@ Wake up
 | How you unlock | What you get |
 |----------------|--------------|
 | **Daily focus goal** | Free browsing until end of day |
-| **Check unlock** | +60 minutes once when chores + plan progress line up |
+| **Check unlock** | +60 minutes once when chores + plan progress **and** daily goal are met |
 | **Reward day** | A full free day after a qualifying streak (type `REWARD`) |
 | **Day pass** | A limited weekly pass (type `PASS`) |
-| **Earned minutes** | Small credits from Bible / plan / goal — spend in 15‑minute chunks |
+| **Game sleeper** | Low-CPU Focus while you game (unload attention models; SoftLand/Arm unchanged) |
 
 Planning stays on. Yesterday’s plan does not roll into today.
 
@@ -65,6 +65,64 @@ flowchart TD
 
 ---
 
+## Features (with screenshots)
+
+### Overview — two switches, one day
+
+Site block (browser) and Arm (OS kills) never share a switch. Overview shows what’s live and routes you to the right editor.
+
+![Settings Overview](docs/screenshots/01-overview.png)
+
+### Blocks · Sites — SoftLand lists
+
+Allow / Focus / Always rules for Edge. Study mode can block YouTube & watch list; free mode opens them after you’ve earned unlock. Adult filter can stay on in free.
+
+![Blocks · Sites](docs/screenshots/02-blocks-sites.png)
+
+### Blocks · Apps — Arm kill list
+
+Desktop apps on the kill list. Arm is its own switch under Unlock — SoftLand ON does not start kills.
+
+![Blocks · Apps](docs/screenshots/03-blocks-apps.png)
+
+### Blocks · Filters — host / device rules
+
+Optional host-file style filters for stubborn destinations.
+
+![Blocks · Filters](docs/screenshots/04-blocks-filters.png)
+
+### Unlock — goal, reward, pass, Arm
+
+Hit the daily focus goal after Bible + Confirm for free until midnight — or spend a reward day / day pass. Arm lives here as a separate control.
+
+![Unlock](docs/screenshots/05-unlock.png)
+
+### Day — body care + watch
+
+Sit/stand + eye rest run locally. Opt-in attention reader / posture coach uses webcam (or MediaPipe sidecar). Amazfit/Zepp sync prefers ZeppBridge.
+
+![Day · Body & watch](docs/screenshots/06-day-body.png)
+
+### Gate — tab-local SoftLand lock
+
+Edge extension redirects distraction tabs. Progress, time left to unlock, and shortcuts stay on the locked page — other tabs untouched.
+
+![Gate · YouTube blocked in STUDY](docs/screenshots/09-gate-youtube-blocked.png)
+
+### Data & Advanced
+
+Export/import SoftLand + productivity mirrors, update UI/stack, Appearance, optional OpenJarvis / Telegram.
+
+![Data](docs/screenshots/07-data.png)
+
+![Advanced](docs/screenshots/08-advanced.png)
+
+### Game sleeper (gaming CPU)
+
+On Unlock: **Sleep for gaming** unloads FaceTracker/Human.js, slows status polls, and can hide Focus to the tray. SoftLand and Arm stay as you left them — this is low-CPU Focus, not SoftLand free.
+
+---
+
 ## Two blockers — keep them separate
 
 | | **Site block** | **Arm** |
@@ -80,7 +138,7 @@ Deep rules: [`docs/BLOCKING_RULES.md`](docs/BLOCKING_RULES.md).
 
 ---
 
-## What you get
+## What you get (map)
 
 | Area | Highlights |
 |------|------------|
@@ -89,6 +147,7 @@ Deep rules: [`docs/BLOCKING_RULES.md`](docs/BLOCKING_RULES.md).
 | **Calendar & Plan** | Day/week/month, drag blocks, routines, sleep windows, actuals overlay |
 | **Bible & Journal** | Reader + morning/afternoon/evening devotion · mark done · journal autosave |
 | **Body care** | Sit/stand + eye rest + optional webcam posture; MediaPipe sidecar + in-app recalibrate |
+| **Game sleeper** | Low-CPU Focus while gaming — models off, slow polls, optional tray hide |
 | **Settings** | Overview · Blocks · Unlock · Day · Appearance · Profile · Data · Advanced |
 | **Gate** | Edge extension for site decisions + tab time |
 | **Health** | Amazfit/Zepp sync → sleep, steps, HR · body-care day card |
@@ -186,5 +245,6 @@ Everything important lives on disk: SQLite + small JSON mirrors. No account requ
 | [BODY_CARE.md](docs/BODY_CARE.md) | Sit/stand, eye rest, sidecar, recalibrate |
 | [FE_FLOWS.md](docs/FE_FLOWS.md) | Screen flows |
 | [WEARABLES.md](docs/WEARABLES.md) | Watch → PC |
+| [screenshots/](docs/screenshots/) | Product surface captures |
 | [examples/](docs/examples/) | Sample export + charts |
 | [AGENTS.md](AGENTS.md) | Contributor notes |

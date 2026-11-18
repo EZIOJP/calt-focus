@@ -580,6 +580,9 @@ class MsgHandler : public ICoreWebView2WebMessageReceivedEventHandler {
       else if (action == "start_api") wp = 14;
       else if (action == "start_frontend") wp = 15;
       else if (action == "start_web_stack") wp = 16;
+      else if (action == "sleeper_on") wp = 17;
+      else if (action == "sleeper_off") wp = 18;
+      else if (action == "sleeper_soft") wp = 19;
       if (wp) PostMessageW(shell_hwnd_, WM_FOCUS_SHELL, wp, 0);
       return S_OK;
     }

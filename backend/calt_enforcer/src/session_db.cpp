@@ -233,6 +233,29 @@ void SessionTracker::PublishFgLive() {
   }
 }
 
+namespace {
+
+bool GameSessionMirrorActive(const std::wstring& dbPath) {
+  size_t slash = dbPath.find_last_of(L"\\/");
+  std::wstring path =
+      (slash == std::wstring::npos ? std::wstring(L".") : dbPath.substr(0, slash)) +
+      L"\\behavior\\game_session.json";
+  HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                         OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+  if (h == INVALID_HANDLE_VALUE) return false;
+  char buf[512];
+  DWORD n = 0;
+  BOOL ok = ReadFile(h, buf, sizeof(buf) - 1, &n, nullptr);
+  CloseHandle(h);
+  if (!ok || n == 0) return false;
+  buf[n] = 0;
+  std::string body(buf, n);
+  return body.find("\"active\":true") != std::string::npos ||
+         body.find("\"active\": true") != std::string::npos;
+}
+
+}  // namespace
+
 void SessionTracker::Tick() {
   struct PublishOnExit {
     SessionTracker* self;
@@ -240,6 +263,14 @@ void SessionTracker::Tick() {
   } publish{this};
 
   ULONGLONG now = WallClockMs();
+
+  // Game Session: sleep FG tracking so gaming does not inflate productive minutes.
+  if (GameSessionMirrorActive(dbPath_)) {
+    if (!curExe_.empty()) CloseCurrent(now);
+    idle_ = true;
+    lastTickMs_ = now;
+    return;
+  }
 
   // Sleep / hibernate: wall clock jumped — close at last known tick (Python sleep_gap).
   if (lastTickMs_ > 0 && now > lastTickMs_ + kSleepGapMs && !curExe_.empty()) {

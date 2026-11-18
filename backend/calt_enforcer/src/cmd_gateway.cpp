@@ -612,6 +612,14 @@ std::string HandleOp(const std::string& op, const std::string& payload,
   if (op == "softland.emergency_winddown") {
     return DayLoopEmergencyWinddown(behaviorDir, payload);
   }
+  if (op == "game.session.start") {
+    int minutes = 60;
+    JsonGetInt(payload, "minutes", &minutes);
+    return GameSessionStart(behaviorDir, minutes, extraOut);
+  }
+  if (op == "game.session.stop") {
+    return GameSessionStop(behaviorDir, extraOut);
+  }
   if (op == "plan.import_from_date") {
     int userId = 1;
     JsonGetInt(payload, "user_id", &userId);

@@ -56,6 +56,9 @@ class FocusApp {
   void RefreshTrayTip();
   /** Phase C: push mirror snapshot into WebView (no pipe). */
   void PushStatusTick();
+  /** Game Sleeper: slow status push; optionally hide to tray (FE unloads models). */
+  void EnterGameSleeper(bool hide_window);
+  void LeaveGameSleeper();
   HICON MakeDotIcon();
 
   HINSTANCE instance_ = nullptr;
@@ -67,6 +70,7 @@ class FocusApp {
   bool webview_failed_ = false;
   UINT_PTR tip_timer_ = 0;
   UINT_PTR push_timer_ = 0;
+  bool game_sleeper_ = false;
   std::string last_status_push_fp_;
   std::wstring last_kill_toast_;
   bool kill_toast_primed_ = false;

@@ -43,6 +43,9 @@ constexpr WPARAM SHELL_RUN_STACK = 13;       // Ensure enforcer + open (tray ID_
 constexpr WPARAM SHELL_START_API = 14;       // Advanced → Study API
 constexpr WPARAM SHELL_START_FE = 15;        // Advanced → Study Vite
 constexpr WPARAM SHELL_START_WEB = 16;       // Advanced → API + Vite
+constexpr WPARAM SHELL_SLEEPER_ON = 17;      // Game Sleeper — hide + slow status push
+constexpr WPARAM SHELL_SLEEPER_OFF = 18;     // Wake from Game Sleeper
+constexpr WPARAM SHELL_SLEEPER_SOFT = 19;    // Game Sleeper — slow push, keep window
 
 UINT g_taskbar_created = 0;
 
@@ -351,6 +354,15 @@ LRESULT FocusApp::HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
       case SHELL_START_WEB:
         StartWebStack();
         return 0;
+      case SHELL_SLEEPER_ON:
+        EnterGameSleeper(/*hide_window=*/true);
+        return 0;
+      case SHELL_SLEEPER_OFF:
+        LeaveGameSleeper();
+        return 0;
+      case SHELL_SLEEPER_SOFT:
+        EnterGameSleeper(/*hide_window=*/false);
+        return 0;
       default:
         break;
     }
@@ -537,6 +549,8 @@ void FocusApp::ShowFocusWindow(bool maximize) {
     return;
   }
   if (webview_ && webview_->Ready()) {
+    // Tray Open after Game Sleeper hide must restore WebView visibility.
+    webview_->Show(true);
     if (HasPrebuiltWebUi()) {
       if (!EnsurePrebuiltUiReady()) {
         ShowOfflinePage();
@@ -1352,8 +1366,51 @@ std::string ReadUtf8File(const std::wstring& path) {
 
 }  // namespace
 
-void FocusApp::PushStatusTick() {
+void FocusApp::EnterGameSleeper(bool hide_window) {
+  game_sleeper_ = true;
+  if (msg_hwnd_) {
+    if (push_timer_) KillTimer(msg_hwnd_, kPushTimerId);
+    // Sparse keepalive while gaming — FE also slows its own ticker.
+    push_timer_ = SetTimer(msg_hwnd_, kPushTimerId, 60'000, nullptr);
+  }
+  if (hide_window) {
+    if (webview_ && webview_->Ready()) {
+      webview_->Show(false);
+    }
+    if (main_hwnd_) {
+      ShowWindow(main_hwnd_, SW_HIDE);
+    }
+    if (tray_) {
+      tray_->EnsureAdded();
+      tray_->ShowBalloon(
+          L"CALT Focus — Game sleeper",
+          L"Low-CPU mode. Window in tray; open anytime. SoftLand/Arm unchanged.");
+    }
+  } else if (tray_) {
+    tray_->ShowBalloon(
+        L"CALT Focus — Game sleeper",
+        L"Low-CPU mode (models off, slow polls). SoftLand/Arm unchanged.");
+  }
+}
+
+void FocusApp::LeaveGameSleeper() {
+  game_sleeper_ = false;
+  if (msg_hwnd_) {
+    if (push_timer_) KillTimer(msg_hwnd_, kPushTimerId);
+    push_timer_ = SetTimer(msg_hwnd_, kPushTimerId, 8000, nullptr);
+  }
   if (webview_ && webview_->Ready()) {
+    webview_->Show(true);
+  }
+  ShowFocusWindow(false);
+  if (tray_) {
+    tray_->ShowBalloon(L"CALT Focus", L"Game sleeper off — Focus awake.");
+  }
+}
+
+void FocusApp::PushStatusTick() {
+  // Skip bible/plan wake pops while Game Sleeper is on (gaming).
+  if (!game_sleeper_ && webview_ && webview_->Ready()) {
     SYSTEMTIME st{};
     GetLocalTime(&st);
     char today[16];

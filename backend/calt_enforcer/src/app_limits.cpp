@@ -512,6 +512,11 @@ bool Publish(const std::wstring& behaviorDir, const std::string& json, bool forc
 AppLimitTickResult TickAppTimeLimits(const std::wstring& dbPath, const std::wstring& behaviorDir) {
   AppLimitTickResult result;
   if (behaviorDir.empty()) return result;
+  const bool gameNap = [&]() {
+    std::string gs = ReadFileUtf8(behaviorDir + L"\\game_session.json");
+    return gs.find("\"active\":true") != std::string::npos ||
+           gs.find("\"active\": true") != std::string::npos;
+  }();
   std::string body = ReadFileUtf8(behaviorDir + L"\\app_limits.json");
   // Seed an empty mirror so Focus Settings can load without "Failed to fetch".
   if (body.empty()) {
@@ -526,6 +531,8 @@ AppLimitTickResult TickAppTimeLimits(const std::wstring& dbPath, const std::wstr
   Evaluated ev = Evaluate(dbPath, behaviorDir, enabled, rules);
   Publish(behaviorDir, ev.json, false);
 
+  // Game Session: keep usage mirrors, but do not kill Steam/etc for budget.
+  if (gameNap) return result;
   if (!enabled || rules.empty()) return result;
   std::vector<std::wstring> targets;
   for (const auto& r : rules) {

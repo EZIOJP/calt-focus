@@ -654,6 +654,11 @@ std::string DayLoopSnapshotObjectJson(const std::wstring& behaviorDir) {
   std::string bedJs = bedtime.empty() ? "null" : ("\"" + JsonEscape(bedtime) + "\"");
   std::string wakeJs = wake.empty() ? "null" : ("\"" + JsonEscape(wake) + "\"");
   std::string emJs = emergency.empty() ? "null" : ("\"" + JsonEscape(emergency) + "\"");
+  std::string gameUntil;
+  JsonGetString(s.document_json, "game_session_until", &gameUntil);
+  const bool gameActive = IsoStillActive(gameUntil, IsoLocalNow());
+  std::string gameJs =
+      gameActive && !gameUntil.empty() ? ("\"" + JsonEscape(gameUntil) + "\"") : "null";
 
   return std::string("{") + "\"date\":\"" + today + "\",\"planned_minutes\":" +
          std::to_string(planned) + ",\"tracked_productive_minutes\":" + std::to_string(tracked) +
@@ -665,7 +670,9 @@ std::string DayLoopSnapshotObjectJson(const std::wstring& behaviorDir) {
          ",\"closeout_free_granted\":" + (freeGranted ? "true" : "false") +
          ",\"free_until\":" + freeJs + ",\"bedtime_hm\":" + bedJs + ",\"wake_hm\":" + wakeJs +
          ",\"bedtime_active\":" + (bedtimeActive ? "true" : "false") +
-         ",\"emergency_until\":" + emJs + ",\"bible_done\":" + (bibleDone ? "true" : "false") +
+         ",\"emergency_until\":" + emJs + ",\"game_session_active\":" +
+         (gameActive ? "true" : "false") + ",\"game_session_until\":" + gameJs +
+         ",\"bible_done\":" + (bibleDone ? "true" : "false") +
          ",\"bible_afternoon_done\":" + (aftDone ? "true" : "false") +
          ",\"bible_evening_done\":" + (eveDone ? "true" : "false") +
          ",\"bible_due\":\"" + bibleDue + "\"" +
@@ -716,6 +723,17 @@ std::string DayLoopEvaluateClose(const std::wstring& behaviorDir, const std::wst
   if (!checkboxesOk || !timeOk) {
     if (extraOut)
       *extraOut = snapExtra + ",\"granted\":false,\"reason\":\"dual_gate_failed\"";
+    return "";
+  }
+
+  // SoftLand watch free (YouTube) requires the daily focus goal — dual-gate alone
+  // must not open FREE while goal_met is still false (was auto-granting at ~50% plan).
+  const int dailyFocus = DailyFocusMinutesFromDoc(s.document_json);
+  if (dailyFocus > 0 && tracked < dailyFocus) {
+    if (extraOut)
+      *extraOut = snapExtra +
+                  ",\"granted\":false,\"reason\":\"daily_goal_pending\",\"need_minutes\":" +
+                  std::to_string(dailyFocus) + ",\"tracked_minutes\":" + std::to_string(tracked);
     return "";
   }
 
@@ -950,10 +968,8 @@ bool DayLoopTick(const std::wstring& behaviorDir, const std::wstring& dbPath) {
 
   DayLoopMaybeGrantGoalFree(behaviorDir);
 
-  // Opportunistic close-out grant (idempotent)
-  std::string extra;
-  DayLoopEvaluateClose(behaviorDir, dbPath, &extra);
-  (void)extra;
+  // Closeout SoftLand free is manual only (`day.evaluate_close` / Check unlock).
+  // Auto-grant here opened YouTube after ~50% of planned minutes while daily goal unmet.
   PublishDayLoopMirror(behaviorDir);
   return changed;
 }
@@ -969,6 +985,74 @@ std::string DayLoopEmergencyWinddown(const std::wstring& behaviorDir, const std:
   std::string until = AddMinutesLocalIso(minutes);
   SetRuntimeString(s, "emergency_until", until, false);
   return SaveSoftland(s, behaviorDir);
+}
+
+bool PublishGameSessionMirror(const std::wstring& behaviorDir) {
+  if (behaviorDir.empty()) return false;
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return false;
+  const std::string now = IsoLocalNow();
+  std::string until;
+  JsonGetString(s.document_json, "game_session_until", &until);
+  const bool active = IsoStillActive(until, now);
+  if (!active) until.clear();
+  std::string started;
+  JsonGetString(s.document_json, "game_session_started_at", &started);
+  std::string body = std::string("{\"active\":") + (active ? "true" : "false") +
+                     ",\"until\":" + (until.empty() ? "null" : ("\"" + JsonEscape(until) + "\"")) +
+                     ",\"started_at\":" +
+                     (started.empty() || !active ? "null" : ("\"" + JsonEscape(started) + "\"")) +
+                     ",\"updated_at\":\"" + JsonEscape(now) + "\"}";
+  return WriteBehaviorMirrorFile(behaviorDir, L"game_session.json", body);
+}
+
+bool GameSessionOpen() {
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return false;
+  std::string until;
+  JsonGetString(s.document_json, "game_session_until", &until);
+  return IsoStillActive(until, IsoLocalNow());
+}
+
+std::string GameSessionStart(const std::wstring& behaviorDir, int minutes, std::string* extraOut) {
+  if (DayLoopBedtimeActive()) return "bedtime_active";
+  if (!(DayLoopStudyFreeOpen() || ProductivityFreeDayOpen())) return "need_free_time";
+  if (minutes < 15) minutes = 15;
+  if (minutes > 180) minutes = 180;
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return "store_load_failed";
+  const std::string now = IsoLocalNow();
+  const std::string until = AddMinutesLocalIso(minutes);
+  // SoftLand free covers sites; game_session_until marks tracker/Arm nap window.
+  if (!IsoStillActive(s.free_until, now) ||
+      (s.free_until.size() >= 19 && until.size() >= 19 && until > s.free_until.substr(0, 19))) {
+    s.free_until = until;
+  }
+  SetRuntimeString(s, "game_session_until", until, false);
+  SetRuntimeString(s, "game_session_started_at", now, false);
+  std::string err = SaveSoftland(s, behaviorDir);
+  if (!err.empty()) return err;
+  PublishGameSessionMirror(behaviorDir);
+  PublishDayLoopMirror(behaviorDir);
+  if (extraOut) {
+    *extraOut = ",\"game_session\":{\"active\":true,\"until\":\"" + JsonEscape(until) +
+                "\",\"minutes\":" + std::to_string(minutes) + "}";
+  }
+  return "";
+}
+
+std::string GameSessionStop(const std::wstring& behaviorDir, std::string* extraOut) {
+  ProductivitySoftland s;
+  if (!ProductivityLoadSoftland(s)) return "store_load_failed";
+  SetRuntimeString(s, "game_session_until", "", true);
+  SetRuntimeString(s, "game_session_started_at", "", true);
+  // Keep SoftLand free_until (goal/reward/pass) — only end the tracking/enforcer nap.
+  std::string err = SaveSoftland(s, behaviorDir);
+  if (!err.empty()) return err;
+  PublishGameSessionMirror(behaviorDir);
+  PublishDayLoopMirror(behaviorDir);
+  if (extraOut) *extraOut = ",\"game_session\":{\"active\":false,\"until\":null}";
+  return "";
 }
 
 std::string DayLoopImportFromDate(const std::string& payload, int userId, std::string* extraOut) {
