@@ -67,6 +67,14 @@ flowchart TD
 
 ## Features (with screenshots)
 
+_Captured from the current Focus UI (`npm run dev:focus` / WebView)._
+
+### Home — day board
+
+Mode, plan blocks, score / sleep / goal glance, todos, OpenJarvis.
+
+![Home](docs/screenshots/00-home.png)
+
 ### Overview — two switches, one day
 
 Site block (browser) and Arm (OS kills) never share a switch. Overview shows what’s live and routes you to the right editor.
@@ -91,9 +99,9 @@ Optional host-file style filters for stubborn destinations.
 
 ![Blocks · Filters](docs/screenshots/04-blocks-filters.png)
 
-### Unlock — goal, reward, pass, Arm
+### Unlock — goal, reward, pass, Arm, Game sleeper
 
-Hit the daily focus goal after Bible + Confirm for free until midnight — or spend a reward day / day pass. Arm lives here as a separate control.
+Hit the daily focus goal after Bible + Confirm for free until midnight — or spend a reward day / day pass. Arm is separate. **Game sleeper** drops Focus CPU while you game (models off; SoftLand/Arm unchanged).
 
 ![Unlock](docs/screenshots/05-unlock.png)
 
@@ -103,23 +111,27 @@ Sit/stand + eye rest run locally. Opt-in attention reader / posture coach uses w
 
 ![Day · Body & watch](docs/screenshots/06-day-body.png)
 
+### Bible — morning / afternoon / evening
+
+Devotion reader with mark-done slots that open the day gate.
+
+![Bible](docs/screenshots/10-bible.png)
+
 ### Gate — tab-local SoftLand lock
 
 Edge extension redirects distraction tabs. Progress, time left to unlock, and shortcuts stay on the locked page — other tabs untouched.
 
 ![Gate · YouTube blocked in STUDY](docs/screenshots/09-gate-youtube-blocked.png)
 
-### Data & Advanced
+### Appearance · Data · Advanced
 
-Export/import SoftLand + productivity mirrors, update UI/stack, Appearance, optional OpenJarvis / Telegram.
+Theme / sidebar look, export-import SoftLand mirrors, optional OpenJarvis / Telegram.
+
+![Appearance](docs/screenshots/11-appearance.png)
 
 ![Data](docs/screenshots/07-data.png)
 
 ![Advanced](docs/screenshots/08-advanced.png)
-
-### Game sleeper (gaming CPU)
-
-On Unlock: **Sleep for gaming** unloads FaceTracker/Human.js, slows status polls, and can hide Focus to the tray. SoftLand and Arm stay as you left them — this is low-CPU Focus, not SoftLand free.
 
 ---
 
